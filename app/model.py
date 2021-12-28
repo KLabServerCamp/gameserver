@@ -62,4 +62,8 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
     # このコードを実装してもらう
     with engine.begin() as conn:
         # TODO: 実装
-        pass
+        result = conn.execute(
+            text("UPDATE `user` SET name = :name, leader_card_id = :leader_card_id WHERE token = :token"),
+            {"name": name, "token": token, "leader_card_id": leader_card_id},
+        )
+        return

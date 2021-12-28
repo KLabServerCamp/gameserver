@@ -62,6 +62,6 @@ class Empty(BaseModel):
 @app.post("/user/update", response_model=Empty)
 def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
     """Update user attributes"""
-    # print(req)
+    #print(req)
     model.update_user(token, req.user_name, req.leader_card_id)
     return {}

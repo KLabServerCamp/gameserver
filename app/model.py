@@ -42,7 +42,6 @@ def create_user(name: str, leader_card_id: int) -> str:
 
 
 def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
-    # TODO: 実装
     result = conn.execute(
         text("SELECT `id`, `name`, `leader_card_id` FROM `user` WHERE `token`=:token"),
         dict(token=token),
@@ -76,4 +75,3 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
     with engine.begin() as conn:
         # TODO: 実装
         return _update_user(conn, token, name, leader_card_id)
-        # pass

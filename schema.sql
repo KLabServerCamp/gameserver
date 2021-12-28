@@ -7,3 +7,18 @@ CREATE TABLE `user` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `token` (`token`)
 );
+
+INSERT INTO user(id,name,token,leader_card_id) VALUES (0,'ほのか','asdfghjkl','12345');
+INSERT INTO user(id,name,token,leader_card_id) VALUES (0,'ことり','zxcv','88998');
+INSERT INTO user(id,name,token,leader_card_id) VALUES (0,'うみ','qwert','173248');
+
+INSERT INTO user
+  (id,name,token,leader_card_id)
+VALUES 
+  (0,'ほのか','asdfghjkl','12345'),
+  (0,'ことり','zxcv','88998'),
+  (0,'うみ','qwert','173248');
+
+SELECT * FROM user WHERE name='うみ';
+
+SELECT * FROM user WHERE name LIKE 'ほ%';

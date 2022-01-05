@@ -7,17 +7,20 @@ from pydantic import BaseModel
 from . import model
 from .model import SafeUser
 
+from . import room_model
+from . import room_function
+from .room_model import LiveDifficulty, JoinRoomResult, WaitRoomStatus, RoomInfo, RoomUser, ResultUser
+
 app = FastAPI()
 
-# Sample APIs
-
+####### Sample APIs #######
 
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
 
 
-# User APIs
+####### User APIs #######
 
 
 class UserCreateRequest(BaseModel):
@@ -66,4 +69,60 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
     model.update_user(token, req.user_name, req.leader_card_id)
     return {}
 
-#@app.post("/room/create", )
+
+ ####### Room APIs  #######
+
+
+class RoomCreateRequest(BaseModel):
+    live_id: int
+    select_difficulty: LiveDifficulty
+
+
+class RoomCreateResponse(BaseModel):
+    room_id: int
+
+
+class RoomListRequest(BaseModel):
+    live_id: int
+
+
+class RoomListResponse(BaseModel):
+    room_info_list: list[RoomInfo]
+
+
+class RoomJoinRequest(BaseModel):
+    room_id: int
+    select_difficulty: LiveDifficulty
+
+
+class RoomJoinResponse(BaseModel):
+    join_room_result: int#JoinRoomResult
+
+
+class RoomWaitRequest(BaseModel):
+    room_id: int
+
+
+class RoomWaitResponse(BaseModel):
+    status: WaitRoomStatus
+    room_user_list: list[RoomUser]
+
+    
+@app.post("/room/create", response_model=RoomCreateResponse)
+def room_create_api(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
+    res = room_function.room_create(req.live_id, req.select_difficulty, token)
+    return res
+
+
+@app.post("/room/list", response_model=RoomListResponse)
+def room_list_get_api(req: RoomListRequest):
+    res = room_function.room_list_get(req.live_id)
+    return res
+
+@app.post("/room/join", response_model=RoomJoinRequest)
+def join_room_api(req: RoomJoinRequest):
+    user = user_me(Depends(get_auth_token))
+    res = room_function.room_join(req.room_id, req.select_difficulty, user)
+    return res
+
+    

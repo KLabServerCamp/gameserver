@@ -165,3 +165,18 @@
 | name | type | memo |
 |---|---|---|
 | result_user_list | list[ResultUser] | 自身を含む各ユーザーの結果。※全員揃っていない待機中は[]が返却される想定 |
+
+
+### /room/leave
+ルーム退出リクエスト。オーナーも `/room/join` で参加した参加者も実行できる。
+
+#### Request
+| name | type | memo |
+|---|---|---|
+| room_id | int | 対象ルーム |
+
+#### Response
+| name | type | memo |
+|---|---|---|
+| | | |
+

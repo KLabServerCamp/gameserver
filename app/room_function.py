@@ -10,7 +10,6 @@ from sqlalchemy.exc import NoResultFound
 
 from .db import engine
 from .room_model import LiveDifficulty, JoinRoomResult, WaitRoomStatus, RoomInfo, RoomUser, ResultUser
-from .api import RoomWaitResponse
 from .model import SafeUser
 
 def _room_create(conn, live_id: int, select_difficulty: str, owner_token: str) -> int:
@@ -47,11 +46,11 @@ def room_list_get(live_id: int) -> list[RoomInfo]:
 
 def _room_join(conn, room_id: int, select_difficulty: LiveDifficulty, user: SafeUser):
     result = conn.execute(
-        text("INSERT INFO join (difficulty, user_id, room_id, is_me) VALUES (:select_dificulty, :user_id, :room_id, false)"),
-        {"select_difficulty": select_difficulty.name, "user_id": user.id, "room_id": room_id},
+        text("INSERT INTO `join_user` (difficulty, user_id, room_id) VALUES (:select_difficulty, :user_id, :room_id)"),
+        {"select_difficulty": select_difficulty.value, "user_id": user.id, "room_id": room_id},
     )
     room = conn.execute(
-        text("SELECT `id` AS room_id FROM `room` WHERE `room_id`= :room_id"),
+        text("SELECT `id` FROM `room` WHERE `id`= :room_id"),
         {"room_id": room_id},
     )
     try:
@@ -60,6 +59,10 @@ def _room_join(conn, room_id: int, select_difficulty: LiveDifficulty, user: Safe
         else:
             if(room.joined_user_account >= room.max_user_count):
                 res = {"join_room_result": 1}
+                conn.execute(
+                    text("UPDATE `room` SET joined_user_account = :joined_user_account where id = :room_id"),
+                    {"joined_user_account": room.joined_user_account + 1, room_id: room.id}
+                )
             else:
                 res = {"join_room_result": 2}
     except:

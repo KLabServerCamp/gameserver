@@ -96,16 +96,7 @@ class RoomJoinRequest(BaseModel):
 
 
 class RoomJoinResponse(BaseModel):
-    join_room_result: int#JoinRoomResult
-
-
-class RoomWaitRequest(BaseModel):
-    room_id: int
-
-
-class RoomWaitResponse(BaseModel):
-    status: WaitRoomStatus
-    room_user_list: list[RoomUser]
+    join_room_result: JoinRoomResult
 
     
 @app.post("/room/create", response_model=RoomCreateResponse)
@@ -119,9 +110,9 @@ def room_list_get_api(req: RoomListRequest):
     res = room_function.room_list_get(req.live_id)
     return res
 
-@app.post("/room/join", response_model=RoomJoinRequest)
-def join_room_api(req: RoomJoinRequest):
-    user = user_me(Depends(get_auth_token))
+@app.post("/room/join", response_model=RoomJoinResponse)
+def join_room_api(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
+    user = user_me(token)
     res = room_function.room_join(req.room_id, req.select_difficulty, user)
     return res
 

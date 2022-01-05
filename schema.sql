@@ -8,13 +8,12 @@ CREATE TABLE `user` (
   UNIQUE KEY `token` (`token`)
 );
 
-DROP TABLE IF EXISTS `join`;
-CREATE TABLE `join` (
+DROP TABLE IF EXISTS `join_user`;
+CREATE TABLE `join_user` (
   `id` bigint NOT NULL AUTO_INCREMENT,
-  `difficulty` varchar(255) DEFAULT NULL,
+  `difficulty` int DEFAULT NULL,
   `user_id` int DEFAULT NULL,
   `room_id` int DEFAULT NULL,
-  `is_me` boolean DEFAULT FALSE,
   `is_host` boolean DEFAULT FALSE,
   PRIMARY KEY (`id`)
 );
@@ -30,13 +29,15 @@ CREATE TABLE `room` (
   PRIMARY KEY (`id`)
 );
 
-INSERT INTO user(id,name,token,leader_card_id) VALUES (0,'ほのか','asdfghjkl','12345');
-INSERT INTO user(id,name,token,leader_card_id) VALUES (0,'ことり','zxcv','88998');
-INSERT INTO user(id,name,token,leader_card_id) VALUES (0,'うみ','qwert','173248');
+INSERT INTO user(name,token,leader_card_id) VALUES ('ほのか','asdfghjkl','12345');
+INSERT INTO user(name,token,leader_card_id) VALUES ('ことり','zxcv','88998');
+INSERT INTO user(name,token,leader_card_id) VALUES ('うみ','qwert','173248');
 
-INSERT INTO room(live_id,joined_user_account,max_user_count,owner_token) VALUES (1, 2, 4, 'asdfghjkl');
-INSERT INTO room(live_id,joined_user_account,max_user_count,owner_token) VALUES (2, 3, 4, 'zxcv');
-INSERT INTO room(live_id,joined_user_account,max_user_count,owner_token) VALUES (3, 1, 4, 'qwert');
+INSERT INTO room(live_id,joined_user_account,max_user_count,owner_token) VALUES (1, 1, 4, 'asdfghjkl');
+INSERT INTO room(live_id,joined_user_account,max_user_count,owner_token) VALUES (2, 1, 4, 'zxcv');
+
+INSERT INTO join_user(user_id,room_id) VALUES (0, 0);
+INSERT INTO join_user(user_id,room_id) VALUES (1, 1);
 
 SELECT * FROM user WHERE name='うみ';
 SELECT * FROM user WHERE name LIKE 'ほ%';

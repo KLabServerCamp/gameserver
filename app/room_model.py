@@ -29,17 +29,23 @@ class RoomInfo(BaseModel):
     class Config:
         orm_mode = True
 
-
 class RoomUser(BaseModel):
     user_id: int
     name: str
     leader_card_id: int
-    selected_difficulty: LiveDifficulty
+    select_difficulty: LiveDifficulty
     is_me: bool
     is_host: bool
+
+    class Config:
+        orm_mode = True
 
 
 class ResultUser(BaseModel):
     user_id: int
     judge_count_list: list[int]
     score: int
+
+class RoomWaitResponse(BaseModel):
+    status: WaitRoomStatus
+    room_user_list: list[RoomUser]

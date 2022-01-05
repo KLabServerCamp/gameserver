@@ -50,7 +50,7 @@ def _room_join(conn, room_id: int, select_difficulty: LiveDifficulty, user: Safe
         text("INSERT INFO join (difficulty, user_id, room_id, is_me) VALUES (:select_dificulty, :user_id, :room_id, false)"),
         {"select_difficulty": select_difficulty.name, "user_id": user.id, "room_id": room_id},
     )
-    room = conn.execut(
+    room = conn.execute(
         text("SELECT `id` AS room_id FROM `room` WHERE `room_id`= :room_id"),
         {"room_id": room_id},
     )

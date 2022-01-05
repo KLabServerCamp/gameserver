@@ -52,7 +52,7 @@
 | name | str | ユーザー名 |
 | leader_card_id | int | 設定アバター |
 | select_difficulty | LiveDifficulty | 選択難易度 |
-| is_me | bool | リクエスト投げたユーザーと同じか ※user_idが事前にクライアントに返されるのであれば不要 |
+| is_me | bool | リクエスト投げたユーザーと同じか |
 | is_host | bool | 部屋を立てた人か |
 
 ### ResultUser

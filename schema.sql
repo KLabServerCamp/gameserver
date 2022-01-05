@@ -26,6 +26,7 @@ CREATE TABLE `room` (
   `joined_user_account` int DEFAULT 0,
   `max_user_count` int DEFAULT 1,
   `owner_token` varchar(255) DEFAULT NULL,
+  `is_dissolution	` boolean DEFAULT FALSE,
   PRIMARY KEY (`id`)
 );
 

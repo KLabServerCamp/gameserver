@@ -50,7 +50,21 @@ def _room_join(conn, room_id: int, select_difficulty: LiveDifficulty, user: Safe
         text("INSERT INFO join (difficulty, user_id, room_id, is_me) VALUES (:select_dificulty, :user_id, :room_id, false)"),
         {"select_difficulty": select_difficulty.name, "user_id": user.id, "room_id": room_id},
     )
-    return {"join_room_result": 0}
+    room = conn.execut(
+        text("SELECT `id` AS room_id FROM `room` WHERE `room_id`= :room_id"),
+        {"room_id": room_id},
+    )
+    try:
+        if(room.is_dissolution):
+            res = {"join_room_result": 3}
+        else:
+            if(room.joined_user_account >= room.max_user_count):
+                res = {"join_room_result": 1}
+            else:
+                res = {"join_room_result": 2}
+    except:
+        return {"join_room_result": 4}
+    return res
 
 
 def room_join(room_id: int, select_difficulty: LiveDifficulty, user: SafeUser) -> JoinRoomResult:

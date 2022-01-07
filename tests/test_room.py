@@ -25,7 +25,9 @@ def _auth_header(i=0):
 
 def test_room_1():
     response = client.post(
-        "/room/create", headers=_auth_header(), json={"live_id": 1001}
+        "/room/create",
+        headers=_auth_header(),
+        json={"live_id": 1001, "select_difficulty": 1},
     )
     assert response.status_code == 200
 

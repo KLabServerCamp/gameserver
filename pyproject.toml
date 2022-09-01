@@ -1,3 +1,28 @@
-[tool.isort]
-profile = "black"
-multi_line_output = 3
+[tool.poetry]
+name = "gameserver"
+version = "0.1.0"
+description = "KLabServerSideCamp"
+authors = ["Hiroya-W <hyuyukun@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+fastapi = "^0.81.0"
+uvicorn = {extras = ["standard"], version = "^0.18.3"}
+SQLAlchemy = "^1.4.40"
+requests = "^2.28.1"
+mysqlclient = "^2.1.1"
+
+
+[tool.poetry.group.dev.dependencies]
+black = "^22.8.0"
+isort = "^5.10.1"
+flake8 = "^5.0.4"
+mypy = "^0.971"
+pytest = "^7.1.2"
+ipython = "^8.4.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

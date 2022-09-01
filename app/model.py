@@ -61,5 +61,10 @@ def get_user_by_token(token: str) -> Optional[SafeUser]:
 def update_user(token: str, name: str, leader_card_id: int) -> None:
     # このコードを実装してもらう
     with engine.begin() as conn:
-        # TODO: 実装
-        pass
+        result = conn.execute(
+            text(
+                "INSERT INTO `user` (name, token, leader_card_id) VALUES (:name, :token, :leader_card_id)"
+            ),
+            {"name": name, "token": token, "leader_card_id": leader_card_id},
+        )
+        # print(result)

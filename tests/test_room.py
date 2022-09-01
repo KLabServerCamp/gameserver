@@ -6,7 +6,7 @@ client = TestClient(app)
 user_tokens = []
 
 
-def _create_users():
+def _create_users() -> None:
     for i in range(10):
         response = client.post(
             "/user/create",
@@ -18,12 +18,12 @@ def _create_users():
 _create_users()
 
 
-def _auth_header(i=0):
+def _auth_header(i: int = 0) -> dict[str, str]:
     token = user_tokens[i]
     return {"Authorization": f"bearer {token}"}
 
 
-def test_room_1():
+def test_room_1() -> None:
     response = client.post(
         "/room/create",
         headers=_auth_header(),

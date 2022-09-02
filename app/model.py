@@ -32,6 +32,30 @@ class SafeUser(BaseModel):
         orm_mode = True
 
 
+class RoomInfo(BaseModel):
+    """ルーム情報
+
+    Attributes
+    ----------
+    room_id: int
+        部屋識別子
+    live_id: int
+       プレイ対象の楽曲識別子
+    joined_user_count: int
+        部屋に入っている人数
+    max_user_count: int
+        部屋の最大人数
+    """
+
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int
+
+    class Config:
+        orm_mode = True
+
+
 def create_user(name: str, leader_card_id: int) -> str:
     """Create new user and returns their token"""
     token = str(uuid.uuid4())
@@ -113,3 +137,26 @@ def insert_room_member(
                 is_owner=is_owner,
             ),
         )
+
+
+def get_room_list(room_id: int) -> list[RoomInfo]:
+    with engine.begin() as conn:
+        res = conn.execute(
+            text(
+                """
+                SELECT
+                    room.room_id,
+                    room.live_id,
+                    count(room_member.user_token) as joined_user_count,
+                    4 as max_user_count
+                FROM
+                    room
+                    JOIN room_member
+                        ON room.room_id = room_member.room_id
+                WHERE
+                    room.room_id = :room_id
+            """
+            ),
+            dict(room_id=room_id),
+        )
+        return [RoomInfo.from_orm(row) for row in res]

@@ -152,3 +152,7 @@ class RoomEndRequest(BaseModel):
 def room_end(req: RoomEndRequest):
     model.end_room()
 
+@app.get("/room/result", response=list[ResultUser])
+def room_result(room_id: int):
+    res = model.get_result_users(room_id)
+    return res

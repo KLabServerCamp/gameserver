@@ -208,3 +208,23 @@ def post_result(room_id: int, result_user: ResultUser):
 def end_room(user_id: int, room_id: int, judge_count_list: list[int], score: int): 
     post_result(room_id, ResultUser("user_id": user_id, "judge_count_list": judge_count_list, "score": score)) 
     update_wait_room_status(room_id, WaitRoomStatus.Dissolution)
+    
+def get_result_user_list(room_id: int) -> list[ResultUser]:
+    with engine.begin() as conn:
+        result = conn.execute(
+            # TODO: judge_count_listの扱いどうしよう
+            text(
+                "SELECT `user_id`, `judge_count_list`, `score` FROM room_member WHERE room_id=:room_id"
+            ),
+            {"room_id": room_id}
+        )
+    result_user_list: list[ResultUser]
+    for row in result:
+        result_user_list.append(
+            ResultUser(
+                user_id=user_id,
+                judge_count_lsit=judge_count_list,
+                score=score
+            )
+        )
+    return result_user_list

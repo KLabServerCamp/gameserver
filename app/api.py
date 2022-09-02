@@ -70,7 +70,6 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
 # 以下マルチプレイ用API
 
 
-
 class RoomCreateRequest(BaseModel):
     live_id: int
     select_difficulty: model.LiveDifficulty
@@ -85,3 +84,18 @@ def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
     """新規ルーム作成"""
     room_id = model.create_room(token, req.live_id, req.select_difficulty)
     return RoomCreateResponse(room_id=room_id)
+
+
+class RoomListRequest(BaseModel):
+    live_id: int
+
+
+class RoomListResponse(BaseModel):
+    room_info_list: list[model.RoomInfo]
+
+
+@app.post("/room/list", response_model=RoomListResponse)
+def room_list(req: RoomListRequest):
+    """ルームリスト作成"""
+    room_info_list = model.room_list(req.live_id)
+    return RoomListResponse(room_info_list=room_info_list)

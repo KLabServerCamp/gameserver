@@ -119,7 +119,7 @@ class ResultUser(BaseModel):
     score: int
 
 
-def _create_room(conn, user: SafeUser, live_id: int, live_dif: LiveDifficulty):
+def _create_room(conn, user: SafeUser, live_id: int, live_dif: LiveDifficulty) -> int:
     users = {0: [user.id, user.leader_card_id, live_dif.value]}
     users_json = json.dumps(users)
     result = conn.execute(
@@ -133,9 +133,31 @@ def _create_room(conn, user: SafeUser, live_id: int, live_dif: LiveDifficulty):
     return room_id
 
 
-def create_room(token: str, live_id: int, live_dif: LiveDifficulty):
+def create_room(token: str, live_id: int, live_dif: LiveDifficulty) -> int:
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
-        if user == None:
+        if user is None:
             raise InvalidToken("指定されたtokenが不正です")
         return _create_room(conn, user, live_id, live_dif)
+
+
+def _room_list(conn, live_id: int) -> list[RoomInfo]:
+    execute_sent = "SELECT room_id, live_id, j_usr_cnt, m_usr_cnt FROM rooms"
+    result = None
+    if live_id != 0:
+        result = conn.execute(text(execute_sent))
+    else:
+        result = conn.execute(
+            text(execute_sent + " WHERE live_id = :live_id"),
+            {"live_id": live_id}
+        )
+    rows = result.all()
+    room_infos = [RoomInfo(room_id=row.room_id, live_id=row.live_id,
+                           joined_user_count=row.j_usr_cnt,
+                           max_user_cout=row.m_usr_cnt) for row in rows]
+    return room_infos
+
+
+def room_list(live_id: int) -> list[RoomInfo]:
+    with engine.begin() as conn:
+        return _room_list(conn, live_id)

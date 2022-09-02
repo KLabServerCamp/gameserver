@@ -24,6 +24,13 @@ class WaitRoomStatus(IntEnum):
     dissolution = 3
 
 
+class JoinRoomResult(IntEnum):
+    ok = 1
+    roomFull = 2
+    disbanded = 3
+    otherError = 4
+
+
 class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げる"""
 
@@ -187,3 +194,58 @@ def get_room_users(token: str, room_id: int) -> list[RoomUser]:
             res.append(tmp)
 
         return WaitRoomStatus(status), res
+
+
+def join_room(
+    token: str, room_id: int, select_difficulty: LiveDifficulty
+) -> JoinRoomResult:
+    with engine.begin() as conn:
+        usr = _get_user_by_token(conn, token)
+        if usr is None:
+            return JoinRoomResult.otherError
+
+        result = conn.execute(
+            text(
+                "SELECT `joined_user_count`, `max_user_count`, `status` FROM `room` WHERE `room_id`=:room_id"
+            ),
+            dict(room_id=room_id),
+        )
+        try:
+            room = result.one()
+        except NoResultFound as e:
+            return JoinRoomResult.otherError
+
+        # 満員時
+        if room.joined_user_count >= room.max_user_count:
+            return JoinRoomResult.roomFull
+
+        # 既に解散済み
+        if room.status == WaitRoomStatus.dissolution:
+            return JoinRoomResult.disbanded
+
+        # memberにinsert
+        try:
+            conn.execute(
+                text(
+                    "INSERT INTO `room_member` (`room_id`, `user_id`, `select_difficulty`, `is_host`) VALUES (:room_id, :user_id, :select_difficulty, :is_host)"
+                ),
+                dict(
+                    room_id=room_id,
+                    user_id=usr.id,
+                    select_difficulty=int(select_difficulty),
+                    is_host=False,
+                ),
+            )
+
+            # 参加人数を増やす
+            conn.execute(
+                text(
+                    "UPDATE `room` SET `joined_user_count`=:count WHERE `room_id`=:room_id"
+                ),
+                dict(count=room.joined_user_count + 1, room_id=room_id),
+            )
+        except Exception as e:
+            print(e)
+            return JoinRoomResult.otherError
+
+        return JoinRoomResult.ok

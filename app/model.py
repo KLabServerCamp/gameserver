@@ -82,8 +82,8 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
 def create_room(live_id: int, select_difficulty: int, user_id: int) -> int:
     with engine.begin() as conn:
         result = conn.execute(
-            text("INSERT INTO `room` (live_id) VALUES (:live_id)"),
-            {"live_id": live_id},
+            text("INSERT INTO `room` (live_id, owner) VALUES (:live_id, :owner)"),
+            {"live_id": live_id, "owner": user_id},
         )
 
         room_id = result.lastrowid
@@ -97,3 +97,6 @@ def create_room(live_id: int, select_difficulty: int, user_id: int) -> int:
         )
 
     return room_id
+
+def get_room_by_live_id(live_id: int):
+    pass

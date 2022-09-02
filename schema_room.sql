@@ -2,6 +2,7 @@ DROP TABLE IF EXISTS `room`;
 CREATE TABLE `room` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `live_id` int NOT NULL,
+  `owner` bigint NOT NULL,
   PRIMARY KEY (`id`)
 );
 

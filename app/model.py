@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
-from app.api import LiveDifficulty
+from app.api import LiveDifficulty, RoomInfo
 
 from .db import engine
 
@@ -93,3 +93,22 @@ def create_room(live_id: int, select_difficulty: LiveDifficulty) -> int:
         )
     room_id = result.lastrowid
     return room_id
+
+def get_room_list(live_id: int):
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT * FROM `room` WHERE live_id=:live_id"
+            ),
+            {"live_id": live_id}
+        )
+    room_list = list[RoomInfo]
+    for row in result:
+        room_list.append(
+            RoomInfo(
+                room_id=row.room_id,
+                live_id=row.live_id,
+                joined_user_count=row.joined_user_count,
+                max_user_count=row.max_user_count
+            )
+        )

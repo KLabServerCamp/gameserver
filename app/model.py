@@ -77,3 +77,23 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
     return None
+
+
+def create_room(live_id: int, select_difficulty: int, user_id: int) -> int:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("INSERT INTO `room` (live_id) VALUES (:live_id)"),
+            {"live_id": live_id},
+        )
+
+        room_id = result.lastrowid
+
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "INSERT INTO `room_member` (room_id, user_id) VALUES (:room_id, :user_id)"
+            ),
+            {"room_id": room_id, "user_id": user_id},
+        )
+
+    return room_id

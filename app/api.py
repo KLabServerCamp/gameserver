@@ -65,3 +65,24 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
     # print(req)
     model.update_user(token, req.user_name, req.leader_card_id)
     return {}
+
+
+# Room APIs
+
+
+class RoomCreateRequest(BaseModel):
+    live_id: int
+    select_difficulty: int
+
+
+class RoomCreateResponse(BaseModel):
+    room_id: int
+
+
+@app.post("/room/create", response_model=RoomCreateResponse)
+def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
+    user = model.get_user_by_token(token)
+    user_id = user.id
+    room_id = model.create_room(req.live_id, req.select_difficulty, user_id)
+
+    return RoomCreateResponse(room_id=room_id)

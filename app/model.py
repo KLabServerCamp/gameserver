@@ -1,8 +1,8 @@
 import json
-from unittest import result
 import uuid
 from enum import Enum, IntEnum
 from typing import Optional
+from unittest import result
 
 from fastapi import HTTPException
 from pydantic import BaseModel
@@ -47,9 +47,9 @@ def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
     # TODO: 実装
     result = conn.execute(
         text(
-                "SELECT `id`, `name`, `leader_card_id` FROM `user` \
+            "SELECT `id`, `name`, `leader_card_id` FROM `user` \
                     WHERE `token`=:token"
-            ),
+        ),
         {"token": token},
     )
     try:

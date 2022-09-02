@@ -9,6 +9,12 @@ from .model import SafeUser
 
 app = FastAPI()
 
+
+class LiveDifficulty(Enum):
+    NORMAL = 1
+    HARD = 2
+
+
 # Sample APIs
 
 
@@ -27,6 +33,33 @@ class UserCreateRequest(BaseModel):
 
 class UserCreateResponse(BaseModel):
     user_token: str
+
+
+class RoomCreateRequest(BaseModel):
+    """Room作成時のリクエスト
+
+    Parameters
+    ----------
+    live_id: int
+        ルームで遊ぶ楽曲のID
+    select_difficulty: LiveDifficulty
+        選択難易度
+    """
+
+    live_id: int
+    select_difficulty: LiveDifficulty
+
+
+class RoomCreateResponse(BaseModel):
+    """Room作成時のレスポンス
+
+    Parameters
+    ----------
+    room_id: int
+        発行されたルームのID（以後の通信はこのiDを添える）
+    """
+
+    room_id: int
 
 
 @app.post("/user/create", response_model=UserCreateResponse)
@@ -65,3 +98,15 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)) -> dict
     # print(req)
     model.update_user(token, req.user_name, req.leader_card_id)
     return {}
+
+
+# Room APIs
+
+
+@app.post("/room/create", response_model=RoomCreateResponse)
+def create_room(
+    req: RoomCreateRequest, token: str = Depends(get_auth_token)
+) -> RoomCreateResponse:
+    room_id = model.create_room(token, req.live_id)
+    # TODO: オーナが選択したselect_difficultyを保存する
+    return RoomCreateResponse(room_id=room_id)

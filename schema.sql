@@ -20,10 +20,11 @@ CREATE TABLE `room` (
 -- TODO: 外部キー制約を貼る
 DROP TABLE IF EXISTS `room_member`;
 CREATE TABLE `room_member` (
-  `room_member_id` bigint NOT NULL AUTO_INCREMENT,
   `room_id` bigint NOT NULL,
   `user_id` bigint NOT NULL,
-  PRIMARY KEY (`room_member_id`)
+  `select_difficulty` int NOT NULL,
+  `is_host` boolean NOT NULL,
+  PRIMARY KEY (`room_id`, `user_id`)
 );
 
 -- testデータ

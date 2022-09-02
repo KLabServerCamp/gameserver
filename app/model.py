@@ -10,6 +10,13 @@ from sqlalchemy.exc import NoResultFound
 
 from .db import engine
 
+MAX_USER = 4
+
+# Enums
+class LiveDifficulty(IntEnum):
+    normal = 1
+    hard = 2
+
 
 class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げる"""
@@ -90,3 +97,35 @@ def get_rooms(live_id: int = 0):
                 dict(live_id=live_id),
             )
         return result
+
+
+def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty) -> int:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "INSERT INTO `room` (live_id, joined_user_count, max_user_count) VALUES (:live_id, 1, :max_user_count)"
+            ),
+            dict(live_id=live_id, max_user_count=MAX_USER),
+        )
+        room_id = result.lastrowid
+
+        # この部屋を作成したユーザを特定
+        result = conn.execute(
+            text("SELECT `id` FROM `user` WHERE `token`=:token"), dict(token=token)
+        )
+        owner_id = result.one().id
+
+        # room_memberにオーナーを登録
+        result = conn.execute(
+            text(
+                "INSERT INTO `room_member` (`room_id`, `user_id`, `select_difficulty`, `is_host`) VALUES (:room_id, :user_id, :select_difficulty, :is_host)"
+            ),
+            dict(
+                room_id=room_id,
+                user_id=owner_id,
+                select_difficulty=int(select_difficulty),
+                is_host=True,
+            ),
+        )
+
+        return room_id

@@ -75,7 +75,7 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
 
 # room APIs
 class RoomListRequest(BaseModel):
-    live_id: int
+    live_id: int = -1
 
 
 class RoomInfo(BaseModel):
@@ -91,7 +91,11 @@ class RoomListResponse(BaseModel):
 
 @app.post("/room/list", response_model=RoomListResponse)
 def room_list(req: RoomListRequest):
-    rooms = model.get_rooms()
+    print(req.live_id)
+    if req.live_id == 0:
+        rooms = model.get_rooms()
+    else:
+        rooms = model.get_rooms(req.live_id)
     tmp = []
     for room in rooms.all():
         tmp.append(
@@ -102,4 +106,5 @@ def room_list(req: RoomListRequest):
                 max_user_count=room.max_user_count,
             )
         )
+    print(tmp)
     return RoomListResponse(room_info_list=tmp)

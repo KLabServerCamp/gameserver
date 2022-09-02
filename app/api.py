@@ -186,4 +186,5 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
 
 @app.post("room/create", response_model=RoomCreateResponse)
 def room_create(req: RoomCreateRequest):
-    pass
+    user_data = user_me()
+    

@@ -1,6 +1,6 @@
 import json
 import uuid
-from enum import Enum, IntEnum
+from enum import IntEnum
 from typing import Optional
 
 import sqlalchemy.engine.base
@@ -10,6 +10,11 @@ from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
 from .db import engine
+
+
+class LiveDifficulty(IntEnum):
+    NORMAL = 1
+    HARD = 2
 
 
 class InvalidToken(Exception):

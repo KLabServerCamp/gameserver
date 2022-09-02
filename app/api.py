@@ -1,18 +1,11 @@
-from enum import Enum
-
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from . import model
-from .model import SafeUser
+from .model import LiveDifficulty, SafeUser
 
 app = FastAPI()
-
-
-class LiveDifficulty(Enum):
-    NORMAL = 1
-    HARD = 2
 
 
 # Sample APIs

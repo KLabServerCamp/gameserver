@@ -168,7 +168,7 @@ def _list_room(
                 max_user_count=row.max_user_count
             )
         )
-    print(output)
+    # print(output)
     return output
 
 

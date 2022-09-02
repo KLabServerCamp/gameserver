@@ -98,11 +98,15 @@ class RoomListRequest(BaseModel):
     live_id: int
 
 
-class RoomListResponse(BaseModel):
+class RoomInfo(BaseModel):
     room_id: int
     live_id: int
     joined_user_count: int
     max_user_count: int
+
+
+class RoomListResponse(BaseModel):
+    room_info_list: list[RoomInfo]
 
 
 @app.post("/room/list", response_model=RoomListResponse)
@@ -111,18 +115,14 @@ def room_list(req: RoomListRequest, token: str = Depends(get_auth_token)):
     # 入力：曲ID
     # 出力：部屋一覧
     rows = model.list_room(token, req.live_id)
-    print("あああああああ")
-    print(rows)
-    print("あああああああ")
+    # print(rows)
     output = []
     for row in rows:
-        element = RoomListResponse(
+        element = RoomInfo(
             room_id=row["room_id"], live_id=row["live_id"],
             joined_user_count=row["joined_user_count"],
             max_user_count=row["max_user_count"]
         )
         output.append(element)
-    print("いいいいいいい")
-    print(output)
-    print("いいいいいいい")
-    return output[0]
+    # print(output)
+    return RoomListResponse(room_info_list=output)

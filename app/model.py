@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
-from app.api import JoinRoomResult, LiveDifficulty, RoomInfo, RoomWaitResponse
+from app.api import JoinRoomResult, LiveDifficulty, ResultUser, RoomInfo, RoomWaitResponse, WaitRoomStatus
 
 from .db import engine
 
@@ -190,3 +190,21 @@ def update_wait_room_status(room_id: int, wait_room_status: WaitRoomStaus):
             ),
             {"wait_room_status": wait_room_status, "room_id": room_id}
         )
+
+# TODO: 実装途中
+def post_result(room_id: int, result_user: ResultUser):
+    with engine.begin() as conn:
+        result = conn.execute(
+            # TODO: judge_count_listの扱いどうしよう
+            text(
+                "UPDATE `room_member` SET \
+                    \
+                    WHERE room_id=:room_id AND user_id=:user_id"
+            ),
+            # TODO: 中身入れる
+            {}
+        )
+
+def end_room(user_id: int, room_id: int, judge_count_list: list[int], score: int): 
+    post_result(room_id, ResultUser("user_id": user_id, "judge_count_list": judge_count_list, "score": score)) 
+    update_wait_room_status(room_id, WaitRoomStatus.Dissolution)

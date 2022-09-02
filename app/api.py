@@ -143,3 +143,12 @@ def wait_room(room_id: int):
 def room_start(room_id: int):
     model.update_wait_room_status(room_id, WaitRoomStatus.LiveStart)
 
+class RoomEndRequest(BaseModel):
+    room_id: int
+    score: int
+    judge_count_list: list[int]
+
+@app.post("/room/end")
+def room_end(req: RoomEndRequest):
+    model.end_room()
+

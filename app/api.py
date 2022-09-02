@@ -58,7 +58,7 @@ class RoomCreateResponse(BaseModel):
 class RoomListRequest(BaseModel):
     """Room一覧取得時のリクエスト
 
-    Parameters
+    Attributes
     ----------
     live_id: int
         ルームで遊ぶ楽曲のID（※0はワイルドカード。全てのルームを対象とする）
@@ -70,7 +70,7 @@ class RoomListRequest(BaseModel):
 class RoomListResponse(BaseModel):
     """Room一覧取得時のレスポンス
 
-    Parameters
+    Attributes
     ----------
     room_info_list: list[RoomInfo]
         ルーム一覧

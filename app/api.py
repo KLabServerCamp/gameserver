@@ -17,6 +17,12 @@ async def root():
     return {"message": "Hello World"}
 
 
+# Enums
+class LiveDifficulty(Enum):
+    normal = 1
+    hard = 2
+
+
 # User APIs
 
 
@@ -65,3 +71,35 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
     # print(req)
     model.update_user(token, req.user_name, req.leader_card_id)
     return {}
+
+
+# room APIs
+class RoomListRequest(BaseModel):
+    live_id: int
+
+
+class RoomInfo(BaseModel):
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int
+
+
+class RoomListResponse(BaseModel):
+    room_info_list: list[RoomInfo]
+
+
+@app.post("/room/list", response_model=RoomListResponse)
+def room_list(req: RoomListRequest):
+    rooms = model.get_rooms()
+    tmp = []
+    for room in rooms.all():
+        tmp.append(
+            RoomInfo(
+                room_id=room.room_id,
+                live_id=room.live_id,
+                joined_user_count=room.joined_user_count,
+                max_user_count=room.max_user_count,
+            )
+        )
+    return RoomListResponse(room_info_list=tmp)

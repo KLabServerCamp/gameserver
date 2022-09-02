@@ -71,3 +71,22 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
             ),
             dict(name=name, leader_card_id=leader_card_id, token=token),
         )
+
+
+# Models for room
+def get_rooms(live_id: int = -1):
+    with engine.begin() as conn:
+        if live_id == -1:
+            result = conn.execute(
+                text(
+                    "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room`"
+                )
+            )
+        else:
+            result = conn.execute(
+                text(
+                    "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `live_id`=:live_id"
+                ),
+                dict(live_id=live_id),
+            )
+        return result

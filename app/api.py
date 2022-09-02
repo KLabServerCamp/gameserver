@@ -136,5 +136,5 @@ class RoomWaitResponse(BaseModel):
 
 @app.get("/room/wait", response=RoomWaitResponse)
 def wait_room(room_id: int):
-    res = get_room_wait(room_id)
+    res = model.get_room_wait(room_id)
     return res

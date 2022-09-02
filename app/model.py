@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
-from app.api import JoinRoomResult, LiveDifficulty, RoomInfo
+from app.api import JoinRoomResult, LiveDifficulty, RoomInfo, RoomWaitResponse
 
 from .db import engine
 
@@ -120,7 +120,7 @@ def get_room_list(live_id: int) -> list[RoomInfo]:
 #     with engine.begin() as conn:
 #         result = conn.execute(
 #             text(
-#                 "INSERTT INTO `room_user` SET \
+#                 "INSERTT INTO `room_member` SET \
 #                     `room_id`=:room_id, \
 #                     `user_id`=:user_id \
 #                     `name`=:name \
@@ -145,7 +145,7 @@ def _get_room_user(roomid: int) -> list[RoomUser]:
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "SELECT * FROM `room_user` WHERE room_id=:room_id"
+                "SELECT * FROM `room_member` WHERE room_id=:room_id"
             ),
             {"room_id": room_id}
         )
@@ -153,12 +153,12 @@ def _get_room_user(roomid: int) -> list[RoomUser]:
     for row in result:
         room_user_list.append(
             RoomUser(
-                user_id=row.user_id,
-                name=row.name,
-                leader_card_id=row.leader_card_id,
-                select_difficulty=row.select_diffculty,
-                is_me=row.is_me,
-                is_host=row.is_host
+                user_id=row[user_id],
+                name=row[name],
+                leader_card_id=row[leader_card_id],
+                select_difficulty=row[select_diffculty],
+                is_me=row[is_me],
+                is_host=row[is_host]
             )
         )
     return room_user_list
@@ -168,15 +168,16 @@ def get_room_wait(room_id: int):
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "SELECT wait_room_status FROM `room_info` WHERE room_id=:room_id"
+                "SELECT wait_room_status FROM `room` WHERE room_id=:room_id"
             ),
             {"room_id": room_id}
         )
     if len(reslut) == 0:
-        return NULL
+        return null
     assert len(result) == 1
+
     res = result.one
     return RoomWaitResponse(
-        wait_room_status=res.wait_room_status
+        wait_room_status=res[wait_room_status]
         room_user_list = _get_room_user(room_id)
     )

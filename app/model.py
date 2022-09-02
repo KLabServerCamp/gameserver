@@ -71,3 +71,78 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
             {"name": name, "leader_id": leader_card_id, "token": token},
         )
         logging.log(logging.DEBUG, result)
+
+
+# Room
+
+
+class LiveDifficulty(IntEnum):
+    """ライブの難易度"""
+
+    EASY = 1
+    NORMAL = 2
+
+
+class JoinRoomResult(Enum):
+    """部屋に参加した結果"""
+
+    OK = 1
+    ROOM_FULL = 2
+    DISBANDED = 3
+    OTHER_ERROR = 4
+
+
+class WaitRoomStatus(Enum):
+    """待機部屋の状態"""
+
+    WAITING = 1
+    STARTED = 2
+    DISSOLUTION = 3
+
+
+class RoomInfo(BaseModel):
+    """部屋の情報"""
+
+    room_id: int  # 部屋識別子
+    live_id: int  # プレイ対象の楽曲識別子
+    joined_user_count: int  # 部屋に参加しているユーザー数
+    max_user_count: int  # 部屋の最大参加人数
+
+
+def create_room(token: str, live_id: int, difficulty: LiveDifficulty) -> int:
+    raise NotImplementedError
+
+
+def get_rooms(token: str, live_id: int) -> list[RoomInfo]:
+    raise NotImplementedError
+
+
+def join_room(token: str, room_id: int, difficulty: LiveDifficulty) -> JoinRoomResult:
+    raise NotImplementedError
+
+
+def leave_room(token: str, room_id: int) -> None:
+    raise NotImplementedError
+
+
+class RoomUser(BaseModel):
+    """部屋に参加しているユーザーの情報"""
+
+    user_id: int  # ユーザー識別子
+    name: str  # ユーザー名
+    leader_card_id: int  # リーダーカードの識別子
+    selected_difficulty: LiveDifficulty  # 選択難易度
+    is_me: bool  # リクエストを投げたユーザーか
+    is_host: bool  # 部屋を立てた人か
+
+
+class ResultUser(BaseModel):
+    """結果画面に表示するユーザーの情報"""
+
+    user_id: int  # ユーザー識別子
+    judge_count_list: list[int]  # 各判定の数 ()
+    score: int  # 獲得スコア
+
+
+def get_room_result(token: str, room_id: int) -> list[ResultUser]:
+    raise NotImplementedError

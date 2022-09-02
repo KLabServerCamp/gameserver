@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
-from .db import engine
+from app.db import engine
 
 
 class InvalidToken(Exception):
@@ -37,22 +37,69 @@ def create_user(name: str, leader_card_id: int) -> str:
             ),
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
+        print("lastrowid: ",result.lastrowid)
         # print(result)
     return token
 
 
 def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
+    """fetch user data"""
     # TODO: 実装
-    pass
-
+    result = conn.execute(
+        text(
+            "SELECT * FROM `user` WHERE `token` = :token"
+        ),
+        {"token": token},
+    )
+    try:
+        row = result.one()
+        print(row)
+    except NoResultFound:
+        return None
+    # print(result)
+    return row
 
 def get_user_by_token(token: str) -> Optional[SafeUser]:
     with engine.begin() as conn:
         return _get_user_by_token(conn, token)
 
+def _get_user(conn) -> Optional[SafeUser]:
+    """fetch user data"""
+    # TODO: 実装
+    result = conn.execute(
+        text(
+            "SELECT * FROM `user`"
+        ),
+    )
+    try:
+        #rows = result.all()
+        #print(rows)
+
+        for row in result:
+            print(row)
+
+    except NoResultFound:
+        return None
+    # print(result)
+    return None
+
+def get_user() -> Optional[SafeUser]:
+    with engine.begin() as conn:
+        return _get_user(conn)
+
+def _update_user_by_token(conn, token: str, name: str, leader_card_id: str) -> Optional[SafeUser]:
+    """update user data"""
+    # TODO: 実装
+    result = conn.execute(
+        text(
+            "UPDATE `user` SET `name`= :name, `leader_card_id`= :leader_card_id WHERE `token` = :token"
+        ),
+        {"name": name, "leader_card_id": leader_card_id, "token": token},
+    )
+    print(result)
+    return
 
 def update_user(token: str, name: str, leader_card_id: int) -> None:
-    # このコードを実装してもらう
+    # tokenベースでnameとleader_card_idを変更
     with engine.begin() as conn:
-        # TODO: 実装
-        pass
+        return _update_user_by_token(conn, token, name, leader_card_id)

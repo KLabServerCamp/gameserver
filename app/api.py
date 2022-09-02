@@ -52,16 +52,19 @@ def user_me(token: str = Depends(get_auth_token)):
     if user is None:
         raise HTTPException(status_code=404)
     # print(f"user_me({token=}, {user=})")
-    return user
+    return SafeUser(id=user.id, name=user.name, leader_card_id=user.leader_card_id)
 
 
 class Empty(BaseModel):
     pass
 
+class UserUpdateRequest(BaseModel):
+    user_name: str
+    leader_card_id: int
 
 @app.post("/user/update", response_model=Empty)
-def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
+def update(req: UserUpdateRequest, token: str = Depends(get_auth_token)):
     """Update user attributes"""
     # print(req)
     model.update_user(token, req.user_name, req.leader_card_id)
-    return {}
+    return Empty()

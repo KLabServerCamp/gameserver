@@ -26,6 +26,28 @@ class SafeUser(BaseModel):
     class Config:
         orm_mode = True
 
+class LiveDifficulty(Enum):
+    normal = 1
+    hard = 2
+
+class JoinRoomResult(Enum):
+    Ok = 1
+    RoomFull = 2
+    Disbanded = 3
+    OtherError = 4
+
+class WaitRoomStatus(Enum):
+    Waiting = 1
+    LiveStart = 2
+    Dissolution = 3
+
+
+class RoomInfo(BaseModel):
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int
+
 
 def create_user(name: str, leader_card_id: int) -> str:
     """Create new user and returns their token"""
@@ -82,8 +104,17 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
 def create_room(live_id: int, select_difficulty: int, user_id: int) -> int:
     with engine.begin() as conn:
         result = conn.execute(
-            text("INSERT INTO `room` (live_id, owner) VALUES (:live_id, :owner)"),
-            {"live_id": live_id, "owner": user_id},
+            text(
+                "INSERT INTO `room` \
+                (live_id, owner, joined_user_count, max_user_count) \
+                VALUES (:live_id, :owner, :joined_user_count, :max_user_count)"
+            ),
+            {
+                "live_id": live_id,
+                "owner": user_id,
+                "joined_user_count": 1,
+                "max_user_count": 4,
+            },
         )
 
         room_id = result.lastrowid
@@ -91,12 +122,26 @@ def create_room(live_id: int, select_difficulty: int, user_id: int) -> int:
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "INSERT INTO `room_member` (room_id, user_id) VALUES (:room_id, :user_id)"
+                "INSERT INTO `room_member` (room_id, user_id) \
+                    VALUES (:room_id, :user_id)"
             ),
             {"room_id": room_id, "user_id": user_id},
         )
 
     return room_id
 
-def get_room_by_live_id(live_id: int):
-    pass
+
+def get_rooms_by_live_id(live_id: int):
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT `id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` \
+                WHERE `live_id`=:live_id AND `status`=:status"
+            ),
+            {"live_id": live_id, "status": 1},
+        )
+    try:
+        row = result.fetchall()
+    except NoResultFound:
+        return None
+    return row

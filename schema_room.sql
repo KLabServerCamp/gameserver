@@ -3,6 +3,9 @@ CREATE TABLE `room` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `live_id` int NOT NULL,
   `owner` bigint NOT NULL,
+  `status` int DEFAULT 1,
+  `joined_user_count` int NOT NULL,
+  `max_user_count` int NOT NULL,
   PRIMARY KEY (`id`)
 );
 

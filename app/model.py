@@ -17,6 +17,13 @@ class LiveDifficulty(IntEnum):
     HARD = 2
 
 
+class JoinRoomResult(IntEnum):
+    OK = 1
+    ROOM_FULL = 2
+    DISBANDED = 3
+    OTHER_ERROR = 4
+
+
 class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げる"""
 
@@ -200,3 +207,48 @@ def get_room_list(live_id: int) -> list[RoomInfo]:
         return _get_room_list_all()
     else:
         return _get_room_list_by_live_id(live_id)
+
+
+def get_room_info_by_room_id(room_id: int) -> Optional[RoomInfo]:
+    with engine.begin() as conn:
+        res = conn.execute(
+            text(
+                """
+                SELECT
+                    room.room_id,
+                    room.live_id,
+                    count(room_member.user_token) as joined_user_count,
+                    4 as max_user_count
+                FROM
+                    room
+                    JOIN room_member
+                        ON room.room_id = room_member.room_id
+                WHERE
+                    room.room_id = :room_id
+            """
+            ),
+            dict(room_id=room_id),
+        )
+        try:
+            row = res.one()
+        except NoResultFound:
+            return None
+        return RoomInfo.from_orm(row)
+
+
+def join_room(
+    room_id: int, user_token: str, live_difficulty: LiveDifficulty
+) -> JoinRoomResult:
+    room_info = get_room_info_by_room_id(room_id)
+
+    if room_info is None or room_info.joined_user_count == 0:
+        return JoinRoomResult.DISBANDED
+
+    if room_info.joined_user_count >= room_info.max_user_count:
+        return JoinRoomResult.ROOM_FULL
+
+    # TODO:
+    # すでに他のRoomに参加していたらエラーにするか、別の部屋に移動させる
+
+    insert_room_member(room_id, user_token, live_difficulty, False)
+    return JoinRoomResult.OK

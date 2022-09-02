@@ -3,7 +3,7 @@ from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from . import model
-from .model import LiveDifficulty, RoomInfo, SafeUser
+from .model import JoinRoomResult, LiveDifficulty, RoomInfo, SafeUser
 
 app = FastAPI()
 
@@ -58,7 +58,7 @@ class RoomCreateResponse(BaseModel):
 class RoomListRequest(BaseModel):
     """Room一覧取得時のリクエスト
 
-    Parameters
+    Attributes
     ----------
     live_id: int
         ルームで遊ぶ楽曲のID（※0はワイルドカード。全てのルームを対象とする）
@@ -70,13 +70,40 @@ class RoomListRequest(BaseModel):
 class RoomListResponse(BaseModel):
     """Room一覧取得時のレスポンス
 
-    Parameters
+    Attributes
     ----------
     room_info_list: list[RoomInfo]
         ルーム一覧
     """
 
     room_info_list: list[RoomInfo]
+
+
+class RoomJoinRequest(BaseModel):
+    """Room参加時のリクエスト
+
+    Attributes
+    ----------
+    room_id: int
+        入るルーム
+    select_difficulty: LiveDifficulty
+        選択難易度
+    """
+
+    room_id: int
+    select_difficulty: LiveDifficulty
+
+
+class RoomJoinResponse(BaseModel):
+    """Room参加時のレスポンス
+
+    Attributes
+    ----------
+    join_room_result: JoinRoomResult
+        ルーム入場結果
+    """
+
+    join_room_result: JoinRoomResult
 
 
 @app.post("/user/create", response_model=UserCreateResponse)
@@ -134,3 +161,12 @@ def create_room(
 def get_room_list(req: RoomListRequest) -> RoomListResponse:
     room_info_list = model.get_room_list(req.live_id)
     return RoomListResponse(room_info_list=room_info_list)
+
+
+@app.post("/room/join", response_model=RoomJoinResponse)
+def join_room(
+    req: RoomJoinRequest, token: str = Depends(get_auth_token)
+) -> RoomJoinResponse:
+    """Roomに参加する"""
+    join_room_result = model.join_room(req.room_id, token, req.select_difficulty)
+    return RoomJoinResponse(join_room_result=join_room_result)

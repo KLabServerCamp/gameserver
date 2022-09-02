@@ -17,12 +17,14 @@ def test_create_user():
     token = response.json()["user_token"]
 
     response = client.post(
-        "/user/update", json={"user_name": "test2", "leader_card_id": 2000}, headers={"Authorization": f"bearer {token}"}
+        "/user/update",
+        json={"user_name": "test2", "leader_card_id": 2000},
+        headers={"Authorization": f"bearer {token}"},
     )
     assert response.status_code == 200
 
     response = client.get("/user/me", headers={"Authorization": f"bearer {token}"})
-    
+
     assert response.status_code == 200
 
     response_data = response.json()

@@ -5,7 +5,6 @@ from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from . import model
-from .model import SafeUser
 
 app = FastAPI()
 
@@ -46,7 +45,7 @@ def get_auth_token(cred: HTTPAuthorizationCredentials = Depends(bearer)) -> str:
     return cred.credentials
 
 
-@app.get("/user/me", response_model=SafeUser)
+@app.get("/user/me", response_model=model.SafeUser)
 def user_me(token: str = Depends(get_auth_token)):
     user = model.get_user_by_token(token)
     if user is None:
@@ -99,3 +98,20 @@ def room_list(req: RoomListRequest):
     """ルームリスト作成"""
     room_info_list = model.room_list(req.live_id)
     return RoomListResponse(room_info_list=room_info_list)
+
+
+class RoomJoinRequest(BaseModel):
+    room_id: int
+    select_difficulty: model.LiveDifficulty
+
+
+class RoomJoinResponse(BaseModel):
+    join_room_result: model.JoinRoomResult
+
+
+@app.post("/room/join", response_model=RoomJoinResponse)
+def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
+    """ルームリスト作成"""
+    join_room_result = model.room_join(token, req.room_id, req.select_difficulty)
+    print("join_room_result at api.py =", join_room_result)
+    return RoomJoinResponse(join_room_result=join_room_result)

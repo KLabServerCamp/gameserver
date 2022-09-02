@@ -38,6 +38,19 @@ def test_room_1():
     assert response.status_code == 200
     print("room/list response:", response.json())
 
+    for i in range(1, 5):
+        response = client.post(
+            "/room/join",
+            headers=_auth_header(i),
+            json={"room_id": room_id, "select_difficulty": 2},
+        )
+        assert response.status_code == 200
+        print("room/list response:", response.json())
+
+    response = client.post("/room/list", json={"live_id": 0})
+    assert response.status_code == 200
+    print("room/list response:", response.json())
+
 """
     response = client.post(
         "/room/wait", headers=_auth_header(), json={"room_id": room_id}

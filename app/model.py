@@ -120,12 +120,12 @@ class ResultUser(BaseModel):
 
 
 def _create_room(conn, user: SafeUser, live_id: int, live_dif: LiveDifficulty) -> int:
-    users = {0: [user.id, user.leader_card_id, live_dif.value]}
+    users = [[user.id, user.leader_card_id, live_dif.value]]
     users_json = json.dumps(users)
     result = conn.execute(
         text(
-            "INSERT INTO `rooms` (live_id, j_usr_cnt, m_usr_cnt, hst_id, users) \
-            VALUES (:live_id, 1, 4, 0, :users)"
+            "INSERT INTO `rooms` (live_id, status, j_usr_cnt, m_usr_cnt, hst_id, users) \
+            VALUES (:live_id, 1, 1, 4, 0, :users)"
         ),
         {"live_id": live_id, "users": users_json},
     )
@@ -142,13 +142,13 @@ def create_room(token: str, live_id: int, live_dif: LiveDifficulty) -> int:
 
 
 def _room_list(conn, live_id: int) -> list[RoomInfo]:
-    execute_sent = "SELECT room_id, live_id, j_usr_cnt, m_usr_cnt FROM rooms"
+    execute_sent = "SELECT room_id, live_id, j_usr_cnt, m_usr_cnt FROM rooms WHERE j_usr_cnt < m_usr_cnt AND status = 1"
     result = None
-    if live_id != 0:
+    if live_id == 0:
         result = conn.execute(text(execute_sent))
     else:
         result = conn.execute(
-            text(execute_sent + " WHERE live_id = :live_id"),
+            text(execute_sent + " AND live_id = :live_id"),
             {"live_id": live_id}
         )
     rows = result.all()
@@ -161,3 +161,42 @@ def _room_list(conn, live_id: int) -> list[RoomInfo]:
 def room_list(live_id: int) -> list[RoomInfo]:
     with engine.begin() as conn:
         return _room_list(conn, live_id)
+
+
+def _room_join(conn, user: SafeUser, room_id: int, live_dif: LiveDifficulty) -> JoinRoomResult:
+    result = conn.execute(
+        text(
+            "SELECT status, j_usr_cnt, m_usr_cnt, users FROM rooms WHERE room_id = :room_id"
+        ),
+        {"room_id": room_id},
+    )
+    try:
+        row = result.one()
+    except NoResultFound:
+        return JoinRoomResult(4)
+    if row.j_usr_cnt == row.m_usr_cnt:
+        return JoinRoomResult(2)
+    if row.status == 3:
+        return JoinRoomResult(3)
+    if row.status != 1:
+        return JoinRoomResult(4)
+    j_usr_cnt = row.j_usr_cnt + 1
+    users = json.loads(row.users)
+    users.append([user.id, user.leader_card_id, live_dif.value])
+    users_json = json.dumps(users)
+    conn.execute(
+        text(
+            "UPDATE rooms SET j_usr_cnt = :j_usr_cnt, users = :users where room_id = :room_id"
+        ),
+        {"j_usr_cnt": j_usr_cnt, "users": users_json, "room_id": room_id}
+    )
+    return JoinRoomResult(1)
+
+
+def room_join(token: str, room_id: int, live_dif: LiveDifficulty) -> JoinRoomResult:
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken("指定されたtokenが不正です")
+        return _room_join(conn, user, room_id, live_dif)
+

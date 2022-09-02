@@ -10,6 +10,7 @@ CREATE TABLE `user` (
 DROP TABLE IF EXISTS `rooms`;
 CREATE TABLE `rooms` (
   `room_id` bigint not null auto_increment,
+  `status` int not null,
   `live_id` int not null,
   `j_usr_cnt` int not null,
   `m_usr_cnt` int not null,

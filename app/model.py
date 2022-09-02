@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
-from app.api import LiveDifficulty, RoomInfo
+from app.api import JoinRoomResult, LiveDifficulty, RoomInfo
 
 from .db import engine
 
@@ -78,6 +78,7 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
         return _update_user(conn, token, name, leader_card_id)
 
 
+# TODO: どうにかする
 MAX_USER_COUNT = 4
 def create_room(live_id: int, select_difficulty: LiveDifficulty) -> int:
     """Create new user and returns their token"""
@@ -94,7 +95,7 @@ def create_room(live_id: int, select_difficulty: LiveDifficulty) -> int:
     room_id = result.lastrowid
     return room_id
 
-def get_room_list(live_id: int):
+def get_room_list(live_id: int) -> list[RoomInfo]:
     with engine.begin() as conn:
         result = conn.execute(
             text(
@@ -112,3 +113,70 @@ def get_room_list(live_id: int):
                 max_user_count=row.max_user_count
             )
         )
+    return room_list
+
+
+# def join_room(room_id: int, select_difficulty: LiveDifficulty) -> JoinRoomResult:
+#     with engine.begin() as conn:
+#         result = conn.execute(
+#             text(
+#                 "INSERTT INTO `room_user` SET \
+#                     `room_id`=:room_id, \
+#                     `user_id`=:user_id \
+#                     `name`=:name \
+#                     `leader_card_id`=:leader_card_id \
+#                     `select_difficulty`=:select_difficulty \
+#                     `is_me`=:is_me \
+#                     `is_host`=:is_host \
+#                 " 
+#             ),
+#             {
+#                 "room_id": room_id,
+#                 "user_id": user_id,
+#                 "name": name,
+#                 "leader_card_id": leader_card_id,
+#                 "select_difficulty": select_difficulty,
+#                 "is_me": is_me,
+#                 "is_host": is_host
+#             }
+#       )
+
+def _get_room_user(roomid: int) -> list[RoomUser]:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT * FROM `room_user` WHERE room_id=:room_id"
+            ),
+            {"room_id": room_id}
+        )
+    room_user_list = list[RoomUser]
+    for row in result:
+        room_user_list.append(
+            RoomUser(
+                user_id=row.user_id,
+                name=row.name,
+                leader_card_id=row.leader_card_id,
+                select_difficulty=row.select_diffculty,
+                is_me=row.is_me,
+                is_host=row.is_host
+            )
+        )
+    return room_user_list
+    
+
+def get_room_wait(room_id: int):
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT wait_room_status FROM `room_info` WHERE room_id=:room_id"
+            ),
+            {"room_id": room_id}
+        )
+    if len(reslut) == 0:
+        return NULL
+    assert len(result) == 1
+    res = result.one
+    return RoomWaitResponse(
+        wait_room_status=res.wait_room_status
+        room_user_list = _get_room_user(room_id)
+    )

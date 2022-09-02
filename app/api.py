@@ -81,10 +81,10 @@ class JoinRoomResult(Enum):
     OtherError = 4
 
 
-# class WaitRoomStatus(Enum):
-#     Wating = 1
-#     LiveStart = 2
-#     Dissolution = 3
+class WaitRoomStatus(Enum):
+    Wating = 1
+    LiveStart = 2
+    Dissolution = 3
 
 class RoomInfo(BaseModel):
     room_id: int
@@ -92,18 +92,18 @@ class RoomInfo(BaseModel):
     joined_user_count: int
     max_user_count: int
     
-# class RoomUser(BaseModel):
-#     user_id: int
-#     name: str
-#     leader_card_id: int
-#     select_difficulty: LiveDifficulty
-#     is_me: bool
-#     is_host: bool
+class RoomUser(BaseModel):
+    user_id: int
+    name: str
+    leader_card_id: int
+    select_difficulty: LiveDifficulty
+    is_me: bool
+    is_host: bool
     
-# class ResultUser(BaseModel):
-#     user_id: int
-#     judge_count_list: list[int]
-#     score: int
+class ResultUser(BaseModel):
+    user_id: int
+    judge_count_list: list[int]
+    score: int
     
 
 
@@ -129,3 +129,12 @@ def room_join(room_id: int, select_difficutly: LiveDifficulty):
     join_room_result = model.join_room(room_id, select_difficutly)
     return join_room_result
     
+
+class RoomWaitResponse(BaseModel):
+    wait_room_status: WaitRoomStatus
+    room_member_list: list[RoomUser]
+
+@app.get("/room/wait", response=RoomWaitResponse)
+def wait_room(room_id: int):
+    res = get_room_wait(room_id)
+    return res

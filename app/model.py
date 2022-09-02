@@ -10,6 +10,7 @@ from sqlalchemy.exc import NoResultFound
 
 from .db import engine
 
+
 # User
 class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げる"""
@@ -145,7 +146,7 @@ def _create_room_member(
                 "user_id": user.id,
                 "name": user.name,
                 "leader_card_id": user.leader_card_id,
-                "select_difficulty": select_difficulty,
+                "select_difficulty": select_difficulty.value,
                 "is_host": is_host,
             },
         )

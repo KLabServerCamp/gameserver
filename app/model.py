@@ -63,7 +63,7 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "INSERT INTO `user` (name, token, leader_card_id) VALUES (:name, :token, :leader_card_id)"
+                "UPDATE `user` SET name=:name, leader_card_id=:leader_card_id WHERE token=:token"
             ),
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )

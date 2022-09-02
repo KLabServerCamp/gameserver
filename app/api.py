@@ -31,7 +31,7 @@ class UserCreateResponse(BaseModel):
 class RoomCreateRequest(BaseModel):
     """Room作成時のリクエスト
 
-    Parameters
+    Attributes
     ----------
     live_id: int
         ルームで遊ぶ楽曲のID
@@ -46,7 +46,7 @@ class RoomCreateRequest(BaseModel):
 class RoomCreateResponse(BaseModel):
     """Room作成時のレスポンス
 
-    Parameters
+    Attributes
     ----------
     room_id: int
         発行されたルームのID（以後の通信はこのiDを添える）

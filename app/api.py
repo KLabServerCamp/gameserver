@@ -156,3 +156,7 @@ def room_end(req: RoomEndRequest):
 def room_result(room_id: int):
     res = model.get_result_users(room_id)
     return res
+
+@app.post("/room/leave")
+def room_leave(room_id: int):
+    model.leave_room(room_id)

@@ -1,18 +1,11 @@
-from enum import Enum
-
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from . import model
-from .model import SafeUser
+from .model import LiveDifficulty, SafeUser
 
 app = FastAPI()
-
-
-class LiveDifficulty(Enum):
-    NORMAL = 1
-    HARD = 2
 
 
 # Sample APIs
@@ -107,6 +100,7 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)) -> dict
 def create_room(
     req: RoomCreateRequest, token: str = Depends(get_auth_token)
 ) -> RoomCreateResponse:
+    """Roomを作成する"""
     room_id = model.create_room(token, req.live_id)
-    # TODO: オーナが選択したselect_difficultyを保存する
+    model.insert_room_member(room_id, token, req.select_difficulty, is_owner=True)
     return RoomCreateResponse(room_id=room_id)

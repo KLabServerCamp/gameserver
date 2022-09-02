@@ -22,8 +22,9 @@ CREATE TABLE `room` (
 CREATE TABLE `room_member` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `room_id` BIGINT UNSIGNED NOT NULL,
-  `user_id` BIGINT UNSIGNED NOT NULL,
-  `is_owner` INT UNSIGNED NOT NULL,
+  `user_token` VARCHAR(255) NOT NULL,
+  `live_difficulty` INT UNSIGNED NOT NULL,
+  `is_owner` BOOLEAN NOT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `room_id` (`room_id`, `user_id`)
+  UNIQUE KEY `room_id` (`room_id`, `user_token`)
 );

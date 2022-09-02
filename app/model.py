@@ -1,6 +1,6 @@
 import json
 import uuid
-from enum import Enum, IntEnum
+from enum import IntEnum
 from typing import Optional
 
 import sqlalchemy.engine.base
@@ -10,6 +10,11 @@ from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
 from .db import engine
+
+
+class LiveDifficulty(IntEnum):
+    NORMAL = 1
+    HARD = 2
 
 
 class InvalidToken(Exception):
@@ -90,3 +95,21 @@ def create_room(token: str, live_id: int) -> int:
         )
 
     return room_id
+
+
+def insert_room_member(
+    room_id: int, user_token: str, live_difficulty: LiveDifficulty, is_owner: bool
+) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO `room_member` (room_id, user_token, live_difficulty, is_owner)"
+                "VALUES (:room_id, :user_token, :live_difficulty, :is_owner)",
+            ),
+            dict(
+                room_id=room_id,
+                user_token=user_token,
+                live_difficulty=int(live_difficulty),
+                is_owner=is_owner,
+            ),
+        )

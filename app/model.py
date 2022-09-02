@@ -74,3 +74,19 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
             ),
             dict(name=name, leader_card_id=leader_card_id, token=token),
         )
+
+
+def create_room(token: str, live_id: int) -> int:
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken()
+        # NOTE:room_idは一意になるようにしたい
+        res = conn.execute(text("SELECT COUNT(*) FROM `room`"))
+        room_id = int(res.one()[0] + 1)
+        conn.execute(
+            text("INSERT INTO `room` (room_id, live_id) VALUES (:room_id, :live_id)"),
+            dict(room_id=room_id, live_id=live_id),
+        )
+
+    return room_id

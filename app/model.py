@@ -26,15 +26,18 @@ class SafeUser(BaseModel):
     class Config:
         orm_mode = True
 
+
 class LiveDifficulty(Enum):
     normal = 1
     hard = 2
+
 
 class JoinRoomResult(Enum):
     Ok = 1
     RoomFull = 2
     Disbanded = 3
     OtherError = 4
+
 
 class WaitRoomStatus(Enum):
     Waiting = 1
@@ -47,6 +50,27 @@ class RoomInfo(BaseModel):
     live_id: int
     joined_user_count: int
     max_user_count: int
+
+    class Config:
+        orm_mode = True
+
+
+class RoomUser(BaseModel):
+    user_id: int
+    name: str
+    leader_card_id: int
+    select_difficulty: LiveDifficulty
+    is_me: bool
+    is_host: bool
+
+    class Config:
+        orm_mode = True
+
+
+class ResultUser(BaseModel):
+    user_id: int
+    judge_count_list: list[int]
+    score: int
 
 
 def create_user(name: str, leader_card_id: int) -> str:
@@ -106,13 +130,12 @@ def create_room(live_id: int, select_difficulty: int, user_id: int) -> int:
         result = conn.execute(
             text(
                 "INSERT INTO `room` \
-                (live_id, owner, joined_user_count, max_user_count) \
-                VALUES (:live_id, :owner, :joined_user_count, :max_user_count)"
+                (live_id, owner, max_user_count) \
+                VALUES (:live_id, :owner, :max_user_count)"
             ),
             {
                 "live_id": live_id,
                 "owner": user_id,
-                "joined_user_count": 1,
                 "max_user_count": 4,
             },
         )
@@ -135,13 +158,15 @@ def get_rooms_by_live_id(live_id: int):
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "SELECT `id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` \
+                "SELECT `id` AS room_id, `live_id`, `joined_user_count`, `max_user_count` FROM `room` \
                 WHERE `live_id`=:live_id AND `status`=:status"
             ),
-            {"live_id": live_id, "status": 1},
+            {"live_id": live_id, "status": JoinRoomResult.Ok.value},
         )
     try:
-        row = result.fetchall()
+        rows = []
+        for row in result.fetchall():
+            rows.append(RoomInfo.from_orm(row))
     except NoResultFound:
         return None
-    return row
+    return rows

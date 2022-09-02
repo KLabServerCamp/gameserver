@@ -4,7 +4,7 @@ CREATE TABLE `room` (
   `live_id` int NOT NULL,
   `owner` bigint NOT NULL,
   `status` int DEFAULT 1,
-  `joined_user_count` int NOT NULL,
+  `joined_user_count` int DEFAULT 1,
   `max_user_count` int NOT NULL,
   PRIMARY KEY (`id`)
 );

@@ -65,3 +65,43 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
     # print(req)
     model.update_user(token, req.user_name, req.leader_card_id)
     return {}
+
+
+# Room APIs
+
+class LiveDiffuculty(Enum):
+    normal = 1
+    hard = 2
+
+class JoinRoomResult(Enum):
+    Ok = 1
+    RoomFull = 2
+    Disbanded = 3
+    OtherError = 4
+
+class WaitRoomStatus(Enum):
+    Wating = 1
+    LiveStart = 2
+    Dissolution = 3
+
+class RoomInfo(BaseModel):
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int
+    
+class RoomUser(BaseModel):
+    user_id: int
+    name: str
+    leader_card_id: int
+    select_difficulty: LiveDifficulty
+    is_me: bool
+    is_host: bool
+    
+class ResultUser(BaseModel):
+    user_id: int
+    judge_count_list: list[int]
+    score: int
+
+@app.post("/room/create")
+

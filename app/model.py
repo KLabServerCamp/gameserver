@@ -1,9 +1,9 @@
-import json
+# import json
 import uuid
-from enum import Enum, IntEnum
+# from enum import Enum, IntEnum
 from typing import Optional
 
-from fastapi import HTTPException
+# from fastapi import HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
@@ -33,11 +33,12 @@ def create_user(name: str, leader_card_id: int) -> str:
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "INSERT INTO `user` (name, token, leader_card_id) VALUES (:name, :token, :leader_card_id)"
+                "INSERT INTO `user` (name, token, leader_card_id)"
+                + "VALUES (:name, :token, :leader_card_id)"
             ),
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
-        print("lastrowid: ",result.lastrowid)
+        print("lastrowid: ", result.lastrowid)
         # print(result)
     return token
 
@@ -59,9 +60,11 @@ def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
     # print(result)
     return row
 
+
 def get_user_by_token(token: str) -> Optional[SafeUser]:
     with engine.begin() as conn:
         return _get_user_by_token(conn, token)
+
 
 def _get_user(conn) -> Optional[SafeUser]:
     """fetch user data"""
@@ -72,8 +75,8 @@ def _get_user(conn) -> Optional[SafeUser]:
         ),
     )
     try:
-        #rows = result.all()
-        #print(rows)
+        # rows = result.all()
+        # print(rows)
 
         for row in result:
             print(row)
@@ -83,9 +86,11 @@ def _get_user(conn) -> Optional[SafeUser]:
     # print(result)
     return None
 
+
 def get_user() -> Optional[SafeUser]:
     with engine.begin() as conn:
         return _get_user(conn)
+
 
 def _update_user_by_token(conn, token: str, name: str, leader_card_id: str) -> Optional[SafeUser]:
     """update user data"""
@@ -98,6 +103,7 @@ def _update_user_by_token(conn, token: str, name: str, leader_card_id: str) -> O
     )
     print(result)
     return
+
 
 def update_user(token: str, name: str, leader_card_id: int) -> None:
     # tokenベースでnameとleader_card_idを変更

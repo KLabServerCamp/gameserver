@@ -1,4 +1,4 @@
-from enum import Enum
+# from enum import Enum
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
@@ -58,9 +58,11 @@ def user_me(token: str = Depends(get_auth_token)):
 class Empty(BaseModel):
     pass
 
+
 class UserUpdateRequest(BaseModel):
     user_name: str
     leader_card_id: int
+
 
 @app.post("/user/update", response_model=Empty)
 def update(req: UserUpdateRequest, token: str = Depends(get_auth_token)):

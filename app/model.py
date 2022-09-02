@@ -200,3 +200,31 @@ def get_room_list(live_id: int) -> list[RoomInfo]:
         return _get_room_list_all()
     else:
         return _get_room_list_by_live_id(live_id)
+
+
+def get_room_info_by_room_id(room_id: int) -> Optional[RoomInfo]:
+    with engine.begin() as conn:
+        res = conn.execute(
+            text(
+                """
+                SELECT
+                    room.room_id,
+                    room.live_id,
+                    count(room_member.user_token) as joined_user_count,
+                    4 as max_user_count
+                FROM
+                    room
+                    JOIN room_member
+                        ON room.room_id = room_member.room_id
+                WHERE
+                    room.room_id = :room_id
+            """
+            ),
+            dict(room_id=room_id),
+        )
+        try:
+            row = res.one()
+        except NoResultFound:
+            return None
+        return RoomInfo.from_orm(row)
+

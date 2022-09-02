@@ -1,6 +1,6 @@
 import json
 import uuid
-from enum import Enum, IntEnum
+from enum import IntEnum
 from operator import ge
 from tkinter.messagebox import NO
 from typing import Optional
@@ -161,3 +161,97 @@ def delete_user_by_token(token: str) -> None:
             text("DELETE FROM user WHERE token = :token"),
             {"token": token},
         )
+
+
+# === Enum structures =========================================================
+class LiveDifficulty(IntEnum):
+    normal = 1
+    hard = 2
+
+
+class JoinRoomResult(IntEnum):
+    Ok = 1  # 入場OK
+    RoomFull = 2  # 満員
+    Disbanded = 3  # 解散済み
+    OtherError = 4  # その他エラー
+
+
+class WaitRoomStatus(IntEnum):
+    Waiting = 1  # ホストがライブ開始ボタン押すのを待っている
+    LiveStart = 2  # ライブ画面遷移OK
+    Dissolution = 3  # 解散された
+
+
+# === Room Structures =========================================================
+class RoomID(BaseModel):
+    room_id: int  # 部屋識別子
+
+
+class RoomInfo(BaseModel):
+    room_id: int  # 部屋識別子
+    live_id: int  # プレイ対象の楽曲識別子
+    joined_user_count: int  # 部屋に入っている人数
+    max_user_count: int  # 部屋の最大人数
+
+    class Config:
+        orm_mode = True
+
+
+class RoomUser(BaseModel):
+    user_id: int  # ユーザー識別子
+    name: str  # ユーザー名
+    leader_card_id: int  # 設定アバター
+    select_difficulty: LiveDifficulty  # 選択難易度
+    is_me: bool  # リクエスト投げたユーザーと同じか
+    is_host: bool  # 部屋を立てた人か
+
+    class Config:
+        orm_mode = True
+
+
+class ResultUser(BaseModel):
+    user_id: int  # ユーザー識別子
+    judge_count_list: list[int]  # 各判定数（良い判定から昇順）
+    score: int  # 獲得スコア
+
+    class Config:
+        orm_mode = True
+
+
+# === room sql execution ======================================================
+def create_room(live_id: int, select_difficulty: int) -> dict[str, int]:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO room (live_id, joined_user_count, max_user_count) "
+                "VALUES (:live_id, 0, 4)"
+            ),
+            {"live_id": live_id},
+        )
+    return {}
+
+
+def get_rooms_by_live_id(live_id) -> list[RoomInfo]:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("SELECT * FROM room WHERE live_id = :live_id"), {"live_id": live_id}
+        )
+    rooms = []
+    for row in result:
+        rooms.append(RoomInfo.from_orm(row))
+    return rooms
+
+
+def join_room(room_id, select_difficulty):
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "UPDATE room SET name = :name, leader_card_id = :leader_card_id "
+                "WHERE token = :token"
+            ),
+        )
+    return result
+
+
+def wait_room(room_id):
+    pass

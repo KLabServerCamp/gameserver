@@ -32,6 +32,30 @@ class SafeUser(BaseModel):
         orm_mode = True
 
 
+class RoomInfo(BaseModel):
+    """ルーム情報
+
+    Attributes
+    ----------
+    room_id: int
+        部屋識別子
+    live_id: int
+       プレイ対象の楽曲識別子
+    joined_user_count: int
+        部屋に入っている人数
+    max_user_count: int
+        部屋の最大人数
+    """
+
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int
+
+    class Config:
+        orm_mode = True
+
+
 def create_user(name: str, leader_card_id: int) -> str:
     """Create new user and returns their token"""
     token = str(uuid.uuid4())
@@ -113,3 +137,66 @@ def insert_room_member(
                 is_owner=is_owner,
             ),
         )
+
+
+def _get_room_list_all() -> list[RoomInfo]:
+    with engine.begin() as conn:
+        res = conn.execute(
+            text(
+                """
+                SELECT
+                    room.room_id,
+                    room.live_id,
+                    count(room_member.user_token) as joined_user_count,
+                    4 as max_user_count
+                FROM
+                    room
+                    JOIN room_member
+                        ON room.room_id = room_member.room_id
+                GROUP BY
+                    room.room_id
+            """
+            )
+        )
+    res = res.fetchall()
+    if len(res) == 0:
+        return []
+    return [RoomInfo.from_orm(row) for row in res]
+
+
+def _get_room_list_by_live_id(live_id: int) -> list[RoomInfo]:
+    with engine.begin() as conn:
+        res = conn.execute(
+            text(
+                """
+                SELECT
+                    room.room_id,
+                    room.live_id,
+                    count(room_member.user_token) as joined_user_count,
+                    4 as max_user_count
+                FROM
+                    room
+                    JOIN room_member
+                        ON room.room_id = room_member.room_id
+                WHERE
+                    room.live_id = :live_id
+                GROUP BY
+                    room.room_id
+            """
+            ),
+            dict(live_id=live_id),
+        )
+
+    res = res.fetchall()
+    if len(res) == 0:
+        return []
+    return [RoomInfo.from_orm(row) for row in res]
+
+
+def get_room_list(live_id: int) -> list[RoomInfo]:
+    # NOTE:
+    # SQLでは全部取ってきて、Pythonで絞り込むようにしてもいいかも
+    if live_id == 0:
+        return _get_room_list_all()
+    else:
+        return _get_room_list_by_live_id(live_id)

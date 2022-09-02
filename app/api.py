@@ -3,7 +3,7 @@ from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from . import model
-from .model import LiveDifficulty, SafeUser
+from .model import LiveDifficulty, RoomInfo, SafeUser
 
 app = FastAPI()
 
@@ -31,7 +31,7 @@ class UserCreateResponse(BaseModel):
 class RoomCreateRequest(BaseModel):
     """Room作成時のリクエスト
 
-    Parameters
+    Attributes
     ----------
     live_id: int
         ルームで遊ぶ楽曲のID
@@ -46,13 +46,37 @@ class RoomCreateRequest(BaseModel):
 class RoomCreateResponse(BaseModel):
     """Room作成時のレスポンス
 
-    Parameters
+    Attributes
     ----------
     room_id: int
         発行されたルームのID（以後の通信はこのiDを添える）
     """
 
     room_id: int
+
+
+class RoomListRequest(BaseModel):
+    """Room一覧取得時のリクエスト
+
+    Parameters
+    ----------
+    live_id: int
+        ルームで遊ぶ楽曲のID（※0はワイルドカード。全てのルームを対象とする）
+    """
+
+    live_id: int
+
+
+class RoomListResponse(BaseModel):
+    """Room一覧取得時のレスポンス
+
+    Parameters
+    ----------
+    room_info_list: list[RoomInfo]
+        ルーム一覧
+    """
+
+    room_info_list: list[RoomInfo]
 
 
 @app.post("/user/create", response_model=UserCreateResponse)
@@ -104,3 +128,9 @@ def create_room(
     room_id = model.create_room(token, req.live_id)
     model.insert_room_member(room_id, token, req.select_difficulty, is_owner=True)
     return RoomCreateResponse(room_id=room_id)
+
+
+@app.post("/room/list", response_model=RoomListResponse)
+def get_room_list(req: RoomListRequest) -> RoomListResponse:
+    room_info_list = model.get_room_list(req.live_id)
+    return RoomListResponse(room_info_list=room_info_list)

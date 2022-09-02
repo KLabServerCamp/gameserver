@@ -25,6 +25,11 @@ def test_create_user__成功():
     assert response_data["leader_card_id"] == 1000
 
 
+def test_get_user__tokenなしエラー():
+    response = client.get("/user/me")
+    assert response.status_code == 403
+
+
 def test_update_user__成功():
     response = client.post(
         "/user/create", json={"user_name": "test_update", "leader_card_id": 1000}

@@ -107,13 +107,19 @@ def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty) -> 
             ),
             dict(live_id=live_id, max_user_count=MAX_USER),
         )
-        room_id = result.lastrowid
+        try:
+            room_id = result.lastrowid
+        except:
+            raise HTTPException(status_code=500)
 
         # この部屋を作成したユーザを特定
         result = conn.execute(
             text("SELECT `id` FROM `user` WHERE `token`=:token"), dict(token=token)
         )
-        owner_id = result.one().id
+        try:
+            owner_id = result.one().id
+        except:
+            raise HTTPException(status_code=500)
 
         # room_memberにオーナーを登録
         result = conn.execute(
@@ -146,7 +152,10 @@ def get_room_users(token: str, room_id: int) -> list[RoomUser]:
             text("SELECT `status` FROM `room` WHERE `room_id`=:room_id"),
             dict(room_id=room_id),
         )
-        status = result.one().status
+        try:
+            status = result.one().status
+        except NoResultFound as e:
+            raise HTTPException(status_code=404)
 
         result = conn.execute(
             text(

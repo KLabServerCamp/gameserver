@@ -160,7 +160,7 @@ def _create_room_member(
     print(result)
 
 
-def _get_rooms(conn, live_id: int) -> Optional[RoomInfos]:
+def _get_room_list(conn, live_id: int) -> Optional[list[RoomInfo]]:
     result = conn.execute(
         text(
             "SELECT `id`, `live_id`, `joined_user_count`, `max_user_count`, `wait_room_status` FROM `room` \
@@ -174,9 +174,13 @@ def _get_rooms(conn, live_id: int) -> Optional[RoomInfos]:
         rows = result.all()
     except NoResultFound:
         return None
-    return RoomInfos.parse_obj(rows)
+    return list[RoomInfo.parse_obj(rows)]
 
 
-def get_rooms(live_id: int) -> Optional[RoomInfos]:
+def get_room_list(token: str, live_id: int) -> Optional[list[RoomInfo]]:
+    try:
+        user = get_user_by_token(token)
+    except user is None:
+        return InvalidToken
     with engine.begin() as conn:
-        return _get_rooms(conn, live_id)
+        return _get_room_list(conn, live_id)

@@ -13,7 +13,7 @@ app = FastAPI()
 
 
 @app.get("/")
-async def root():
+async def root() -> dict[str, str]:
     return {"message": "Hello World"}
 
 
@@ -30,7 +30,7 @@ class UserCreateResponse(BaseModel):
 
 
 @app.post("/user/create", response_model=UserCreateResponse)
-def user_create(req: UserCreateRequest):
+def user_create(req: UserCreateRequest) -> UserCreateResponse:
     """新規ユーザー作成"""
     token = model.create_user(req.user_name, req.leader_card_id)
     return UserCreateResponse(user_token=token)
@@ -47,7 +47,7 @@ def get_auth_token(cred: HTTPAuthorizationCredentials = Depends(bearer)) -> str:
 
 
 @app.get("/user/me", response_model=SafeUser)
-def user_me(token: str = Depends(get_auth_token)):
+def user_me(token: str = Depends(get_auth_token)) -> SafeUser:
     user = model.get_user_by_token(token)
     if user is None:
         raise HTTPException(status_code=404)
@@ -60,7 +60,7 @@ class Empty(BaseModel):
 
 
 @app.post("/user/update", response_model=Empty)
-def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
+def update(req: UserCreateRequest, token: str = Depends(get_auth_token)) -> dict:
     """Update user attributes"""
     # print(req)
     model.update_user(token, req.user_name, req.leader_card_id)

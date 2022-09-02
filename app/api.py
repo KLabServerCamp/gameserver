@@ -10,68 +10,9 @@ from .model import SafeUser
 app = FastAPI()
 
 # Sample APIs
-
-
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
-
-
-# Room APIs
-
-
-class LiveDifficulty(Enum):
-    normal = 1
-    hard = 2
-
-
-class JoinRoomResult(Enum):
-    Ok = 1
-    RoomFull = 2
-    Disbanded = 3
-    OtherError = 4
-
-
-class WaitRoomStatus(Enum):
-    Waiting = 1
-    LiveStart = 2
-    Dissolution = 3
-
-
-class RoomInfo(BaseModel):
-    room_id: int
-    live_id: int
-    joined_user_count: int
-    max_user_count: int
-
-
-class RoomUser(BaseModel):
-    user_id: int
-    name: str
-    leader_card_id: int
-    select_difficulty: LiveDifficulty
-    is_me: bool
-    is_host: bool
-
-
-class ResultUser(BaseModel):
-    user_id: int
-    judge_count_list: list[int]
-    score: int
-
-
-class RoomCreateRequest(BaseModel):
-    live_id: int
-    select_difficulty: LiveDifficulty
-
-class RoomCreateResponse(BaseModel):
-    room_id: int
-
-@app.post("/room/create", response_model=RoomCreateResponse)
-def room_create(req: RoomCreateRequest):
-    id = model.create_room(req.live_id, req.select_difficulty)
-    return RoomCreateResponse(room_id=id)
-
 
 
 # User APIs
@@ -120,3 +61,80 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
     # print(req)
     model.update_user(token, req.user_name, req.leader_card_id)
     return {}
+
+
+# Room APIs
+class LiveDifficulty(Enum):
+    normal = 1
+    hard = 2
+
+class JoinRoomResult(Enum):
+    Ok = 1
+    RoomFull = 2
+    Disbanded = 3
+    OtherError = 4
+
+class WaitRoomStatus(Enum):
+    Waiting = 1
+    LiveStart = 2
+    Dissolution = 3
+
+
+class RoomInfo(BaseModel):
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int
+
+class RoomUser(BaseModel):
+    user_id: int
+    name: str
+    leader_card_id: int
+    select_difficulty: LiveDifficulty
+    is_me: bool
+    is_host: bool
+
+class ResultUser(BaseModel):
+    user_id: int
+    judge_count_list: list[int]
+    score: int
+
+
+class RoomCreateRequest(BaseModel):
+    live_id: int
+    select_difficulty: LiveDifficulty
+
+class RoomCreateResponse(BaseModel):
+    room_id: int
+
+@app.post("/room/create", response_model=RoomCreateResponse)
+def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
+    user = user_me(token)
+    id = model.create_room(req.live_id, req.select_difficulty, user)
+    return RoomCreateResponse(room_id=id)
+
+
+class RoomListRequest(BaseModel):
+    live_id: int
+
+class RoomListResponse(BaseModel):
+    room_info_list: list[RoomInfo]
+
+@app.post("/room/list", response_model=RoomListResponse)
+def room_list(req: RoomListRequest):
+    rooms = model.list_room(req.live_id)
+    return RoomListResponse(room_info_list=rooms)
+
+
+class RoomJoinRequest(BaseModel):
+    room_id: int
+    select_difficulty: LiveDifficulty
+
+class RoomJoinResponse(BaseModel):
+    join_room_result: JoinRoomResult
+
+@app.post("/room/join", response_model=RoomJoinResponse)
+def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
+    user = user_me(token)
+    result = model.join_room(req.room_id, req.select_difficulty, user)
+    return RoomJoinResponse(join_room_result=result)

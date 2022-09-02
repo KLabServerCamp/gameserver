@@ -5,7 +5,7 @@ from app.api import app
 client = TestClient(app)
 
 
-def test_create_user():
+def test_create_user() -> None:
     response = client.post(
         "/user/create", json={"user_name": "test1", "leader_card_id": 1000}
     )

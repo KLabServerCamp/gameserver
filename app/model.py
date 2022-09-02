@@ -3,6 +3,7 @@ import uuid
 from enum import Enum, IntEnum
 from typing import Optional
 
+import sqlalchemy.engine.base
 from fastapi import HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -41,7 +42,9 @@ def create_user(name: str, leader_card_id: int) -> str:
     return token
 
 
-def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
+def _get_user_by_token(
+    conn: "sqlalchemy.engine.base.Connection", token: str
+) -> Optional[SafeUser]:
     result = conn.execute(
         text(
             "SELECT `id`, `name`, `leader_card_id` FROM `user` WHERE `token` = :token"

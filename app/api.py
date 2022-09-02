@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import List
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
@@ -156,4 +157,17 @@ class RoomStartRequest(BaseModel):
 @app.post("/room/start", response_model=Empty)
 def room_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
     model.start_room(token, req.room_id)
+    return {}
+
+
+class RoomEndRequest(BaseModel):
+    room_id: int
+    score: int
+    judge_count_list: List[int]
+
+
+@app.post("/room/end", response_model=Empty)
+def room_start(req: RoomEndRequest, token: str = Depends(get_auth_token)):
+    print(req)
+    model.end_room(token, req.room_id, req.score, req.judge_count_list)
     return {}

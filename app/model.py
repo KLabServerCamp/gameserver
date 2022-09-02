@@ -1,7 +1,7 @@
 import json
 import uuid
 from enum import Enum, IntEnum
-from typing import Optional
+from typing import Dict, Optional, List
 
 from fastapi import HTTPException
 from pydantic import BaseModel
@@ -273,4 +273,44 @@ def start_room(token: str, room_id: int) -> None:
         conn.execute(
             text("UPDATE `room` SET `status`=:status WHERE `room_id`=:room_id"),
             dict(status=int(WaitRoomStatus.liveStart), room_id=room_id),
+        )
+
+
+def judge_to_json(judge_count_list: List[int]) -> Dict:
+    labels = ["perfect", "great", "good", "bad", "miss"]
+    res = {}
+    for i in range(len(judge_count_list)):
+        res[labels[i]] = judge_count_list[i]
+
+    return res
+
+
+def json_to_judge(judge_json: Dict) -> List[int]:
+    res = []
+    for j in judge_json:
+        res.append(j)
+
+    return res
+
+
+def end_room(token: str, room_id: int, score: int, judge_count_list: List[int]) -> None:
+    with engine.begin() as conn:
+        usr = _get_user_by_token(conn, token)
+        if usr is None:
+            return
+
+        # TODO: 終わったはずのroomにscoreを登録しようとしたら弾く
+        # TODO: 存在しないレコードに対してUpdateをかけてもエラーにならないので，
+        #       変化したレコードが0だった場合にエラーを吐くようにする
+
+        conn.execute(
+            text(
+                "UPDATE `room_member` SET `judge_count_list`=:judge_count_list, `score`=:score WHERE `room_id`=:room_id AND `user_id`=:user_id"
+            ),
+            dict(
+                judge_count_list=str(judge_count_list),
+                score=score,
+                room_id=room_id,
+                user_id=usr.id,
+            ),
         )

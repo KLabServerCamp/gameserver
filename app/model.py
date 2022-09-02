@@ -1,12 +1,13 @@
 import json
 import logging
 import uuid
-from enum import Enum, IntEnum
+from enum import Enum, IntEnum, auto
 from typing import Optional
 
 from fastapi import HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
+from sqlalchemy.engine import Connection
 from sqlalchemy.exc import NoResultFound
 
 from .db import engine
@@ -43,7 +44,7 @@ def create_user(name: str, leader_card_id: int) -> str:
     return token
 
 
-def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
+def _get_user_by_token(conn: Connection, token: str) -> Optional[SafeUser]:
     query_str: str = "SELECT `id`, `name`, `leader_card_id` \
             FROM `user` \
             WHERE `token`=:token"
@@ -77,56 +78,68 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
 
 
 class LiveDifficulty(IntEnum):
-    """ライブの難易度"""
+    """ライブの難易度
 
-    EASY = 1
-    NORMAL = 2
+    - NORMAL: 普通
+    - HARD: ハード
+    """
 
-
-class JoinRoomResult(Enum):
-    """部屋に参加した結果"""
-
-    OK = 1
-    ROOM_FULL = 2
-    DISBANDED = 3
-    OTHER_ERROR = 4
+    NORMAL = auto()
+    HARD = auto()
 
 
-class WaitRoomStatus(Enum):
-    """待機部屋の状態"""
+class JoinRoomResult(IntEnum):
+    """部屋に参加した結果
 
-    WAITING = 1
-    STARTED = 2
-    DISSOLUTION = 3
+    - SUCCESS: 成功
+    - ROOM_FULL: 部屋が満員
+    - DISBANDED: 部屋が解散済み
+    - OTHER_ERROR: その他のエラー
+    """
+
+    OK = auto()
+    ROOM_FULL = auto()
+    DISBANDED = auto()
+    OTHER_ERROR = auto()
+
+
+class WaitRoomStatus(IntEnum):
+    """待機部屋の状態
+
+    - WAITING: まだ誰も入っていない
+    - STARTED: すでに誰かが入っている
+    - DISBANDED: 部屋が解散した
+    """
+
+    WAITING = auto()
+    STARTED = auto()
+    DISSOLUTION = auto()
 
 
 class RoomInfo(BaseModel):
-    """部屋の情報"""
+    """部屋の情報
 
-    room_id: int  # 部屋識別子
-    live_id: int  # プレイ対象の楽曲識別子
-    joined_user_count: int  # 部屋に参加しているユーザー数
-    max_user_count: int  # 部屋の最大参加人数
+    - room_id (int): 部屋識別子
+    - live_id (int): プレイ対象の楽曲識別子
+    - join_user_count (int): 部屋に参加しているユーザーの数
+    - max_user_count (int): 部屋の最大人数
+    """
 
-
-def create_room(token: str, live_id: int, difficulty: LiveDifficulty) -> int:
-    raise NotImplementedError
-
-
-def get_rooms(token: str, live_id: int) -> list[RoomInfo]:
-    raise NotImplementedError
-
-
-def join_room(token: str, room_id: int, difficulty: LiveDifficulty) -> JoinRoomResult:
-    raise NotImplementedError
-
-
-def leave_room(token: str, room_id: int) -> None:
-    raise NotImplementedError
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int
 
 
 class RoomUser(BaseModel):
-    """部屋に参加しているユーザーの情報"""
+    """部屋に参加しているユーザーの情報
+
+    - user_id (int): ユーザー識別子
+    - name (str): ユーザー名
+    - leader_card_id (int): リーダーカードの識別子
+    - selected_difficulty (LiveDifficulty): 選択した難易度
+    - is_host (bool): 部屋のホストかどうか
+    """
 
     user_id: int  # ユーザー識別子
     name: str  # ユーザー名
@@ -137,11 +150,36 @@ class RoomUser(BaseModel):
 
 
 class ResultUser(BaseModel):
-    """結果画面に表示するユーザーの情報"""
+    """結果画面に表示するユーザーの情報
+
+    - user_id (int): ユーザー識別子
+    - judge_count_list (List[int]): 各難易度での判定数
+    - score (int): スコア
+    """
 
     user_id: int  # ユーザー識別子
     judge_count_list: list[int]  # 各判定の数 ()
     score: int  # 獲得スコア
+
+
+def create_room(token: str, live_id: int, difficulty: LiveDifficulty) -> int:
+    raise NotImplementedError
+
+
+def get_rooms(token: str, live_id: int) -> list[RoomInfo]:
+    raise NotImplementedError
+
+
+def join_room(
+    token: str,
+    room_id: int,
+    difficulty: LiveDifficulty,
+) -> JoinRoomResult:
+    raise NotImplementedError
+
+
+def leave_room(token: str, room_id: int) -> None:
+    raise NotImplementedError
 
 
 def get_room_result(token: str, room_id: int) -> list[ResultUser]:

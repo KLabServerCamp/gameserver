@@ -1,5 +1,6 @@
 # import json
 import uuid
+
 # from enum import Enum, IntEnum
 from typing import Optional
 
@@ -47,9 +48,7 @@ def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
     """fetch user data"""
     # TODO: 実装
     result = conn.execute(
-        text(
-            "SELECT * FROM `user` WHERE `token` = :token"
-        ),
+        text("SELECT * FROM `user` WHERE `token` = :token"),
         {"token": token},
     )
     try:
@@ -70,9 +69,7 @@ def _get_user(conn) -> Optional[SafeUser]:
     """fetch user data"""
     # TODO: 実装
     result = conn.execute(
-        text(
-            "SELECT * FROM `user`"
-        ),
+        text("SELECT * FROM `user`"),
     )
     try:
         # rows = result.all()
@@ -92,7 +89,9 @@ def get_user() -> Optional[SafeUser]:
         return _get_user(conn)
 
 
-def _update_user_by_token(conn, token: str, name: str, leader_card_id: str) -> Optional[SafeUser]:
+def _update_user_by_token(
+    conn, token: str, name: str, leader_card_id: str
+) -> Optional[SafeUser]:
     """update user data"""
     # TODO: 実装
     result = conn.execute(

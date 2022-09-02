@@ -18,6 +18,12 @@ class LiveDifficulty(IntEnum):
     hard = 2
 
 
+class WaitRoomStatus(IntEnum):
+    waiting = 1
+    liveStart = 2
+    dissolution = 3
+
+
 class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げる"""
 
@@ -180,4 +186,4 @@ def get_room_users(token: str, room_id: int) -> list[RoomUser]:
             )
             res.append(tmp)
 
-        return status, res
+        return WaitRoomStatus(status), res

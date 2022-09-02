@@ -5,7 +5,7 @@ from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from . import model
-from .model import LiveDifficulty, RoomUser, SafeUser
+from .model import LiveDifficulty, RoomUser, SafeUser, WaitRoomStatus
 
 app = FastAPI()
 
@@ -124,7 +124,7 @@ class RoomWaitRequest(BaseModel):
 
 
 class RoomWaitResponse(BaseModel):
-    status: int
+    status: WaitRoomStatus
     room_user_list: list[RoomUser]
 
 

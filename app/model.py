@@ -139,7 +139,32 @@ def insert_room_member(
         )
 
 
-def get_room_list(room_id: int) -> list[RoomInfo]:
+def _get_room_list_all() -> list[RoomInfo]:
+    with engine.begin() as conn:
+        res = conn.execute(
+            text(
+                """
+                SELECT
+                    room.room_id,
+                    room.live_id,
+                    count(room_member.user_token) as joined_user_count,
+                    4 as max_user_count
+                FROM
+                    room
+                    JOIN room_member
+                        ON room.room_id = room_member.room_id
+                GROUP BY
+                    room.room_id
+            """
+            )
+        )
+
+    return [RoomInfo.from_orm(row) for row in res]
+
+
+def _get_room_list_by_room_id(room_id: int) -> list[RoomInfo]:
+    # NOTE:
+    # 指定したroom_idが存在しなかった場合は値がNoneになるので失敗する
     with engine.begin() as conn:
         res = conn.execute(
             text(
@@ -159,4 +184,15 @@ def get_room_list(room_id: int) -> list[RoomInfo]:
             ),
             dict(room_id=room_id),
         )
-        return [RoomInfo.from_orm(row) for row in res]
+
+    return [RoomInfo.from_orm(row) for row in res]
+
+
+def get_room_list(room_id: int) -> list[RoomInfo]:
+    # NOTE:
+    # SQLでは全部取ってきて、Pythonで絞り込むようにしてもいいかも
+    # 全件毎回取る必要はないけど、クエリキャッシュは効かせられそう？
+    if room_id == 0:
+        return _get_room_list_all()
+    else:
+        return _get_room_list_by_room_id(room_id)

@@ -58,6 +58,13 @@ class RoomInfo(BaseModel):
     max_user_count: int
 
 
+class RoomInfos(BaseModel):
+    __root__: list[RoomInfo]
+
+    class Config:
+        orm_mode = True
+
+
 class RoomUser(BaseModel):
     user_id: int
     name: str
@@ -151,3 +158,25 @@ def _create_room_member(
             },
         )
     print(result)
+
+
+def _get_rooms(conn, live_id: int) -> Optional[RoomInfos]:
+    result = conn.execute(
+        text(
+            "SELECT `id`, `live_id`, `joined_user_count`, `max_user_count`, `wait_room_status` FROM `room` \
+                WHERE `live_id`=:live_id \
+                    AND `wait_room_status`=:wait_room_status \
+                    AND `joined_user_count` < `max_user_count`"
+        ),
+        dict(live_id=live_id, wait_room_status=WaitRoomStatus.Waiting.value),
+    )
+    try:
+        rows = result.all()
+    except NoResultFound:
+        return None
+    return RoomInfos.parse_obj(rows)
+
+
+def get_rooms(live_id: int) -> Optional[RoomInfos]:
+    with engine.begin() as conn:
+        return _get_rooms(conn, live_id)

@@ -29,6 +29,9 @@ class UserCreateResponse(BaseModel):
     user_token: str
 
 
+# UserCreateRequestは型ヒント
+# JSONの型をクラスで表現してヒントとして渡している
+# というより，プログラム内でそのクラスで扱っている
 @app.post("/user/create", response_model=UserCreateResponse)
 def user_create(req: UserCreateRequest):
     """新規ユーザー作成"""

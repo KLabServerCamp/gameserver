@@ -156,12 +156,16 @@ def create_room(live_id: int, select_difficulty: int, user_id: int) -> int:
 
 def get_rooms_by_live_id(live_id: int):
     with engine.begin() as conn:
+        sql_query = "SELECT `id` AS room_id, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `status`=:status"
+        sql_param = {"status": JoinRoomResult.Ok.value}
+
+        if live_id != 0:
+            sql_query += " AND `live_id`=:live_id"
+            sql_param["live_id"] = live_id
+
         result = conn.execute(
-            text(
-                "SELECT `id` AS room_id, `live_id`, `joined_user_count`, `max_user_count` FROM `room` \
-                WHERE `live_id`=:live_id AND `status`=:status"
-            ),
-            {"live_id": live_id, "status": JoinRoomResult.Ok.value},
+            text(sql_query),
+            sql_param,
         )
     try:
         rows = []

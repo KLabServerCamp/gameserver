@@ -1,4 +1,5 @@
 import json
+import logging
 import uuid
 from enum import Enum, IntEnum
 from typing import Optional
@@ -33,17 +34,25 @@ def create_user(name: str, leader_card_id: int) -> str:
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "INSERT INTO `user` (name, token, leader_card_id) VALUES (:name, :token, :leader_card_id)"
+                "INSERT INTO `user` (name, token, leader_card_id) \
+                    VALUES (:name, :token, :leader_card_id)"
             ),
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
-        # print(result)
+        logging.log(logging.DEBUG, result)
     return token
 
 
 def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
-    # TODO: 実装
-    pass
+    query_str: str = "SELECT `id`, `name`, `leader_card_id` \
+            FROM `user` \
+            WHERE `token`=:token"
+
+    result = conn.execute(text(query_str), {"token": token})
+    try:
+        return SafeUser.from_orm(result.one())
+    except NoResultFound:
+        return None
 
 
 def get_user_by_token(token: str) -> Optional[SafeUser]:
@@ -52,7 +61,13 @@ def get_user_by_token(token: str) -> Optional[SafeUser]:
 
 
 def update_user(token: str, name: str, leader_card_id: int) -> None:
-    # このコードを実装してもらう
     with engine.begin() as conn:
-        # TODO: 実装
-        pass
+        query_str: str = "UPDATE `user` \
+            SET `name` = :name, `leader_card_id` = :leader_id \
+            WHERE `token` = :token"
+
+        result = conn.execute(
+            text(query_str),
+            {"name": name, "leader_id": leader_card_id, "token": token},
+        )
+        logging.log(logging.DEBUG, result)

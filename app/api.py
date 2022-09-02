@@ -9,6 +9,52 @@ from .model import SafeUser
 
 app = FastAPI()
 
+# Enum
+
+
+class LiveDifficulty(Enum):
+    normal = 1
+    hard = 2
+
+
+class JoinRoomResult(Enum):
+    Ok = 1
+    RoomFull = 2
+    Disbanded = 3
+    OtherError = 4
+
+
+class WaitRoomStatus(Enum):
+    Waiting = 1
+    LiveStart = 2
+    Dissolution = 3
+
+
+# Class
+
+
+class RoomInfo(BaseModel):
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int
+
+
+class RoomUser(BaseModel):
+    user_id: int
+    name: str
+    leader_card_id: int
+    select_difficulty: LiveDifficulty
+    is_me: bool
+    is_host: bool
+
+
+class ResultUser(BaseModel):
+    user_id: int
+    judge_count_list: list[int]
+    score: int
+
+
 # Sample APIs
 
 
@@ -27,6 +73,74 @@ class UserCreateRequest(BaseModel):
 
 class UserCreateResponse(BaseModel):
     user_token: str
+
+
+class RoomCreateRequest(BaseModel):
+    live_id: int
+    select_difficulty: LiveDifficulty
+
+
+class RoomCreateResponse(BaseModel):
+    room_id: int
+
+
+class RoomListRequest(BaseModel):
+    live_id: int
+
+
+class RoomListResponse(BaseModel):
+    room_info_list: list[RoomInfo]
+
+
+class RoomJoinRequest(BaseModel):
+    room_id: int
+
+
+class RoomJoinResponse(BaseModel):
+    join_room_result: JoinRoomResult
+
+
+class RoomWaitRequest(BaseModel):
+    room_id: int
+
+
+class RoomWaitResponse(BaseModel):
+    status: WaitRoomStatus
+    room_user_list: list[RoomUser]
+
+
+class RoomStartRequest(BaseModel):
+    room_id: int
+
+
+class RoomStartResponse(BaseModel):
+    pass
+
+
+class RoomEndRequest(BaseModel):
+    room_id: int
+    judge_count_list: list[int]
+    score: int
+
+
+class RoomEndResponse(BaseModel):
+    pass
+
+
+class RoomResultRequest(BaseModel):
+    room_id: int
+
+
+class RoomResultResponse(BaseModel):
+    result_user_list: list[ResultUser]
+
+
+class RoomLeaveRequest(BaseModel):
+    room_id: int
+
+
+class RoomLeaveResponse(BaseModel):
+    pass
 
 
 @app.post("/user/create", response_model=UserCreateResponse)

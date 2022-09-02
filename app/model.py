@@ -249,3 +249,28 @@ def join_room(
             return JoinRoomResult.otherError
 
         return JoinRoomResult.ok
+
+
+def start_room(token: str, room_id: int) -> None:
+    with engine.begin() as conn:
+        usr = _get_user_by_token(conn, token)
+        if usr is None:
+            return
+
+        # ホスト以外が開始しようとしたら却下
+        result = conn.execute(
+            text(
+                "SELECT `user_id` FROM `room_member` WHERE `room_id`=:room_id AND `is_host`=true"
+            ),
+            dict(room_id=room_id),
+        )
+        try:
+            if result.one().user_id != usr.id:
+                return
+        except NoResultFound as e:
+            return
+
+        conn.execute(
+            text("UPDATE `room` SET `status`=:status WHERE `room_id`=:room_id"),
+            dict(status=int(WaitRoomStatus.liveStart), room_id=room_id),
+        )

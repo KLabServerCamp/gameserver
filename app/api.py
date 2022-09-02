@@ -69,7 +69,8 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
 
 # Room APIs
 
-class LiveDiffuculty(Enum):
+
+class LiveDifficulty(Enum):
     normal = 1
     hard = 2
 
@@ -79,10 +80,11 @@ class JoinRoomResult(Enum):
     Disbanded = 3
     OtherError = 4
 
-class WaitRoomStatus(Enum):
-    Wating = 1
-    LiveStart = 2
-    Dissolution = 3
+
+# class WaitRoomStatus(Enum):
+#     Wating = 1
+#     LiveStart = 2
+#     Dissolution = 3
 
 class RoomInfo(BaseModel):
     room_id: int
@@ -90,18 +92,40 @@ class RoomInfo(BaseModel):
     joined_user_count: int
     max_user_count: int
     
-class RoomUser(BaseModel):
-    user_id: int
-    name: str
-    leader_card_id: int
-    select_difficulty: LiveDifficulty
-    is_me: bool
-    is_host: bool
+# class RoomUser(BaseModel):
+#     user_id: int
+#     name: str
+#     leader_card_id: int
+#     select_difficulty: LiveDifficulty
+#     is_me: bool
+#     is_host: bool
     
-class ResultUser(BaseModel):
-    user_id: int
-    judge_count_list: list[int]
-    score: int
+# class ResultUser(BaseModel):
+#     user_id: int
+#     judge_count_list: list[int]
+#     score: int
+    
 
-@app.post("/room/create")
 
+class RoomCreateRequest(BaseModel):
+    live_id: int
+    select_difficulty: LiveDifficulty
+
+class RoomCreateResponse(BaseModel):
+    room_id: int
+
+@app.post("/room/create", response=RoomCreateResponse)
+def room_create(req: RoomCreateRequest):
+    room_id = model.create_room(req.live_id, req.select_difficulty)
+    return RoomCreateResponse(room_id=room_id)
+
+@app.get("/room/list", response=list[RoomInfo])
+def room_list(live_id: int):
+    room_list = model.get_room_list(live_id)
+    return room_list
+
+@app.post("/room/join", response=JoinRoomResult)
+def room_join(room_id: int, select_difficutly: LiveDifficulty):
+    join_room_result = model.join_room(room_id, select_difficutly)
+    return join_room_result
+    

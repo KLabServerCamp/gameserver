@@ -9,6 +9,8 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
+from app.api import LiveDifficulty
+
 from .db import engine
 
 
@@ -74,3 +76,20 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
     with engine.begin() as conn:
         # TODO: 実装
         return _update_user(conn, token, name, leader_card_id)
+
+
+MAX_USER_COUNT = 4
+def create_room(live_id: int, select_difficulty: LiveDifficulty) -> int:
+    """Create new user and returns their token"""
+    joined_user_count = 1
+    max_user_count = MAX_USER_COUNT
+    
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "INSERT INTO `room` (live_id, joined_user_count, max_user_count) VALUES (:live_id, :joined_user_count, :max_user_count)"
+            ),
+            {"live_id": live_id, "joined_user_count": joined_user_count, "max_user_count": max_user_count},
+        )
+    room_id = result.lastrowid
+    return room_id

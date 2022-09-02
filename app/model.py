@@ -42,8 +42,15 @@ def create_user(name: str, leader_card_id: int) -> str:
 
 
 def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
-    # TODO: 実装
-    pass
+    res = conn.execute(
+        text("select id, name, leader_card_id from user where token = :token"),
+        {"token": token},
+    )
+    try:
+        row = res.one()
+    except NoResultFound:
+        return None
+    return SafeUser.from_orm(row)
 
 
 def get_user_by_token(token: str) -> Optional[SafeUser]:
@@ -51,8 +58,19 @@ def get_user_by_token(token: str) -> Optional[SafeUser]:
         return _get_user_by_token(conn, token)
 
 
+def dummy_func():
+    print("Im dummy :D")
+
+
+def _update_user(conn, token: str, name: str, leader_card_id: int) -> None:
+    res = conn.execute(
+        text(
+            "update user set name = :name, leader_card_id = :card where token = :token"
+        ),
+        {"name": name, "card": leader_card_id, "token": token},
+    )
+
+
 def update_user(token: str, name: str, leader_card_id: int) -> None:
-    # このコードを実装してもらう
     with engine.begin() as conn:
-        # TODO: 実装
-        pass
+        _update_user(conn, token, name, leader_card_id)

@@ -74,3 +74,68 @@ def _update_user(conn, token: str, name: str, leader_card_id: int) -> None:
 def update_user(token: str, name: str, leader_card_id: int) -> None:
     with engine.begin() as conn:
         _update_user(conn, token, name, leader_card_id)
+
+
+# 以下マルチプレイ用
+
+
+class LiveDifficulty(Enum):
+    normal = 1
+    hard = 2
+
+
+class JoinRoomResult(Enum):
+    Ok = 1
+    RoomFull = 2
+    Disbanded = 3
+    OtherError = 4
+
+
+class WaitRoomStatus(Enum):
+    Waiting = 1
+    LiveStart = 2
+    Dissolution = 3
+
+
+class RoomInfo(BaseModel):
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_cout: int
+
+
+class RoomUser(BaseModel):
+    user_id: int
+    name: str
+    leader_card_id: int
+    select_difficulty: LiveDifficulty
+    is_me: bool
+    is_host: bool
+
+
+class ResultUser(BaseModel):
+    user_id: int
+    judge_count_list: list[int]
+    score: int
+
+
+def _create_room(conn, user: SafeUser, live_id: int, live_dif: LiveDifficulty):
+    users = {0: [user.id, user.leader_card_id, live_dif.value]}
+    users_json = json.dumps(users)
+    result = conn.execute(
+        text(
+            "INSERT INTO `rooms` (live_id, j_usr_cnt, m_usr_cnt, hst_id, users) \
+            VALUES (:live_id, 1, 4, 0, :users)"
+        ),
+        {"live_id": live_id, "users": users_json},
+    )
+    room_id = result.lastrowid
+    return room_id
+
+
+def create_room(token: str, live_id: int, live_dif: LiveDifficulty):
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user == None:
+            raise InvalidToken("指定されたtokenが不正です")
+        return _create_room(conn, user, live_id, live_dif)

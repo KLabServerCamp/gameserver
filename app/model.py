@@ -158,7 +158,9 @@ def _get_room_list_all() -> list[RoomInfo]:
             """
             )
         )
-
+    res = res.fetchall()
+    if len(res) == 0:
+        return []
     return [RoomInfo.from_orm(row) for row in res]
 
 
@@ -185,6 +187,9 @@ def _get_room_list_by_live_id(live_id: int) -> list[RoomInfo]:
             dict(live_id=live_id),
         )
 
+    res = res.fetchall()
+    if len(res) == 0:
+        return []
     return [RoomInfo.from_orm(row) for row in res]
 
 

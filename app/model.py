@@ -129,3 +129,46 @@ def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty) -> 
         )
 
         return room_id
+
+
+class RoomUser(BaseModel):
+    user_id: int
+    name: str
+    leader_card_id: int
+    select_difficulty: LiveDifficulty
+    is_me: bool
+    is_host: bool
+
+
+def get_room_users(token: str, room_id: int) -> list[RoomUser]:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("SELECT `status` FROM `room` WHERE `room_id`=:room_id"),
+            dict(room_id=room_id),
+        )
+        status = result.one().status
+
+        result = conn.execute(
+            text(
+                "SELECT `user_id`, `name`, `leader_card_id`, `select_difficulty`, `is_host` FROM ( SELECT * FROM `room_member` WHERE `room_id`=:room_id) AS `rm` INNER JOIN `user` ON rm.user_id = user.id"
+            ),
+            dict(room_id=room_id),
+        )
+
+        # このAPIをコールしているユーザを特定
+        usr = _get_user_by_token(conn, token)
+
+        # 結果を詰める
+        res = []
+        for m in result.all():
+            tmp = RoomUser(
+                user_id=m.user_id,
+                name=m.name,
+                leader_card_id=m.leader_card_id,
+                select_difficulty=LiveDifficulty(m.select_difficulty),
+                is_me=True if m.user_id == usr.id else False,
+                is_host=m.is_host,
+            )
+            res.append(tmp)
+
+        return status, res

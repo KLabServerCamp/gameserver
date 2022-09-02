@@ -96,7 +96,9 @@ def _update_user_by_token(
     # TODO: 実装
     result = conn.execute(
         text(
-            "UPDATE `user` SET `name`= :name, `leader_card_id`= :leader_card_id WHERE `token` = :token"
+            "UPDATE `user` SET `name`= :name,"
+            + "`leader_card_id`= :leader_card_id"
+            + "WHERE `token` = :token"
         ),
         {"name": name, "leader_card_id": leader_card_id, "token": token},
     )
@@ -108,3 +110,69 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
     # tokenベースでnameとleader_card_idを変更
     with engine.begin() as conn:
         return _update_user_by_token(conn, token, name, leader_card_id)
+
+
+def _create_room(
+    conn, token: str, live_id: str, select_difficulty: str
+) -> int:
+    result = conn.execute(
+        text(
+            "INSERT INTO `room`"
+            + "(live_id, owner_token, joined_user_count, max_user_count)"
+            + "VALUES (:live_id, :token, 1, 4)"
+        ),
+        {"live_id": live_id, "token": token},
+    )
+    room_id = result.lastrowid
+    result2 = conn.execute(
+        text(
+            "INSERT INTO `room_member` (token, room_id, select_difficulty)"
+            + "VALUES (:token, :room_id, :select_difficulty)"
+        ),
+        {
+            "token": token, "room_id": room_id,
+            "select_difficulty": select_difficulty
+        },
+    )
+    print(result2)
+    return room_id
+
+
+def create_room(
+    token: str, live_id: int, select_difficulty: int
+) -> int:
+    """Create new room and returns its id"""
+    with engine.begin() as conn:
+        return _create_room(conn, token, live_id, select_difficulty)
+
+
+def _list_room(
+    conn, token: str, live_id: str
+) -> dict:
+    result = conn.execute(
+        text(
+            "SELECT id, live_id, owner_token, joined_user_count,"
+            + " max_user_count FROM `room`"
+            + "WHERE live_id = :live_id AND joined_user_count < max_user_count"
+        ),
+        {"live_id": live_id},
+    )
+    output = []
+    for row in result:
+        output.append(
+            dict(
+                room_id=row.id,
+                live_id=row.live_id,
+                owner_token=row.owner_token,
+                joined_user_count=row.joined_user_count,
+                max_user_count=row.max_user_count
+            )
+        )
+    print(output)
+    return output
+
+
+def list_room(token: str, live_id: int) -> dict:
+    """Create new room and returns its id"""
+    with engine.begin() as conn:
+        return _list_room(conn, token, live_id)

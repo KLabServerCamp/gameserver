@@ -39,7 +39,9 @@ def user_create(req: UserCreateRequest):
 bearer = HTTPBearer()
 
 
-def get_auth_token(cred: HTTPAuthorizationCredentials = Depends(bearer)) -> str:
+def get_auth_token(
+    cred: HTTPAuthorizationCredentials = Depends(bearer)
+) -> str:
     assert cred is not None
     if not cred.credentials:
         raise HTTPException(status_code=401, detail="invalid credential")
@@ -52,7 +54,9 @@ def user_me(token: str = Depends(get_auth_token)):
     if user is None:
         raise HTTPException(status_code=404)
     # print(f"user_me({token=}, {user=})")
-    return SafeUser(id=user.id, name=user.name, leader_card_id=user.leader_card_id)
+    return SafeUser(
+        id=user.id, name=user.name, leader_card_id=user.leader_card_id
+    )
 
 
 class Empty(BaseModel):
@@ -70,3 +74,55 @@ def update(req: UserUpdateRequest, token: str = Depends(get_auth_token)):
     # print(req)
     model.update_user(token, req.user_name, req.leader_card_id)
     return Empty()
+
+
+class RoomCreateRequest(BaseModel):
+    live_id: int
+    select_difficulty: int
+
+
+class RoomCreateResponse(BaseModel):
+    room_id: int
+
+
+@app.post("/room/create", response_model=RoomCreateResponse)
+def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
+    """新規ルーム作成"""
+    # 入力：曲ID,難易度設定 + トークン
+    # 出力：ルームID
+    id = model.create_room(token, req.live_id, req.select_difficulty)
+    return RoomCreateResponse(room_id=id)
+
+
+class RoomListRequest(BaseModel):
+    live_id: int
+
+
+class RoomListResponse(BaseModel):
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int
+
+
+@app.post("/room/list", response_model=RoomListResponse)
+def room_list(req: RoomListRequest, token: str = Depends(get_auth_token)):
+    """新規ルーム作成"""
+    # 入力：曲ID
+    # 出力：部屋一覧
+    rows = model.list_room(token, req.live_id)
+    print("あああああああ")
+    print(rows)
+    print("あああああああ")
+    output = []
+    for row in rows:
+        element = RoomListResponse(
+            room_id=row["room_id"], live_id=row["live_id"],
+            joined_user_count=row["joined_user_count"],
+            max_user_count=row["max_user_count"]
+        )
+        output.append(element)
+    print("いいいいいいい")
+    print(output)
+    print("いいいいいいい")
+    return output[0]

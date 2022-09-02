@@ -26,18 +26,46 @@ class SafeUser(BaseModel):
         orm_mode = True
 
 
+class LiveDifficulty(Enum):
+    normal = 1
+    hard = 2
+
+
+# Room
+def create_room(live_id: str, select_difficulty: LiveDifficulty) -> int:
+    token = str(uuid.uuid4())
+
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO `room` (token, live_id, joined_user_count, max_user_count) VALUES (:token, :live_id, 0, :max_user_count)"
+            ),
+            {"token": token, "live_id": live_id, "max_user_count": 4},
+        )
+        result = conn.execute(
+            text("SELECT `room_id` FROM `room` WHERE `token`=:token"),
+            dict(token=token),
+        )
+        id = result.one().room_id
+    return id
+
+
+
+
+
+# User
 def create_user(name: str, leader_card_id: int) -> str:
     """Create new user and returns their token"""
     token = str(uuid.uuid4())
     # NOTE: tokenが衝突したらリトライする必要がある.
     with engine.begin() as conn:
-        result = conn.execute(
+        conn.execute(
             text(
                 "INSERT INTO `user` (name, token, leader_card_id) VALUES (:name, :token, :leader_card_id)"
             ),
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
-        # print(result)
+
     return token
 
 
@@ -61,10 +89,9 @@ def get_user_by_token(token: str) -> Optional[SafeUser]:
 def update_user(token: str, name: str, leader_card_id: int) -> None:
     # このコードを実装してもらう
     with engine.begin() as conn:
-        result = conn.execute(
+        conn.execute(
             text(
                 "UPDATE `user` SET name=:name, leader_card_id=:leader_card_id WHERE token=:token"
             ),
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
-        # print(result)

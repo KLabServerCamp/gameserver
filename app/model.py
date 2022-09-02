@@ -181,3 +181,12 @@ def get_room_wait(room_id: int):
         wait_room_status=res[wait_room_status]
         room_user_list = _get_room_user(room_id)
     )
+    
+def update_wait_room_status(room_id: int, wait_room_status: WaitRoomStaus):
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "UPDATE `room` SET wait_room_status=:wait_room_status WHERE room_id=:room_id"
+            ),
+            {"wait_room_status": wait_room_status, "room_id": room_id}
+        )

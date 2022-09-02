@@ -138,3 +138,8 @@ class RoomWaitResponse(BaseModel):
 def wait_room(room_id: int):
     res = model.get_room_wait(room_id)
     return res
+
+@app.post("/room/start")
+def room_start(room_id: int):
+    model.update_wait_room_status(room_id, WaitRoomStatus.LiveStart)
+

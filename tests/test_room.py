@@ -47,9 +47,9 @@ def test_room_1():
         assert response.status_code == 200
         print("room/list response:", response.json())
 
-    response = client.post("/room/list", json={"live_id": 0})
-    assert response.status_code == 200
-    print("room/list response:", response.json())
+        response = client.post("/room/list", json={"live_id": 0})
+        assert response.status_code == 200
+        print("room/list response:", response.json())
 
 """
     response = client.post(

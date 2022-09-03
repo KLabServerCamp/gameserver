@@ -157,7 +157,7 @@ def create_room(live_id: int, select_difficulty: int, user_id: int) -> int:
 def get_rooms_by_live_id(live_id: int):
     with engine.begin() as conn:
         sql_query = "SELECT `id` AS room_id, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `status`=:status"
-        sql_param = {"status": JoinRoomResult.Ok.value}
+        sql_param = {"status": WaitRoomStatus.Waiting.value}
 
         if live_id != 0:
             sql_query += " AND `live_id`=:live_id"

@@ -1,4 +1,5 @@
 from enum import Enum
+from telnetlib import STATUS
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer

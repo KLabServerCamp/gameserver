@@ -25,7 +25,7 @@ CREATE TABLE `room_member` (
   `user_id` bigint NOT NULL,
   `select_difficulty` int NOT NULL,
   `is_host` boolean NOT NULL,
-  `judge_count_list` json,
+  `judge_count_list` varchar(255),
   `score` int,
   PRIMARY KEY (`room_id`, `user_id`)
 );

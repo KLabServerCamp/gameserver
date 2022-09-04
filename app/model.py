@@ -315,6 +315,33 @@ def start_room(room_id: int) -> None:
     return None
 
 
+def end_room(room_id: int, judge_count_list: list[int], score: int, token: str) -> None:
+    with engine.begin() as conn:
+        user_id = _get_user_id_by_token(conn, token)
+        result = conn.execute(
+            text(
+                "INSERT INTO `room_result` (room_id, user_id, perfect, great, good, bad, miss) VALUES \
+                (:room_id, :user_id, :perfect, :great, :good, :bad, :miss)"
+            ),
+            {
+                "room_id": room_id,
+                "user_id": user_id,
+                "perfect": judge_count_list[0],
+                "great": judge_count_list[1],
+                "good": judge_count_list[2],
+                "bad": judge_count_list[3],
+                "miss": judge_count_list[4],
+            },
+        )
+        result = conn.execute(
+            text(
+                "UPDATE `room_member` SET `score`=:score WHERE `room_id`=:room_id AND `user_id`=:user_id"
+            ),
+            {"room_id": room_id, "user_id": user_id, "score": score},
+        )
+    return None
+
+
 def _delete_room_member(conn, room_id: int, user_id: int):
     result = conn.execute(
         text(
@@ -325,7 +352,7 @@ def _delete_room_member(conn, room_id: int, user_id: int):
     return result
 
 
-def _leave_room_not_host(conn, room_id: int, user_id: int):
+def _leave_room_user(conn, room_id: int, user_id: int):
     result = conn.execute(
         text(
             "UPDATE `room` SET `joined_user_count`=`joined_user_count` - 1 WHERE `id`=:room_id"
@@ -349,11 +376,12 @@ def leave_room(room_id: int, token: str) -> None:
     with engine.begin() as conn:
         user_id = _get_user_id_by_token(conn, token)
         result = _delete_room_member(conn, room_id, user_id)
+        status = wait_room_status(room_id)
         host = _wait_room_host(conn, room_id)
 
-        if host == user_id:
+        if host == user_id and status == WaitRoomStatus.Waiting.value:
             result = _leave_room_host(conn, room_id, user_id)
         else:
-            result = _leave_room_not_host(conn, room_id, user_id)
+            result = _leave_room_user(conn, room_id, user_id)
 
     return None

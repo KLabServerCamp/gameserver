@@ -105,6 +105,11 @@ def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
     return SafeUser.from_orm(row)
 
 
+def _get_user_id_by_token(conn, token: str) -> int:
+    user_data = _get_user_by_token(conn, token)
+    return user_data.id
+
+
 def get_user_by_token(token: str) -> Optional[SafeUser]:
     with engine.begin() as conn:
         return _get_user_by_token(conn, token)
@@ -125,8 +130,9 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
     return None
 
 
-def create_room(live_id: int, select_difficulty: int, user_id: int) -> int:
+def create_room(live_id: int, select_difficulty: int, token: str) -> int:
     with engine.begin() as conn:
+        user_id = _get_user_id_by_token(conn, token)
         result = conn.execute(
             text(
                 "INSERT INTO `room` \
@@ -175,9 +181,32 @@ def get_rooms_by_live_id(live_id: int) -> list[RoomInfo]:
     return rows
 
 
-def join_room(room_id: int, select_difficulty: int, user_id: int) -> JoinRoomResult:
+def _join_room(conn, room_id: int, select_difficulty: int, user_id: int):
+    result = conn.execute(
+        text(
+            "INSERT INTO `room_member` (room_id, user_id, difficulty) \
+                VALUES (:room_id, :user_id, :difficulty)"
+        ),
+        {
+            "room_id": room_id,
+            "user_id": user_id,
+            "difficulty": select_difficulty,
+        },
+    )
+    result = conn.execute(
+        text(
+            "UPDATE `room` SET `joined_user_count`=`joined_user_count` + 1 WHERE `id`=:room_id"
+        ),
+        {
+            "room_id": room_id,
+        },
+    )
+    return result
 
+
+def join_room(room_id: int, select_difficulty: int, token: str) -> JoinRoomResult:
     with engine.begin() as conn:
+        user_id = _get_user_id_by_token(conn, token)
         result = conn.execute(
             text(
                 "SELECT `status`, `joined_user_count`, `max_user_count` FROM `room` WHERE `id`=:room_id"
@@ -191,26 +220,7 @@ def join_room(room_id: int, select_difficulty: int, user_id: int) -> JoinRoomRes
 
         if room.status == WaitRoomStatus.Waiting.value:
             if room.joined_user_count < room.max_user_count:
-                result = conn.execute(
-                    text(
-                        "INSERT INTO `room_member` (room_id, user_id, difficulty) \
-                            VALUES (:room_id, :user_id, :difficulty)"
-                    ),
-                    {
-                        "room_id": room_id,
-                        "user_id": user_id,
-                        "difficulty": select_difficulty,
-                    },
-                )
-                result = conn.execute(
-                    text(
-                        "UPDATE `room` SET `joined_user_count`=:joined_user_count WHERE `id`=:room_id"
-                    ),
-                    {
-                        "room_id": room_id,
-                        "joined_user_count": room.joined_user_count + 1,
-                    },
-                )
+                result = _join_room(conn, room_id, select_difficulty, user_id)
                 return JoinRoomResult.Ok
             else:
                 return JoinRoomResult.RoomFull
@@ -245,14 +255,14 @@ def _wait_room_host(conn, room_id: int) -> int:
 
 
 def _get_user_by_id(conn, user_id: int):
-    user_result = conn.execute(
+    result = conn.execute(
         text(
             "SELECT `name`, `token`, `leader_card_id` FROM `user` WHERE `id`=:user_id"
         ),
         {"user_id": user_id},
     )
     try:
-        user_data = user_result.one()
+        user_data = result.one()
     except NoResultFound:
         return None
     return user_data
@@ -276,6 +286,7 @@ def wait_room_users(room_id: int, token: str) -> list[RoomUser]:
                 is_me = False
                 if user_data.token == token:
                     is_me = True
+
                 is_host = False
                 if user.user_id == host:
                     is_host = True
@@ -295,25 +306,45 @@ def wait_room_users(room_id: int, token: str) -> list[RoomUser]:
     return rows
 
 
+def _delete_room_member(conn, room_id: int, user_id: int):
+    result = conn.execute(
+        text(
+            "DELETE FROM `room_member` WHERE `room_id`=:room_id AND `user_id`=:user_id"
+        ),
+        {"room_id": room_id, "user_id": user_id},
+    )
+    return result
+
+
+def _leave_room_not_host(conn, room_id: int, user_id: int):
+    result = conn.execute(
+        text(
+            "UPDATE `room` SET `joined_user_count`=`joined_user_count` - 1 WHERE `id`=:room_id"
+        ),
+        {"room_id": room_id},
+    )
+    return result
+
+
+def _leave_room_host(conn, room_id: int, user_id: int):
+    result = conn.execute(
+        text(
+            "UPDATE `room` SET `status`=:status, `joined_user_count`=`joined_user_count` - 1 WHERE `id`=:room_id"
+        ),
+        {"room_id": room_id, "status": WaitRoomStatus.Dissolution.value},
+    )
+    return result
+
+
 def leave_room(room_id: int, token: str) -> None:
     with engine.begin() as conn:
+        user_id = _get_user_id_by_token(conn, token)
+        result = _delete_room_member(conn, room_id, user_id)
+        host = _wait_room_host(conn, room_id)
 
-        user_data = _get_user_by_token(conn, token)
-        user_id = user_data.id
+        if host == user_id:
+            result = _leave_room_host(conn, room_id, user_id)
+        else:
+            result = _leave_room_not_host(conn, room_id, user_id)
 
-        result = conn.execute(
-            text(
-                "DELETE FROM `room_member` WHERE `room_id`=:room_id AND `user_id`=:user_id"
-            ),
-            {"room_id": room_id, "user_id": user_id},
-        )
-
-        result = conn.execute(
-            text(
-                "UPDATE `room` SET `joined_user_count`=`joined_user_count` - 1 WHERE `id`=:room_id"
-            ),
-            {
-                "room_id": room_id,
-            },
-        )
     return None

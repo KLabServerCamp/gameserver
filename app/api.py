@@ -172,8 +172,12 @@ class RoomResultResponse(BaseModel):
 
 
 @app.post("/room/result", response_model=RoomResultResponse)
-def room_result(req: RoomResultRequest, token: str = Depends(get_auth_token)):
-    pass
+def room_result(req: RoomResultRequest):
+    result_user_list = model.result_room(req.room_id)
+    if result_user_list == []:
+        return []
+
+    return RoomResultResponse(result_user_list=result_user_list)
 
 
 class RoomLeaveRequest(BaseModel):

@@ -1,6 +1,7 @@
 import json
 import uuid
 from enum import Enum, IntEnum
+from itertools import count
 from typing import Optional
 from unittest import result
 
@@ -342,6 +343,53 @@ def end_room(room_id: int, judge_count_list: list[int], score: int, token: str) 
     return None
 
 
+def _get_joined_user_count(conn, room_id: int) -> int:
+    result = conn.execute(
+        text("SELECT `joined_user_count` FROM `room` WHERE `id`=:room_id"),
+        {"room_id": room_id},
+    )
+    try:
+        row = result.one()
+    except NoResultFound:
+        return None
+    return row.joined_user_count
+
+
+def result_room(room_id: int) -> list[ResultUser]:
+    with engine.begin() as conn:
+        joined_user_count = _get_joined_user_count(conn, room_id)
+        result = conn.execute(
+            text(
+                "SELECT `room_member`.`user_id`, `perfect`, `great`, `good`, `bad`, `miss`, `score` \
+                    FROM `room_result` INNER JOIN `room_member` ON `room_result`.`room_id` = `room_member`.`room_id` \
+                        WHERE `room_result`.`room_id`=:room_id"
+            ),
+            {"room_id": room_id},
+        )
+        try:
+            rows = []
+            users = result.fetchall()
+
+            if len(users) == joined_user_count:
+                for user in users:
+                    rows.append(
+                        ResultUser(
+                            user_id=user.user_id,
+                            judge_count_list=[
+                                user.perfect,
+                                user.great,
+                                user.good,
+                                user.bad,
+                                user.miss,
+                            ],
+                            score=user.score,
+                        )
+                    )
+        except NoResultFound:
+            return None
+    return rows
+
+
 def _delete_room_member(conn, room_id: int, user_id: int):
     result = conn.execute(
         text(
@@ -379,7 +427,7 @@ def leave_room(room_id: int, token: str) -> None:
         status = wait_room_status(room_id)
         host = _wait_room_host(conn, room_id)
 
-        if host == user_id and status == WaitRoomStatus.Waiting.value:
+        if host == user_id and status == WaitRoomStatus.Waiting:
             result = _leave_room_host(conn, room_id, user_id)
         else:
             result = _leave_room_user(conn, room_id, user_id)

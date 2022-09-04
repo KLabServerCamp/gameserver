@@ -66,5 +66,6 @@ def test_room_1():
         "/room/result",
         json={"room_id": room_id},
     )
+    print("room/result response:", response.json())
     assert response.status_code == 200
     print("room/end response:", response.json())

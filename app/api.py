@@ -14,6 +14,8 @@ from .model import (
     RoomUser,
     SafeUser,
     WaitRoomStatus,
+    join_room,
+    wait_room_users,
 )
 
 app = FastAPI()
@@ -121,9 +123,14 @@ class RoomJoinResponse(BaseModel):
     join_room_result: JoinRoomResult
 
 
-@app.post("/room/join", response_model=RoomJoinRequest)
-def room_join(req: RoomJoinResponse, token: str = Depends(get_auth_token)):
-    pass
+@app.post("/room/join", response_model=RoomJoinResponse)
+def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
+    user = model.get_user_by_token(token)
+    user_id = user.id
+    join_room_result = model.join_room(
+        req.room_id, req.select_difficulty.value, user_id
+    )
+    return RoomJoinResponse(join_room_result=join_room_result)
 
 
 class RoomWaitRequest(BaseModel):
@@ -131,13 +138,15 @@ class RoomWaitRequest(BaseModel):
 
 
 class RoomWaitResponse(BaseModel):
-    status: int
+    status: WaitRoomStatus
     room_user_list: list[RoomUser]
 
 
 @app.post("/room/wait", response_model=RoomWaitResponse)
 def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
-    pass
+    status = model.wait_room_status(req.room_id)
+    room_user_list = wait_room_users(req.room_id, token)
+    return RoomWaitResponse(status=status, room_user_list=room_user_list)
 
 
 class RoomStartRequest(BaseModel):
@@ -179,4 +188,5 @@ class RoomLeaveRequest(BaseModel):
 
 @app.post("/room/leave", response_model=Empty)
 def room_leave(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
-    pass
+    model.leave_room(req.room_id, token)
+    return {}

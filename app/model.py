@@ -142,19 +142,18 @@ def create_room(live_id: int, select_difficulty: int, user_id: int) -> int:
 
         room_id = result.lastrowid
 
-    with engine.begin() as conn:
         result = conn.execute(
             text(
-                "INSERT INTO `room_member` (room_id, user_id) \
-                    VALUES (:room_id, :user_id)"
+                "INSERT INTO `room_member` (room_id, user_id, difficulty) \
+                    VALUES (:room_id, :user_id, :difficulty)"
             ),
-            {"room_id": room_id, "user_id": user_id},
+            {"room_id": room_id, "user_id": user_id, "difficulty": select_difficulty},
         )
 
     return room_id
 
 
-def get_rooms_by_live_id(live_id: int):
+def get_rooms_by_live_id(live_id: int) -> list[RoomInfo]:
     with engine.begin() as conn:
         sql_query = "SELECT `id` AS room_id, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `status`=:status"
         sql_param = {"status": WaitRoomStatus.Waiting.value}
@@ -167,10 +166,154 @@ def get_rooms_by_live_id(live_id: int):
             text(sql_query),
             sql_param,
         )
+        try:
+            rows = []
+            for row in result.fetchall():
+                rows.append(RoomInfo.from_orm(row))
+        except NoResultFound:
+            return None
+    return rows
+
+
+def join_room(room_id: int, select_difficulty: int, user_id: int) -> JoinRoomResult:
+
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT `status`, `joined_user_count`, `max_user_count` FROM `room` WHERE `id`=:room_id"
+            ),
+            {"room_id": room_id},
+        )
+        try:
+            room = result.one()
+        except NoResultFound:
+            return JoinRoomResult.OtherError
+
+        if room.status == WaitRoomStatus.Waiting.value:
+            if room.joined_user_count < room.max_user_count:
+                result = conn.execute(
+                    text(
+                        "INSERT INTO `room_member` (room_id, user_id, difficulty) \
+                            VALUES (:room_id, :user_id, :difficulty)"
+                    ),
+                    {
+                        "room_id": room_id,
+                        "user_id": user_id,
+                        "difficulty": select_difficulty,
+                    },
+                )
+                result = conn.execute(
+                    text(
+                        "UPDATE `room` SET `joined_user_count`=:joined_user_count WHERE `id`=:room_id"
+                    ),
+                    {
+                        "room_id": room_id,
+                        "joined_user_count": room.joined_user_count + 1,
+                    },
+                )
+                return JoinRoomResult.Ok
+            else:
+                return JoinRoomResult.RoomFull
+        elif room.status == WaitRoomStatus.Dissolution.value:
+            return JoinRoomResult.Disbanded
+    return JoinRoomResult.OtherError
+
+
+def wait_room_status(room_id: int) -> WaitRoomStatus:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("SELECT `status` FROM `room` WHERE `id`=:room_id"),
+            {"room_id": room_id},
+        )
+        try:
+            row = result.one()
+        except NoResultFound:
+            return None
+    return WaitRoomStatus(row.status)
+
+
+def _wait_room_host(conn, room_id: int) -> int:
+    result = conn.execute(
+        text("SELECT `owner` FROM `room` WHERE `id`=:room_id"),
+        {"room_id": room_id},
+    )
     try:
-        rows = []
-        for row in result.fetchall():
-            rows.append(RoomInfo.from_orm(row))
+        host_user = result.one()
     except NoResultFound:
         return None
+    return host_user.owner
+
+
+def _get_user_by_id(conn, user_id: int):
+    user_result = conn.execute(
+        text(
+            "SELECT `name`, `token`, `leader_card_id` FROM `user` WHERE `id`=:user_id"
+        ),
+        {"user_id": user_id},
+    )
+    try:
+        user_data = user_result.one()
+    except NoResultFound:
+        return None
+    return user_data
+
+
+def wait_room_users(room_id: int, token: str) -> list[RoomUser]:
+    with engine.begin() as conn:
+        host = _wait_room_host(conn, room_id)
+
+        result = conn.execute(
+            text(
+                "SELECT `user_id`, `difficulty` FROM `room_member` WHERE `room_id`=:room_id"
+            ),
+            {"room_id": room_id},
+        )
+        try:
+            rows = []
+            for user in result.fetchall():
+                user_data = _get_user_by_id(conn, user.user_id)
+
+                is_me = False
+                if user_data.token == token:
+                    is_me = True
+                is_host = False
+                if user.user_id == host:
+                    is_host = True
+
+                rows.append(
+                    RoomUser(
+                        user_id=user.user_id,
+                        name=user_data.name,
+                        leader_card_id=user_data.leader_card_id,
+                        select_difficulty=user.difficulty,
+                        is_me=is_me,
+                        is_host=is_host,
+                    )
+                )
+        except NoResultFound:
+            return None
     return rows
+
+
+def leave_room(room_id: int, token: str) -> None:
+    with engine.begin() as conn:
+
+        user_data = _get_user_by_token(conn, token)
+        user_id = user_data.id
+
+        result = conn.execute(
+            text(
+                "DELETE FROM `room_member` WHERE `room_id`=:room_id AND `user_id`=:user_id"
+            ),
+            {"room_id": room_id, "user_id": user_id},
+        )
+
+        result = conn.execute(
+            text(
+                "UPDATE `room` SET `joined_user_count`=`joined_user_count` - 1 WHERE `id`=:room_id"
+            ),
+            {
+                "room_id": room_id,
+            },
+        )
+    return None

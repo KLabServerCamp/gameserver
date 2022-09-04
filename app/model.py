@@ -268,7 +268,7 @@ def _get_user_by_id(conn, user_id: int):
     return user_data
 
 
-def wait_room_users(room_id: int, token: str) -> list[RoomUser]:
+def wait_room_user_list(room_id: int, token: str) -> list[RoomUser]:
     with engine.begin() as conn:
         host = _wait_room_host(conn, room_id)
 

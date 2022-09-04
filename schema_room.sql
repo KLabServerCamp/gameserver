@@ -17,3 +17,15 @@ CREATE TABLE `room_member` (
   `score` int DEFAULT NULL,
   PRIMARY KEY (`room_id`, `user_id`)
 );
+
+DROP TABLE IF EXISTS `room_result`;
+CREATE TABLE `room_result` (
+  `room_id` bigint NOT NULL,
+  `user_id` bigint NOT NULL,
+  `perfect` int NOT NULL,
+  `great` int NOT NULL,
+  `good` int NOT NULL,
+  `bad` int NOT NULL,
+  `miss` int NOT NULL,
+  PRIMARY KEY (`room_id`, `user_id`)
+);

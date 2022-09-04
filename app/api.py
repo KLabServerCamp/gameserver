@@ -14,8 +14,6 @@ from .model import (
     RoomUser,
     SafeUser,
     WaitRoomStatus,
-    join_room,
-    wait_room_users,
 )
 
 app = FastAPI()
@@ -149,7 +147,8 @@ class RoomStartRequest(BaseModel):
 
 @app.post("/room/start", response_model=Empty)
 def room_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
-    pass
+    model.start_room(req.room_id)
+    return {}
 
 
 class RoomEndRequest(BaseModel):

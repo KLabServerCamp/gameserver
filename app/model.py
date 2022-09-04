@@ -306,6 +306,15 @@ def wait_room_user_list(room_id: int, token: str) -> list[RoomUser]:
     return rows
 
 
+def start_room(room_id: int) -> None:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("UPDATE `room` SET `status`=:status WHERE `id`=:room_id"),
+            {"room_id": room_id, "status": WaitRoomStatus.LiveStart.value},
+        )
+    return None
+
+
 def _delete_room_member(conn, room_id: int, user_id: int):
     result = conn.execute(
         text(

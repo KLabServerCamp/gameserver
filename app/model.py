@@ -324,6 +324,14 @@ def end_room(room_id: int, judge_count_list: list[int], score: int, token: str) 
     return None
 
 
+def _dissolve_room(conn, room_id: int) -> None:
+    conn.execute(
+        text("UPDATE `room` SET `status`=:status WHERE `id`=:room_id"),
+        {"room_id": room_id, "status": WaitRoomStatus.Dissolution.value},
+    )
+    return None
+
+
 def _get_joined_user_count(conn, room_id: int) -> int:
     result = conn.execute(
         text("SELECT `joined_user_count` FROM `room` WHERE `id`=:room_id"),
@@ -351,6 +359,7 @@ def result_room(room_id: int) -> list[ResultUser]:
             users = result.fetchall()
 
             if len(users) == joined_user_count:
+                _dissolve_room(conn, room_id)
                 for user in users:
                     rows.append(
                         ResultUser(

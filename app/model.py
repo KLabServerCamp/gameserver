@@ -353,3 +353,37 @@ def end_room(user_id: int, room_id: int, judge_count_list: list[int], score: int
     
 
 ## /room/leave
+
+def leave_room(room_id: int, user: SafeUser):
+    # update_room_user
+    #   - room_userを削除
+    #   - roomから人数減らす
+    #   - もしroomが0人になると部屋削除
+
+    # room_memberからuserを削除
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "DELETE FROM `room_member` \
+                    WHERE `room_id`=:room_id AND `user_id`=:user_id"
+            ),
+            {
+                "room_id": room_id,
+                "user_id": user.id
+            }
+        )
+
+    room_info = get_room_by_id(room_id)
+    # 部屋の人数を一人減らす
+    with engine.begin() as conn:
+        reslut = conn.execute(
+            text(
+                "UPDATE `room` SET \
+                    `joined_user_connect`=:joined_user_connect \
+                    WHERE `room_id`=:room_id"
+            ),
+            {
+                "joined_user_connect": room_info.joined_user_connect - 1,
+                "room_id": room_id,
+            }
+        )

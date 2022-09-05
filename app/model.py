@@ -211,12 +211,12 @@ def _get_room_user(roomid: int) -> list[RoomUser]:
     for row in result:
         room_user_list.append(
             RoomUser(
-                user_id=row[user_id],
-                name=row[name],
-                leader_card_id=row[leader_card_id],
-                select_difficulty=row[select_diffculty],
-                is_me=row[is_me],
-                is_host=row[is_host]
+                user_id=row["user_id"],
+                name=row["name"],
+                leader_card_id=row["leader_card_id"],
+                select_difficulty=row["select_diffculty"],
+                is_me=row["is_me"],
+                is_host=row["is_host"]
             )
         )
     return room_user_list

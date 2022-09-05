@@ -1,7 +1,7 @@
 import json
 import uuid
 from enum import Enum, IntEnum
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Tuple
 
 from fastapi import HTTPException
 from pydantic import BaseModel
@@ -81,6 +81,13 @@ def get_user_by_token(token: str) -> Optional[SafeUser]:
         return _get_user_by_token(conn, token)
 
 
+def validUser(token: str):
+    usr = get_user_by_token(token)
+    if usr is None:
+        raise HTTPException(status_code=401)
+    return usr
+
+
 def update_user(token: str, name: str, leader_card_id: int) -> None:
     # このコードを実装してもらう
     # tokenは不変
@@ -113,6 +120,7 @@ def get_rooms(live_id: int = 0):
 
 
 def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty) -> int:
+    validUser(token)
     with engine.begin() as conn:
         result = conn.execute(
             text(
@@ -159,7 +167,8 @@ class RoomUser(BaseModel):
     is_host: bool
 
 
-def get_room_users(token: str, room_id: int) -> list[RoomUser]:
+def get_room_users(token: str, room_id: int) -> Tuple[WaitRoomStatus, list[RoomUser]]:
+    validUser(token)
     with engine.begin() as conn:
         result = conn.execute(
             text("SELECT `status` FROM `room` WHERE `room_id`=:room_id"),
@@ -199,11 +208,8 @@ def get_room_users(token: str, room_id: int) -> list[RoomUser]:
 def join_room(
     token: str, room_id: int, select_difficulty: LiveDifficulty
 ) -> JoinRoomResult:
+    usr = validUser(token)
     with engine.begin() as conn:
-        usr = _get_user_by_token(conn, token)
-        if usr is None:
-            return JoinRoomResult.otherError
-
         result = conn.execute(
             text(
                 "SELECT `joined_user_count`, `max_user_count`, `status` FROM `room` WHERE `room_id`=:room_id"
@@ -252,11 +258,8 @@ def join_room(
 
 
 def start_room(token: str, room_id: int) -> None:
+    usr = validUser(token)
     with engine.begin() as conn:
-        usr = _get_user_by_token(conn, token)
-        if usr is None:
-            return
-
         # ホスト以外が開始しようとしたら却下
         result = conn.execute(
             text(
@@ -276,29 +279,9 @@ def start_room(token: str, room_id: int) -> None:
         )
 
 
-def judge_to_json(judge_count_list: List[int]) -> Dict:
-    labels = ["perfect", "great", "good", "bad", "miss"]
-    res = {}
-    for i in range(len(judge_count_list)):
-        res[labels[i]] = judge_count_list[i]
-
-    return res
-
-
-def json_to_judge(judge_json: Dict) -> List[int]:
-    res = []
-    for j in judge_json:
-        res.append(j)
-
-    return res
-
-
 def end_room(token: str, room_id: int, score: int, judge_count_list: List[int]) -> None:
+    usr = validUser(token)
     with engine.begin() as conn:
-        usr = _get_user_by_token(conn, token)
-        if usr is None:
-            return
-
         # TODO: 終わったはずのroomにscoreを登録しようとしたら弾く
         # TODO: 存在しないレコードに対してUpdateをかけてもエラーにならないので，
         #       変化したレコードが0だった場合にエラーを吐くようにする

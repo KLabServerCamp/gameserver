@@ -314,3 +314,35 @@ def end_room(token: str, room_id: int, score: int, judge_count_list: List[int]) 
                 user_id=usr.id,
             ),
         )
+
+
+class ResultUser(BaseModel):
+    user_id: int
+    judge_count_list: List[int]
+    score: int
+
+
+def get_results(room_id: int) -> List[ResultUser]:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT `user_id`, `judge_count_list`, `score` FROM `room_member` WHERE `room_id`=:room_id"
+            ),
+            dict(room_id=room_id),
+        )
+
+        res = []
+        try:
+            for userRes in result.all():
+                # TODO: evalは危険，これを使わないデータ構造に変更する
+                tmp = ResultUser(
+                    user_id=userRes.user_id,
+                    judge_count_list=eval(userRes.judge_count_list),
+                    score=userRes.score,
+                )
+                res.append(tmp)
+        except Exception as e:
+            print(e)
+            return []
+
+        return res

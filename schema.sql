@@ -10,12 +10,12 @@ CREATE TABLE `user` (
   UNIQUE KEY `token` (`token`)
 );
 CREATE TABLE `room` (
-  `id` bigint NOT NULL AUTO_INCREMENT,
+  `room_id` bigint NOT NULL AUTO_INCREMENT,
   `live_id` int NOT NULL,
   `joined_user_count` int NOT NULL DEFAULT 1,
   `max_user_count` int NOT NULL DEFAULT 4,
   `wait_room_status` int NOT NULL DEFAULT 1,
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`room_id`)
 );
 CREATE TABLE `room_member` (
   `room_id` bigint NOT NULL,

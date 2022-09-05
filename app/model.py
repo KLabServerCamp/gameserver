@@ -156,7 +156,7 @@ def _create_room_member(
 def _get_room_list(conn, live_id: int) -> Optional[list[RoomInfo]]:
     result = conn.execute(
         text(
-            "SELECT `id`, `live_id`, `joined_user_count`, `max_user_count`, `wait_room_status` \
+            "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` \
                 FROM `room` \
                 WHERE `live_id`=:live_id \
                     AND `wait_room_status`=:wait_room_status \
@@ -165,18 +165,16 @@ def _get_room_list(conn, live_id: int) -> Optional[list[RoomInfo]]:
         dict(live_id=live_id, wait_room_status=WaitRoomStatus.Waiting.value),
     )
     try:
-        room_list = list[RoomInfo]
-        map(
-            lambda row: room_list.append(
+        room_list = []
+        for room in result.all():
+            room_list.append(
                 RoomInfo(
-                    room_id=row.room_id,
-                    live_id=row.live_id,
-                    joined_user_count=row.joined_user_count,
-                    max_user_count=row.max_user_count,
+                    room_id=room.room_id,
+                    live_id=room.live_id,
+                    joined_user_count=room.joined_user_count,
+                    max_user_count=room.max_user_count,
                 )
-            ),
-            result,
-        )
+            )
     except NoResultFound:
         return None
     return room_list

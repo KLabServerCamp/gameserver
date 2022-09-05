@@ -99,7 +99,7 @@ def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
 
 @app.post("/room/list", response_model=RoomListResponse)
 def room_list(req: RoomListRequest):
-    room_list = model.get_room_list(req.live_id)
-    if room_list is None:
+    room_info_list = model.get_room_list(req.live_id)
+    if room_info_list is None:
         raise HTTPException(status_code=404)
-    return room_list
+    return RoomListResponse(room_info_list=room_info_list)

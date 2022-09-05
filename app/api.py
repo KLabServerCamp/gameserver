@@ -199,6 +199,18 @@ class RoomResultResponse(BaseModel):
     result_user_list: list[ResultUser]
 
 
+class RoomLeaveRequest(BaseModel):
+    """ルームの退出時のリクエスト
+
+    Attributes
+    ----------
+    room_id: int
+        対象ルーム
+    """
+
+    room_id: int
+
+
 @app.post("/user/create", response_model=UserCreateResponse)
 def user_create(req: UserCreateRequest) -> UserCreateResponse:
     """新規ユーザー作成"""
@@ -314,3 +326,14 @@ def get_room_result(req: RoomResultRequest) -> RoomResultResponse:
     """ルームの結果を取得する"""
     result_user_list = model.get_room_result(req.room_id)
     return RoomResultResponse(result_user_list=result_user_list)
+
+
+@app.post("/room/leave", response_model=Empty)
+def leave_room(req: RoomLeaveRequest, token: str = Depends(get_auth_token)) -> Empty:
+    """Roomから退出する"""
+    me = model.get_user_by_token(token)
+    if me is None:
+        raise Exception("user not found")
+    else:
+        model.leave_room(req.room_id, me.id)
+    return Empty()

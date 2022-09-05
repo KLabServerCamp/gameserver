@@ -180,6 +180,9 @@ def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
 
 @app.post("/room/start")
 def room_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
-    room_start_result = model.start_room(token, req.room_id)
-    if room_start_result is InvalidUser:
-        raise InvalidUser
+    model.start_room(token, req.room_id)
+
+
+@app.post("/room/end")
+def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
+    model.end_room(token, req.room_id, req.judge_count_list, req.score)

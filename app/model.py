@@ -78,10 +78,11 @@ class ResultUser(BaseModel):
 
 
 # User
-def _is_user(token: str) -> None:
+def _user_judge(token: str) -> int:
     user = get_user_by_token(token)
     if user is None:
         raise InvalidToken
+    return user.id
 
 
 def create_user(name: str, leader_card_id: int) -> str:
@@ -280,15 +281,39 @@ def _is_host(room_id: int) -> bool:
     return result.one().is_host
 
 
-def start_room(token: str, room_id: int) -> Optional[InvalidUser]:
-    _is_user(token)
+def start_room(token: str, room_id: int) -> None:
+    _user_judge(token)
     if not _is_host(room_id):
-        return InvalidUser
+        raise InvalidUser
     with engine.begin() as conn:
         result = conn.execute(
             text(
                 "UPDATE `room` SET wait_room_status=:wait_room_status WHERE room_id=:room_id"
             ),
             dict(wait_room_status=WaitRoomStatus.LiveStart.value, room_id=room_id),
+        )
+        print(result)
+
+
+def end_room(
+    token: str,
+    room_id: int,
+    judge_count_list: list[int],
+    score: int,
+) -> None:
+    user_id = _user_judge(token)
+    judge_count_list_json = json.dumps(judge_count_list)
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "UPDATE `room_member` SET judge_count_list=:judge_count_list, score=:score \
+                    WHERE room_id=:room_id AND user_id=:user_id"
+            ),
+            dict(
+                judge_count_list=judge_count_list_json,
+                score=score,
+                room_id=room_id,
+                user_id=user_id,
+            ),
         )
         print(result)

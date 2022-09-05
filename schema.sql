@@ -26,6 +26,7 @@ CREATE TABLE `room_member` (
   `user_id` bigint NOT NULL,
   `score` int,
   `select_difficulty` int NOT NULL,
+  `judge_count_list` varchar(255),
   
   PRIMARY KEY (`room_id`, `user_id`)
 );

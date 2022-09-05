@@ -291,24 +291,29 @@ def is_host(room_id: int, user: SafeUser) -> bool:
 ## /room/start
 
 def start_room(room_id: int, user: SafeUser):
-    if is_host(room_id, user):
-        model.update_wait_room_status(room_id, WaitRoomStatus.LiveStart)
+    room_user = get_room_user(room_id, user)
+    if room_user.is_host:
+        update_wait_room_status(room_id, WaitRoomStatus.LiveStart)
 
 
 ## /room/result
 
 # TODO: 実装途中
-def post_result(room_id: int, result_user: ResultUser):
+def update_result(room_id: int, result_user: ResultUser):
     with engine.begin() as conn:
         result = conn.execute(
-            # TODO: judge_count_listの扱いどうしよう
             text(
                 "UPDATE `room_member` SET \
-                    \
+                    `judge_count_list`=:judge_count_list \
+                    `score`=:score \
                     WHERE room_id=:room_id AND user_id=:user_id"
             ),
-            # TODO: 中身入れる
-            {}
+            {
+                "judge_count_list": ",".join(map(str, result_user.judge_count_list)),
+                "score": result_user.score,
+                "room_id": room_id,
+                "user_id": result_user.user_id
+            }
         )
 
 def get_result_user_list(room_id: int) -> list[ResultUser]:
@@ -316,7 +321,7 @@ def get_result_user_list(room_id: int) -> list[ResultUser]:
         result = conn.execute(
             # TODO: judge_count_listの扱いどうしよう
             text(
-                "SELECT `user_id`, `judge_count_list`, `score` FROM room_member WHERE room_id=:room_id"
+                "SELECT `user_id`, `judge_count_list`, `score` FROM `room_member` WHERE room_id=:room_id"
             ),
             {"room_id": room_id}
         )
@@ -324,9 +329,11 @@ def get_result_user_list(room_id: int) -> list[ResultUser]:
     for row in result:
         result_user_list.append(
             ResultUser(
-                user_id=user_id,
-                judge_count_lsit=judge_count_list,
-                score=score
+                user_id=row["user_id"],
+                judge_count_list=[
+                    int(i) for i in row["judge_count_list"]
+                ],
+                score=row["score"],
             )
         )
     return result_user_list
@@ -335,7 +342,13 @@ def get_result_user_list(room_id: int) -> list[ResultUser]:
 ## /room/end
 
 def end_room(user_id: int, room_id: int, judge_count_list: list[int], score: int): 
-    post_result(room_id, ResultUser("user_id": user_id, "judge_count_list": judge_count_list, "score": score)) 
+    update_result(room_id, 
+        ResultUser(
+            user_id=user_id, 
+            judge_count_list=judge_count_list, 
+            score=score
+        )
+    ) 
     update_wait_room_status(room_id, WaitRoomStatus.Dissolution)
     
 

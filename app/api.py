@@ -160,8 +160,9 @@ def room_end(req: RoomEndRequest):
     model.end_room()
 
 @app.get("/room/result", response=list[ResultUser])
-def room_result(room_id: int):
-    res = model.get_result_users(room_id)
+def room_result(room_id: int, token: str = Depends(get_auth_token())):
+    user = model.get_user_by_token(token)
+    res = model.get_result_users(room_id, user)
     return res
 
 @app.post("/room/leave")

@@ -2,7 +2,7 @@ import json
 import logging
 import uuid
 from enum import Enum, IntEnum, auto
-from typing import Optional
+from typing import Optional, Union
 
 from fastapi import HTTPException
 from pydantic import BaseModel
@@ -211,17 +211,23 @@ def _get_room_info(conn: Connection, room_id: int) -> Optional[RoomInfo]:
 
 
 def _get_waiting_room_list(conn: Connection, live_id: int) -> list[RoomInfo]:
-    query_str: str = "SELECT `id` FROM `room` \
-        WHERE `live_id`=:live_id AND `status`=:status \
-        FOR UPDATE"
 
-    result = conn.execute(
-        text(query_str),
-        {"live_id": live_id, "status": WaitRoomStatus.WAITING.value},
-    )
-    return [
-        x for x in [_get_room_info(conn, row["id"]) for row in result] if x
-    ]
+    query_str: str
+    query_args: dict[str, Union[str, int]]
+
+    query_str = "SELECT `id` FROM `room` \
+            WHERE `status`=:status \
+            FOR UPDATE"
+    query_args = {"status": WaitRoomStatus.WAITING.value}
+
+    if live_id != 0:
+        query_str = "SELECT `id` FROM `room` \
+            WHERE `live_id`=:live_id AND `status`=:status \
+            FOR UPDATE"
+        query_args.update({"live_id": live_id})
+
+    result = conn.execute(text(query_str), query_args)
+    return [x for x in [_get_room_info(conn, row["id"]) for row in result] if x]
 
 
 def _get_host_id(conn: Connection, room_id: int) -> int:
@@ -287,12 +293,10 @@ def create_room(token: str, live_id: int, duffuculty: LiveDifficulty) -> int:
         raise InvalidToken
 
 
-def get_room_list(token: str, live_id: int) -> list[RoomInfo]:
+def get_room_list(live_id: int) -> list[RoomInfo]:
     with engine.begin() as conn:
         conn: Connection
-        if _ := _get_user_by_token(conn, token):
-            return _get_waiting_room_list(conn, live_id)
-        raise InvalidToken
+        return _get_waiting_room_list(conn, live_id)
 
 
 def join_room(

@@ -72,7 +72,7 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
 
 class RoomCreateRequest(BaseModel):
     live_id: int  # ルームで遊ぶ楽曲のID
-    selected_difficulty: LiveDifficulty  # 難易度
+    select_difficulty: LiveDifficulty  # 難易度
 
 
 class RoomCreateResponse(BaseModel):
@@ -85,7 +85,7 @@ def create_room(
 ) -> RoomCreateResponse:
     """ルームを作成する"""
     # print(req)
-    room_id = model.create_room(token, req.live_id, req.selected_difficulty)
+    room_id = model.create_room(token, req.live_id, req.select_difficulty)
     return RoomCreateResponse(room_id=room_id)
 
 
@@ -98,10 +98,8 @@ class RoomListResponse(BaseModel):
 
 
 @app.post("/room/list", response_model=RoomListResponse)
-def list_room(
-    req: RoomListRequest, token: str = Depends(get_auth_token)
-) -> RoomListResponse:
-    """ルームを作成する"""
+def list_room(req: RoomListRequest) -> RoomListResponse:
+    """ルーム一覧を表示する"""
     # print(req)
-    room_info_list = model.get_room_list(token, req.live_id)
+    room_info_list = model.get_room_list(req.live_id)
     return RoomListResponse(room_info_list=room_info_list)

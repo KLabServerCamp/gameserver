@@ -8,6 +8,7 @@ from typing import Optional
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
+from app.api import LiveDifficulty
 
 from app.db import engine
 
@@ -35,7 +36,7 @@ def create_user(name: str, leader_card_id: int) -> str:
         result = conn.execute(
             text(
                 "INSERT INTO `user` (name, token, leader_card_id)"
-                + "VALUES (:name, :token, :leader_card_id)"
+                + " VALUES (:name, :token, :leader_card_id)"
             ),
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
@@ -98,7 +99,7 @@ def _update_user_by_token(
         text(
             "UPDATE `user` SET `name`= :name,"
             + "`leader_card_id`= :leader_card_id"
-            + "WHERE `token` = :token"
+            + " WHERE `token` = :token"
         ),
         {"name": name, "leader_card_id": leader_card_id, "token": token},
     )
@@ -113,13 +114,13 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
 
 
 def _create_room(
-    conn, token: str, live_id: str, select_difficulty: str
+    conn, token: str, live_id: int, select_difficulty: LiveDifficulty
 ) -> int:
     result = conn.execute(
         text(
             "INSERT INTO `room`"
-            + "(live_id, owner_token, joined_user_count, max_user_count)"
-            + "VALUES (:live_id, :token, 1, 4)"
+            + " (live_id, owner_token, joined_user_count, max_user_count)"
+            + " VALUES (:live_id, :token, 1, 4)"
         ),
         {"live_id": live_id, "token": token},
     )
@@ -127,7 +128,7 @@ def _create_room(
     result2 = conn.execute(
         text(
             "INSERT INTO `room_member` (token, room_id, select_difficulty)"
-            + "VALUES (:token, :room_id, :select_difficulty)"
+            + " VALUES (:token, :room_id, :select_difficulty)"
         ),
         {
             "token": token, "room_id": room_id,
@@ -153,7 +154,8 @@ def _list_room(
         text(
             "SELECT id, live_id, owner_token, joined_user_count,"
             + " max_user_count FROM `room`"
-            + "WHERE live_id = :live_id AND joined_user_count < max_user_count"
+            + " WHERE live_id = :live_id AND joined_user_count"
+            + " < max_user_count"
         ),
         {"live_id": live_id},
     )

@@ -1,4 +1,4 @@
-# from enum import Enum
+from enum import Enum
 
 from lib2to3.pytree import Base
 from fastapi import Depends, FastAPI, HTTPException
@@ -77,9 +77,9 @@ def update(req: UserUpdateRequest, token: str = Depends(get_auth_token)):
     return Empty()
 
 
-class LiveDifficulty(BaseModel):
-    normal: 1
-    hard: 2
+class LiveDifficulty(Enum):
+    normal = 1
+    hard = 2
 
 
 class RoomCreateRequest(BaseModel):
@@ -100,17 +100,17 @@ def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
     return RoomCreateResponse(room_id=id)
 
 
-class JoinRoomResult(BaseModel):
-    Ok: 1
-    RoomFull: 2
-    Disbanded: 3
-    OtherError: 4
+class JoinRoomResult(Enum):
+    Ok = 1
+    RoomFull = 2
+    Disbanded = 3
+    OtherError = 4
 
 
-class WaitRoomStatus(BaseModel):
-    Waiting: 1
-    LiveStart: 2
-    Dissolution: 3
+class WaitRoomStatus(Enum):
+    Waiting = 1
+    LiveStart = 2
+    Dissolution = 3
 
 
 class RoomInfo(BaseModel):

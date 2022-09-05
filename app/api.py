@@ -1,5 +1,4 @@
 from enum import Enum
-from selectors import BaseSelector
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
@@ -50,7 +49,7 @@ def user_me(token: str = Depends(get_auth_token)):
     user = model.get_user_by_token(token)
     if user is None:
         raise HTTPException(status_code=404)
-    return model.get_user_by_token(token)
+    return user
 
 
 class Empty(BaseModel):

@@ -100,3 +100,4 @@ def test_room_1():
     assert response.status_code == 200
     print("room/leave response:", response.json())
 
+    assert response.status_code == 100

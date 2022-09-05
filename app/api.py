@@ -143,6 +143,7 @@ class RoomStartRequest(BaseModel):
 def room_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
     user = user_me(token)
     model.start_room(req.room_id, user)
+    return {}
 
 
 class RoomEndRequest(BaseModel):
@@ -155,6 +156,7 @@ class RoomEndRequest(BaseModel):
 def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
     user = user_me(token)
     model.end_room(req.room_id, req.judge_count_list, req.score, user)
+    return {}
 
 
 class RoomResultRequest(BaseModel):
@@ -179,3 +181,4 @@ class RoomLeaveRequest(BaseModel):
 def room_leave(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
     user = user_me(token)
     model.leave_room(req.room_id, user)
+    return {}

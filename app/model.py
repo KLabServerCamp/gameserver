@@ -311,3 +311,4 @@ def leave_room(room_id: int, user: SafeUser) -> None:
             ),
             {"room_id": room_id, "user_id": user.id},
         )
+        

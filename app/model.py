@@ -35,6 +35,28 @@ class WaitRoomStatus(Enum):
 
 # Class
 
+
+class RoomInfo(BaseModel):
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int
+
+
+class RoomUser(BaseModel):
+    user_id: int
+    name: str
+    leader_card_id: int
+    select_difficulty: LiveDifficulty
+    is_me: bool
+    is_host: bool
+
+
+class ResultUser(BaseModel):
+    user_id: int
+    judge_count_list: list[int]
+    score: int
+
 class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げる"""
 
@@ -48,6 +70,10 @@ class SafeUser(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+#部屋の最大人数
+MAX_USER_COUNT = 4
 
 
 def create_user(name: str, leader_card_id: int) -> str:
@@ -96,13 +122,15 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
 
 def create_room(live_id: int, user_data: SafeUser, select_difficulty: int) -> int:
     with engine.begin() as conn:  # トランザクション開始！
+        #roomデータ追加
         result = conn.execute(
             text(
-                "INSERT INTO `room` (live_id, owner, status) VALUES (:live_id, :owner, :status)"
+                "INSERT INTO `room` (live_id, owner, status, joined_user_count) VALUES (:live_id, :owner, :status, 1)"
             ),
             {"live_id": live_id, "owner": user_data.id, "status": WaitRoomStatus.Waiting},
         )
 
+        #room_id取得
         result2 = conn.execute(
             text(
                 "SELECT `room_id` FROM room WHERE `owner`=user_data.id"
@@ -113,6 +141,7 @@ def create_room(live_id: int, user_data: SafeUser, select_difficulty: int) -> in
         except NoResultFound:
             return None
 
+        #room_memberデータ追加
         result3 = conn.execute(
             text(
                 "INSERT INTO `room_member` (room_id, user_id, name, leader_card_id, select_difficulty, is_host) \
@@ -129,3 +158,45 @@ def create_room(live_id: int, user_data: SafeUser, select_difficulty: int) -> in
         )
 
     return room_id
+
+
+def get_room_list(live_id: int) -> list[RoomInfo]:
+    result = None
+    room_list = None
+    with engine.begin() as conn:
+        if live_id == 0:
+            #live_idが0の場合は、どの曲の部屋も取得対象とする
+            result = conn.execute(
+                text(
+                    "SELECT `room_id`, `live_id`, `joined_user_count` \
+                    FROM room \
+                    WHERE joined_user_count<:max_user_count"
+                ),
+                {
+                    "max_user_count": MAX_USER_COUNT
+                },
+            )
+        else:
+            result = conn.execute(
+                text(
+                    "SELECT `room_id`, `live_id`, `joined_user_count` \
+                    FROM room \
+                    WHERE joined_user_count<:max_user_count AND live_id=:live_id"
+                ),
+                {
+                    "max_user_count": MAX_USER_COUNT,
+                    "live_id": live_id
+                },
+            )
+        
+        room_list = [
+            RoomInfo(
+                room_id=row.room_id,
+                live_id=row.live_id, 
+                joined_user_count=row.joined_user_count,
+                max_user_count=MAX_USER_COUNT,
+            )
+            for row in result.all()
+            ]
+
+    return room_list

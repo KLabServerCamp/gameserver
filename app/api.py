@@ -5,34 +5,9 @@ from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from . import model
-from .model import SafeUser, LiveDifficulty, JoinRoomResult, WaitRoomStatus
+from .model import SafeUser, LiveDifficulty, JoinRoomResult, WaitRoomStatus, RoomInfo, RoomUser, ResultUser
 
 app = FastAPI()
-
-# Class
-
-
-class RoomInfo(BaseModel):
-    room_id: int
-    live_id: int
-    joined_user_count: int
-    max_user_count: int
-
-
-class RoomUser(BaseModel):
-    user_id: int
-    name: str
-    leader_card_id: int
-    select_difficulty: LiveDifficulty
-    is_me: bool
-    is_host: bool
-
-
-class ResultUser(BaseModel):
-    user_id: int
-    judge_count_list: list[int]
-    score: int
-
 
 # Sample APIs
 
@@ -122,9 +97,6 @@ class RoomLeaveResponse(BaseModel):
     pass
 
 
-MAX_USER_COUNT = 4
-
-
 @app.post("/user/create", response_model=UserCreateResponse)
 def user_create(req: UserCreateRequest):
     """新規ユーザー作成"""
@@ -163,8 +135,15 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
     return {}
 
 
+#ルームを新規で建てる
 @app.post("room/create", response_model=RoomCreateResponse)
 def room_create(req: RoomCreateRequest):
     user_data = user_me()
     room_id = model.create_room(req.live_id, user_data, req.select_difficulty)
     return RoomCreateResponse(room_id=room_id)
+
+
+#入場可能なルーム一覧を取得
+@app.post("room/list", response_model=RoomListResponse)
+def room_list(req: RoomListRequest):
+    return model.get_room_list(req.live_id)

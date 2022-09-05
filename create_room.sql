@@ -4,6 +4,7 @@ CREATE TABLE `room` (
   `live_id` int NOT NULL,
   `owner` bigint NOT NULL,
   `status` int NOT NULL,
+  `joined_user_count` int NOT NULL,
   PRIMARY KEY (`room_id`),
   UNIQUE KEY `owner` (`owner`)
 );

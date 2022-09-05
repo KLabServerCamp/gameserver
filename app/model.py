@@ -301,3 +301,13 @@ def result_room(room_id: int) -> list[ResultUser]:
             )
 
     return result_user_list
+
+
+def leave_room(room_id: int, user: SafeUser) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "DELETE FROM `room_member` WHERE `room_id`=:room_id AND `user_id`=:user_id"
+            ),
+            {"room_id": room_id, "user_id": user.id},
+        )

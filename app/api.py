@@ -169,3 +169,13 @@ class RoomResultResponse(BaseModel):
 def room_result(req: RoomResultRequest):
     result = model.result_room(req.room_id)
     return RoomResultResponse(result_user_list=result)
+
+
+class RoomLeaveRequest(BaseModel):
+    room_id: int
+
+
+@app.post("/room/leave")
+def room_leave(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
+    user = user_me(token)
+    model.leave_room(req.room_id, user)

@@ -10,6 +10,7 @@ from sqlalchemy.exc import NoResultFound
 
 from .db import engine
 
+from typing import List, Tuple
 
 class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げる"""
@@ -115,19 +116,19 @@ class RoomUser(BaseModel):
 
 class ResultUser(BaseModel):
     user_id: int
-    judge_count_list: list[int]
+    judge_count_list: List[int]
     score: int
 
 
 def _create_room(conn, user: SafeUser, live_id: int, live_dif: LiveDifficulty) -> int:
-    users = [[user.id, user.leader_card_id, live_dif.value]]
+    users = [{"id": user.id,"name": user.name,"leader_card_id": user.leader_card_id,"live_dif": live_dif.value}]
     users_json = json.dumps(users)
     result = conn.execute(
         text(
             "INSERT INTO `rooms` (live_id, status, j_usr_cnt, m_usr_cnt, hst_id, users) \
-            VALUES (:live_id, 1, 1, 4, 0, :users)"
+            VALUES (:live_id, 1, 1, 4, :hst_id, :users)"
         ),
-        {"live_id": live_id, "users": users_json},
+        {"live_id": live_id, "hst_id": user.id, "users": users_json},
     )
     room_id = result.lastrowid
     return room_id
@@ -141,7 +142,7 @@ def create_room(token: str, live_id: int, live_dif: LiveDifficulty) -> int:
         return _create_room(conn, user, live_id, live_dif)
 
 
-def _room_list(conn, live_id: int) -> list[RoomInfo]:
+def _room_list(conn, live_id: int) -> List[RoomInfo]:
     execute_sent = "SELECT room_id, live_id, j_usr_cnt, m_usr_cnt FROM rooms WHERE j_usr_cnt < m_usr_cnt AND status = 1"
     result = None
     if live_id == 0:
@@ -158,7 +159,7 @@ def _room_list(conn, live_id: int) -> list[RoomInfo]:
     return room_infos
 
 
-def room_list(live_id: int) -> list[RoomInfo]:
+def room_list(live_id: int) -> List[RoomInfo]:
     with engine.begin() as conn:
         return _room_list(conn, live_id)
 
@@ -166,23 +167,23 @@ def room_list(live_id: int) -> list[RoomInfo]:
 def _room_join(conn, user: SafeUser, room_id: int, live_dif: LiveDifficulty) -> JoinRoomResult:
     result = conn.execute(
         text(
-            "SELECT status, j_usr_cnt, m_usr_cnt, users FROM rooms WHERE room_id = :room_id"
+            "SELECT status, j_usr_cnt, m_usr_cnt, users FROM rooms WHERE room_id = :room_id for update"
         ),
         {"room_id": room_id},
     )
     try:
         row = result.one()
     except NoResultFound:
-        return JoinRoomResult(4)
+        return JoinRoomResult.OtherError
     if row.j_usr_cnt == row.m_usr_cnt:
-        return JoinRoomResult(2)
+        return JoinRoomResult.RoomFull
     if row.status == 3:
-        return JoinRoomResult(3)
+        return JoinRoomResult.Disbanded
     if row.status != 1:
-        return JoinRoomResult(4)
+        return JoinRoomResult.OtherError
     j_usr_cnt = row.j_usr_cnt + 1
     users = json.loads(row.users)
-    users.append([user.id, user.leader_card_id, live_dif.value])
+    users.append({"id": user.id,"name": user.name,"leader_card_id": user.leader_card_id,"live_dif": live_dif.value})
     users_json = json.dumps(users)
     conn.execute(
         text(
@@ -190,7 +191,7 @@ def _room_join(conn, user: SafeUser, room_id: int, live_dif: LiveDifficulty) -> 
         ),
         {"j_usr_cnt": j_usr_cnt, "users": users_json, "room_id": room_id}
     )
-    return JoinRoomResult(1)
+    return JoinRoomResult.Ok
 
 
 def room_join(token: str, room_id: int, live_dif: LiveDifficulty) -> JoinRoomResult:
@@ -198,5 +199,37 @@ def room_join(token: str, room_id: int, live_dif: LiveDifficulty) -> JoinRoomRes
         user = _get_user_by_token(conn, token)
         if user is None:
             raise InvalidToken("指定されたtokenが不正です")
-        return _room_join(conn, user, room_id, live_dif)
+        ret = _room_join(conn, user, room_id, live_dif)
+        conn.execute(text("COMMIT"))
+        return ret
+
+
+def _room_wait(conn, user: SafeUser, room_id: int) -> Tuple[WaitRoomStatus, List[RoomUser]]:
+    result = conn.execute(
+        text(
+            "SELECT status, hst_id, users FROM rooms WHERE room_id = :room_id"
+        ),
+        {"room_id": room_id},
+    )
+    try:
+        row = result.one()
+    except NoResultFound:
+        return (WaitRoomStatus.Dissolution, [])
+    users = json.loads(row.users)
+    room_user_list = [RoomUser(user_id=User["id"], name=User["name"],
+                               leader_card_id=User["leader_card_id"],
+                               select_difficulty=User["live_dif"],
+                               is_me=(user.id == User["id"]),
+                               is_host=(row.hst_id == User["id"]))
+                      for User in users]
+    return (WaitRoomStatus(row.status), room_user_list)
+
+
+def room_wait(token: str, room_id: int) -> Tuple[WaitRoomStatus, List[RoomUser]]:
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken("指定されたtokenが不正です")
+        return _room_wait(conn, user, room_id)
+
 

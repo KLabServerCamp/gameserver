@@ -111,7 +111,22 @@ class RoomJoinResponse(BaseModel):
 
 @app.post("/room/join", response_model=RoomJoinResponse)
 def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
-    """ルームリスト作成"""
+    """ルーム参加"""
     join_room_result = model.room_join(token, req.room_id, req.select_difficulty)
-    print("join_room_result at api.py =", join_room_result)
     return RoomJoinResponse(join_room_result=join_room_result)
+
+
+class RoomWaitRequest(BaseModel):
+    room_id: int
+
+
+class RoomWaitResponse(BaseModel):
+    status: model.WaitRoomStatus
+    room_user_list: list[model.RoomUser]
+
+
+@app.post("/room/wait", response_model=RoomWaitResponse)
+def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
+    """ルーム待機"""
+    wait_room_result = model.room_wait(token, req.room_id)
+    return RoomWaitResponse(status=wait_room_result[0], room_user_list=wait_room_result[1])

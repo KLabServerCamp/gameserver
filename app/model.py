@@ -1,3 +1,4 @@
+from asyncio.windows_events import NULL
 import json
 import uuid
 from enum import Enum, IntEnum
@@ -80,7 +81,7 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
 
 # TODO: どうにかする
 MAX_USER_COUNT = 4
-def create_room(live_id: int, select_difficulty: LiveDifficulty) -> int:
+def create_room(live_id: int, owner: SafeUser) -> int:
     """Create new user and returns their token"""
     joined_user_count = 1
     max_user_count = MAX_USER_COUNT
@@ -88,9 +89,18 @@ def create_room(live_id: int, select_difficulty: LiveDifficulty) -> int:
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "INSERT INTO `room` (live_id, joined_user_count, max_user_count) VALUES (:live_id, :joined_user_count, :max_user_count)"
+                "INSERT INTO `room` SET \
+                    live_id=:live_id, \
+                    owner=:owener, \
+                    joined_user_count=:joined_user_count, \
+                    max_user_count=:max_user_count"
             ),
-            {"live_id": live_id, "joined_user_count": joined_user_count, "max_user_count": max_user_count},
+            {
+                "live_id": live_id, 
+                "owner": owner,
+                "joined_user_count": joined_user_count, 
+                "max_user_count": max_user_count
+            },
         )
     room_id = result.lastrowid
     return room_id
@@ -116,30 +126,78 @@ def get_room_list(live_id: int) -> list[RoomInfo]:
     return room_list
 
 
-# def join_room(room_id: int, select_difficulty: LiveDifficulty) -> JoinRoomResult:
-#     with engine.begin() as conn:
-#         result = conn.execute(
-#             text(
-#                 "INSERTT INTO `room_member` SET \
-#                     `room_id`=:room_id, \
-#                     `user_id`=:user_id \
-#                     `name`=:name \
-#                     `leader_card_id`=:leader_card_id \
-#                     `select_difficulty`=:select_difficulty \
-#                     `is_me`=:is_me \
-#                     `is_host`=:is_host \
-#                 " 
-#             ),
-#             {
-#                 "room_id": room_id,
-#                 "user_id": user_id,
-#                 "name": name,
-#                 "leader_card_id": leader_card_id,
-#                 "select_difficulty": select_difficulty,
-#                 "is_me": is_me,
-#                 "is_host": is_host
-#             }
-#       )
+def get_room_by_id(room_id: int) -> RoomInfo:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT * FROM `room` WHERE room_id=:room_id"
+            ),
+            {"room_id": room_id}
+        )
+    # 部屋存在するか
+    if len(result) == 0:
+        return NULL
+    elif len(result) == 1:
+        row = result.one()
+    else: 
+        assert(len(result) > 1)
+
+    return RoomInfo(
+        room_id=row["room_id"],
+        live_id=row["live_id"],
+        joined_user_count=row["join_user_count"],
+        max_user_count=row["max_user_count"]   
+    )
+
+def _join_room(room_id: int, select_difficulty: LiveDifficulty, user: SafeUser) -> bool:
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(
+                text(
+                    "INSERTT INTO `room_member` SET \
+                        `room_id`=:room_id, \
+                        `user_id`=:user_id \
+                        `name`=:name \
+                        `leader_card_id`=:leader_card_id \
+                        `select_difficulty`=:select_difficulty \
+                    " 
+                ),
+                {
+                    "room_id": room_id,
+                    "user_id": user.id,
+                    "name": user.name,
+                    "leader_card_id": user.leader_card_id,
+                    "select_difficulty": select_difficulty,
+                    # "is_me": is_me,
+                    # "is_host": is_host
+                }
+          )
+    except:
+        # TODO: print(error)
+        return False
+
+    return True
+
+def join_room(room_id: int, select_difficulty: LiveDifficulty, user: SafeUser) -> JoinRoomResult:
+    # 部屋ロック
+    
+    
+    room_info = get_room_by_id(room_id)
+    # 部屋存在確認
+    if room_info == NULL:
+        return JoinRoomResult.Disbanded
+    # 部屋の人数確認
+    if room_info.joined_user_count >= room_info.max_user_count:
+        return JoinRoomResult.RoomFull
+    else:
+        success_join = _join_room(room_id, select_difficulty, user)
+    
+    # 部屋ロック解除
+    if success_join:
+        return JoinRoomResult.Ok
+    else:
+        return JoinRoomResult.OtherError
+    
 
 def _get_room_user(roomid: int) -> list[RoomUser]:
     with engine.begin() as conn:

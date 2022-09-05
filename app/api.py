@@ -115,8 +115,10 @@ class RoomCreateResponse(BaseModel):
     room_id: int
 
 @app.post("/room/create", response=RoomCreateResponse)
-def room_create(req: RoomCreateRequest):
-    room_id = model.create_room(req.live_id, req.select_difficulty)
+def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
+    user = model.get_user_by_token(token)
+    room_id = model.create_room(req.live_id, user)
+    model.join_room(room_id, req.select_difficulty, user)
     return RoomCreateResponse(room_id=room_id)
 
 @app.get("/room/list", response=list[RoomInfo])
@@ -125,8 +127,9 @@ def room_list(live_id: int):
     return room_list
 
 @app.post("/room/join", response=JoinRoomResult)
-def room_join(room_id: int, select_difficutly: LiveDifficulty):
-    join_room_result = model.join_room(room_id, select_difficutly)
+def room_join(room_id: int, select_difficutly: LiveDifficulty, token: str = Depends(get_auth_token)):
+    user = model.get_user_by_token(token)
+    join_room_result = model.join_room(room_id, select_difficutly, user)
     return join_room_result
     
 

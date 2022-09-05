@@ -15,10 +15,10 @@ CREATE TABLE `room_member` (
   `user_id` bigint NOT NULL,
   `difficulty` int NOT NULL,
   `score` int DEFAULT NULL,
-  `perfect` int DEFAULT 0,
-  `great` int DEFAULT 0,
-  `good` int DEFAULT 0,
-  `bad` int DEFAULT 0,
-  `miss` int DEFAULT 0,
+  `perfect` int DEFAULT NULL,
+  `great` int DEFAULT NULL,
+  `good` int DEFAULT NULL,
+  `bad` int DEFAULT NULL,
+  `miss` int DEFAULT NULL,
   PRIMARY KEY (`room_id`, `user_id`)
 );

@@ -1,7 +1,7 @@
 # import json
 import uuid
 
-# from enum import Enum, IntEnum
+from enum import Enum, IntEnum
 from typing import Optional
 
 # from fastapi import HTTPException
@@ -25,6 +25,11 @@ class SafeUser(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class LiveDifficulty(Enum):
+    normal = 1
+    hard = 2
 
 
 def create_user(name: str, leader_card_id: int) -> str:
@@ -113,33 +118,42 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
 
 
 def _create_room(
-    conn, token: str, live_id: int, select_difficulty: int
+    conn, token: str, live_id: int, select_difficulty: LiveDifficulty
 ) -> int:
     result = conn.execute(
         text(
             "INSERT INTO `room`"
-            + " (live_id, owner_token, joined_user_count, max_user_count)"
-            + " VALUES (:live_id, :token, 1, 4)"
+            + " (live_id, owner_token, status, joined_user_count, max_user_count)"
+            + " VALUES (:live_id, :token, :status, 1, 4)"
         ),
-        {"live_id": live_id, "token": token},
+        {"live_id": live_id, "token": token, "status": 0},
     )
     room_id = result.lastrowid
-    result2 = conn.execute(
+    result2 = _get_user_by_token(conn, token)
+    print(result2)
+    print(result2)
+    print(result2)
+    print(result2)
+    user_id = 0
+    result3 = conn.execute(
         text(
-            "INSERT INTO `room_member` (token, room_id, select_difficulty)"
-            + " VALUES (:token, :room_id, :select_difficulty)"
+            "INSERT INTO `room_member` (room_id, user_id, score,"
+            + "judge, token, select_difficulty)"
+            + " VALUES (:room_id, :user_id, :score,"
+            + " :judge, :token, :select_difficulty)"
         ),
         {
-            "token": token, "room_id": room_id,
-            "select_difficulty": select_difficulty
+            "room_id": room_id, "user_id": user_id, 
+            "score": 0, "judge": 0, "token": token,
+            "select_difficulty": select_difficulty.value
         },
     )
-    print(result2)
+    print(result3)
     return room_id
 
 
 def create_room(
-    token: str, live_id: int, select_difficulty: int
+    token: str, live_id: int, select_difficulty: LiveDifficulty
 ) -> int:
     """Create new room and returns its id"""
     with engine.begin() as conn:

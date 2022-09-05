@@ -14,6 +14,7 @@ CREATE TABLE `room` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `live_id` bigint NOT NULL,
   `owner_token` varchar(255) DEFAULT NULL,
+  `status` int NOT NULL,
   `joined_user_count` bigint NOT NULL,
   `max_user_count` bigint NOT NULL,
   PRIMARY KEY (`id`)
@@ -22,9 +23,11 @@ CREATE TABLE `room` (
 
 DROP TABLE IF EXISTS `room_member`;
 CREATE TABLE `room_member` (
-  `id` bigint NOT NULL AUTO_INCREMENT,
-  `token` varchar(255) DEFAULT NULL,
   `room_id` bigint NOT NULL,
-  `select_difficulty` bigint NOT NULL,
-  PRIMARY KEY (`id`)
+  `user_id` bigint NOT NULL,
+  `score` bigint NOT NULL,
+  `judge` varchar(255),
+  `token` varchar(255) DEFAULT NULL,
+  `select_difficulty` int NOT NULL,
+  PRIMARY KEY (`room_id`, `user_id`)
 );

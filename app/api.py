@@ -176,9 +176,9 @@ def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
     """新規ルーム作成"""
     # 入力：部屋ID,難易度
     # 出力：部屋入場結果
-    _ = model.join_room(token, req.room_id, req.select_difficulty)
+    join_result = model.join_room(token, req.room_id, req.select_difficulty)
     # print(rows)
-    return RoomJoinResponse(join_room_result=1)
+    return RoomJoinResponse(join_room_result=join_result)
 
 
 class RoomWaitRequest(BaseModel):

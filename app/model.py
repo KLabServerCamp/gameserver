@@ -5,7 +5,7 @@ from enum import Enum
 # from enum import IntEnum
 from typing import Optional
 
-from fastapi import HTTPException
+# from fastapi import HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
@@ -59,7 +59,7 @@ def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
     )
     try:
         row = result.one()
-        print(row)
+        # print(row)
     except NoResultFound:
         return None
     # print(result)
@@ -129,8 +129,8 @@ def _create_room(
             + " :joined_user_count, :max_user_count)"
         ),
         {
-            "live_id": live_id, "token": token, "status": 0,
-            "joined_user_count": 1, "max_user_count": 4
+            "live_id": live_id, "token": token, "status": 1,
+            "joined_user_count": 0, "max_user_count": 4
         },
     )
     room_id = result.lastrowid
@@ -184,23 +184,28 @@ def _join_room(
 ) -> int:
     result = _get_user_by_token(conn, token)
     user_id = result.id
-    '''
-    部屋人数チェック
-    '''
-    # 入室OKの場合
+    # 部屋人数チェック
     # そもそもその部屋あるのか
     result2 = conn.execute(
         text(
-            "SELECT joined_user_count FROM `room`"
+            "SELECT joined_user_count, max_user_count, status FROM `room`"
             + " WHERE `id` = :room_id"
         ),
         {"room_id": room_id},
     )
     try:
-        joined_user_count = result2.one().joined_user_count
-    except NoResultFound:
+        elements = result2.one()
+        status = elements.status
+        joined_user_count = elements.joined_user_count
+        max_user_count = elements.max_user_count
+    except Exception as e:
+        print("エラー文", e)
+        return 4
+    if joined_user_count >= max_user_count:
+        return 2
+    elif status == 3:
         return 3
-    result3 = conn.execute(
+    _ = conn.execute(
         text(
             "INSERT INTO `room_member` (room_id, user_id, score,"
             + "judge, token, select_difficulty)"
@@ -213,15 +218,14 @@ def _join_room(
             "select_difficulty": select_difficulty.value
         },
     )
-    result4 = conn.execute(
+    _ = conn.execute(
         text(
             "UPDATE `room` SET `joined_user_count`= :joined_user_count"
             + " WHERE `id` = :room_id"
         ),
         {"room_id": room_id, "joined_user_count": joined_user_count+1},
     )
-    print(result4)
-    return room_id
+    return 1
 
 
 def join_room(

@@ -154,7 +154,7 @@ def _get_room_list_all() -> list[RoomInfo]:
                 SELECT
                     room.room_id,
                     room.live_id,
-                    count(room_member.user_token) as joined_user_count,
+                    count(room_member.user_id) as joined_user_count,
                     4 as max_user_count
                 FROM
                     room
@@ -179,7 +179,7 @@ def _get_room_list_by_live_id(live_id: int) -> list[RoomInfo]:
                 SELECT
                     room.room_id,
                     room.live_id,
-                    count(room_member.user_token) as joined_user_count,
+                    count(room_member.user_id) as joined_user_count,
                     4 as max_user_count
                 FROM
                     room
@@ -217,7 +217,7 @@ def get_room_info_by_room_id(room_id: int) -> Optional[RoomInfo]:
                 SELECT
                     room.room_id,
                     room.live_id,
-                    count(room_member.user_token) as joined_user_count,
+                    count(room_member.user_id) as joined_user_count,
                     4 as max_user_count
                 FROM
                     room

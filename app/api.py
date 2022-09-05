@@ -152,6 +152,26 @@ class RoomStartRequest(BaseModel):
     room_id: int
 
 
+class RoomEndRequest(BaseModel):
+    """ルームのライブ終了時リクエスト
+
+    ゲーム終わったら各人が叩く。
+
+    Attributes
+    ----------
+    room_id: int
+        対象ルーム
+    judge_count_list: list[int]
+        各判定数
+    score: int
+        スコア
+    """
+
+    room_id: int
+    judge_count_list: list[int]
+    score: int
+
+
 @app.post("/user/create", response_model=UserCreateResponse)
 def user_create(req: UserCreateRequest) -> UserCreateResponse:
     """新規ユーザー作成"""

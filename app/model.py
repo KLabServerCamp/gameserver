@@ -1,7 +1,6 @@
 import json
 import uuid
-from enum import Enum, IntEnum
-from itertools import count
+from enum import Enum  # , IntEnum
 from typing import Optional
 
 from fastapi import HTTPException
@@ -10,8 +9,6 @@ from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
 from .db import engine
-
-# from unittest import result
 
 
 class InvalidToken(Exception):
@@ -93,9 +90,7 @@ def create_user(name: str, leader_card_id: int) -> str:
 def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
     # TODO: 実装
     result = conn.execute(
-        text(
-            "SELECT `id`, `name`, `leader_card_id` FROM `user` WHERE `token`=:token"
-        ),
+        text("SELECT `id`, `name`, `leader_card_id` FROM `user` WHERE `token`=:token"),
         {"token": token},
     )
     try:

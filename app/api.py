@@ -143,3 +143,30 @@ class RoomStartRequest(BaseModel):
 def room_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
     user = user_me(token)
     model.start_room(req.room_id, user)
+
+
+class RoomEndRequest(BaseModel):
+    room_id: int
+    judge_count_list: list[int]
+    score: int
+
+
+@app.post("/room/end")
+def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
+    user = user_me(token)
+    model.end_room(req.room_id, req.judge_count_list, req.score, user)
+
+
+class RoomResultRequest(BaseModel):
+    room_id: int
+
+
+class RoomResultResponse(BaseModel):
+    result_user_list: list[ResultUser]
+
+
+@app.post("/room/result", response_model=RoomResultResponse)
+def room_result(req: RoomResultRequest):
+    result = model.result_room(req.room_id)
+    print(result)
+    return RoomResultResponse(result_user_list=result)

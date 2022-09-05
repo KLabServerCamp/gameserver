@@ -30,5 +30,11 @@ CREATE TABLE `room_member` (
   `select_difficulty` int DEFAULT NULL,
   `is_me` int DEFAULT NULL,
   `is_host` int DEFAULT NULL,
+  `judge1` int DEFAULT NULL,
+  `judge2` int DEFAULT NULL,
+  `judge3` int DEFAULT NULL,
+  `judge4` int DEFAULT NULL,
+  `judge5` int DEFAULT NULL,
+  `score` int DEFAULT NULL,
   PRIMARY KEY (`id`)
 );

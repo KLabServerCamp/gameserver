@@ -253,3 +253,42 @@ def start_room(room_id: int, user: SafeUser):
             ),
             {"room_id": room_id},
         )
+
+
+def end_room(room_id: int, judge_count_list: list[int], score: int, user: SafeUser):
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE `room_member` SET judge1=:judge1, judge2=:judge2, judge3=:judge3, judge4=:judge4, judge5=:judge5, score=:score WHERE `room_id`=:room_id AND `user_id`=:user_id"
+            ),
+            {
+                "judge1": judge_count_list[0],
+                "judge2": judge_count_list[1],
+                "judge3": judge_count_list[2],
+                "judge4": judge_count_list[3],
+                "judge5": judge_count_list[4],
+                "score": score,
+                "room_id": room_id,
+                "user_id": user.id,
+            },
+        )
+
+
+def result_room(room_id: int) -> list[ResultUser]:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT `user_id`, `judge1`, `judge2`, `judge3`, `judge4`, `judge5`, `score` FROM `room_member` WHERE `room_id`=:room_id"
+            ),
+            {"room_id": room_id},
+        )
+        try:
+            rows = result.all()
+        except NoResultFound:
+            return None
+        print(rows)
+        result_user_list = []
+        for row in rows:
+            result_user_list.append(ResultUser(user_id=row[0], judge_count_list=[row[i] for i in range(1, 6)], score=row[6]))
+
+    return result_user_list

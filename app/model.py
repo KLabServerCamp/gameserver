@@ -10,8 +10,6 @@ from sqlalchemy.exc import NoResultFound
 
 from .db import engine
 
-from typing import List, Tuple
-
 class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げる"""
 
@@ -43,7 +41,8 @@ def create_user(name: str, leader_card_id: int) -> str:
                 continue
             result = conn.execute(
                 text(
-                    "INSERT INTO `user` (name, token, leader_card_id) VALUES (:name, :token, :leader_card_id)"
+                    "INSERT INTO `user` (name, token, leader_card_id) "
+                    "VALUES (:name, :token, :leader_card_id)"
                 ),
                 {"name": name, "token": token, "leader_card_id": leader_card_id},
             )
@@ -68,14 +67,11 @@ def get_user_by_token(token: str) -> Optional[SafeUser]:
         return _get_user_by_token(conn, token)
 
 
-def dummy_func():
-    print("Im dummy :D")
-
-
 def _update_user(conn, token: str, name: str, leader_card_id: int) -> None:
-    res = conn.execute(
+    conn.execute(
         text(
-            "update user set name = :name, leader_card_id = :card where token = :token"
+            "UPDATE user SET name = :name, leader_card_id = :card "
+            "WHERE token = :token"
         ),
         {"name": name, "card": leader_card_id, "token": token},
     )
@@ -125,12 +121,15 @@ class RoomUser(BaseModel):
 
 class ResultUser(BaseModel):
     user_id: int
-    judge_count_list: List[int]
+    judge_count_list: list[int]
     score: int
 
 
 def _create_room(conn, user: SafeUser, live_id: int, live_dif: LiveDifficulty) -> int:
-    users = [{"id": user.id,"name": user.name,"leader_card_id": user.leader_card_id,"live_dif": live_dif.value}]
+    users = [
+        {"id": user.id, "name": user.name,
+         "leader_card_id": user.leader_card_id, "live_dif": live_dif.value}
+        ]
     users_json = json.dumps(users)
     result = conn.execute(
         text(
@@ -151,7 +150,7 @@ def create_room(token: str, live_id: int, live_dif: LiveDifficulty) -> int:
         return _create_room(conn, user, live_id, live_dif)
 
 
-def _room_list(conn, live_id: int) -> List[RoomInfo]:
+def _room_list(conn, live_id: int) -> list[RoomInfo]:
     execute_sent = "SELECT room_id, live_id, j_usr_cnt, m_usr_cnt FROM rooms "\
                     "WHERE j_usr_cnt < m_usr_cnt AND status = 1"
     result = None
@@ -169,7 +168,7 @@ def _room_list(conn, live_id: int) -> List[RoomInfo]:
     return room_infos
 
 
-def room_list(live_id: int) -> List[RoomInfo]:
+def room_list(live_id: int) -> list[RoomInfo]:
     with engine.begin() as conn:
         return _room_list(conn, live_id)
 
@@ -178,7 +177,7 @@ def _room_join(conn, user: SafeUser, room_id: int, live_dif: LiveDifficulty) -> 
     result = conn.execute(
         text(
             "SELECT status, j_usr_cnt, m_usr_cnt, users FROM rooms "
-            "WHERE room_id = :room_id for update"
+            "WHERE room_id = :room_id FOR UPDATE"
         ),
         {"room_id": room_id},
     )
@@ -219,7 +218,7 @@ def room_join(token: str, room_id: int, live_dif: LiveDifficulty) -> JoinRoomRes
         return ret
 
 
-def _room_wait(conn, user: SafeUser, room_id: int) -> Tuple[WaitRoomStatus, List[RoomUser]]:
+def _room_wait(conn, user: SafeUser, room_id: int) -> tuple[WaitRoomStatus, list[RoomUser]]:
     result = conn.execute(
         text(
             "SELECT status, hst_id, users FROM rooms WHERE room_id = :room_id"
@@ -240,7 +239,7 @@ def _room_wait(conn, user: SafeUser, room_id: int) -> Tuple[WaitRoomStatus, List
     return (WaitRoomStatus(row.status), room_user_list)
 
 
-def room_wait(token: str, room_id: int) -> Tuple[WaitRoomStatus, List[RoomUser]]:
+def room_wait(token: str, room_id: int) -> tuple[WaitRoomStatus, list[RoomUser]]:
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
         if user is None:
@@ -248,7 +247,7 @@ def room_wait(token: str, room_id: int) -> Tuple[WaitRoomStatus, List[RoomUser]]
         return _room_wait(conn, user, room_id)
 
 
-def _room_start(conn, user: SafeUser, room_id: int):
+def _room_start(conn, user: SafeUser, room_id: int) -> None:
     conn.execute(
         text(
             "UPDATE rooms SET status = :status WHERE room_id = :room_id AND hst_id = :hst_id"
@@ -258,7 +257,7 @@ def _room_start(conn, user: SafeUser, room_id: int):
     return
 
 
-def room_start(token: str, room_id: int):
+def room_start(token: str, room_id: int) -> None:
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
         if user is None:
@@ -267,11 +266,11 @@ def room_start(token: str, room_id: int):
         return
 
 
-def _room_end(conn, user: SafeUser, room_id: int, judge_count_list: List[int], score: int):
+def _room_end(conn, user: SafeUser, room_id: int, judge_count_list: list[int], score: int) -> None:
     result = conn.execute(
         text(
             "SELECT j_usr_cnt, users, r_res_cnt FROM rooms "
-            "WHERE room_id = :room_id for update"
+            "WHERE room_id = :room_id FOR UPDATE"
         ),
         {"room_id": room_id},
     )
@@ -302,7 +301,7 @@ def _room_end(conn, user: SafeUser, room_id: int, judge_count_list: List[int], s
     return
 
 
-def room_end(token: str, room_id: int, judge_count_list: List[int], score: int):
+def room_end(token: str, room_id: int, judge_count_list: list[int], score: int) -> None:
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
         if user is None:
@@ -312,7 +311,7 @@ def room_end(token: str, room_id: int, judge_count_list: List[int], score: int):
         return
 
 
-def _room_result(conn, room_id: int) -> List[ResultUser]:
+def _room_result(conn, room_id: int) -> list[ResultUser]:
     result = conn.execute(
         text(
             "SELECT j_usr_cnt, r_res_cnt, users FROM rooms "
@@ -335,12 +334,12 @@ def _room_result(conn, room_id: int) -> List[ResultUser]:
     return res
 
 
-def room_result(room_id: int) -> List[ResultUser]:
+def room_result(room_id: int) -> list[ResultUser]:
     with engine.begin() as conn:
         return _room_result(conn, room_id)
 
 
-def _room_remove(conn, room_id: int):
+def _room_remove(conn, room_id: int) -> None:
     conn.execute(
         text(
             "DELETE FROM rooms WHERE room_id = :room_id"
@@ -350,11 +349,11 @@ def _room_remove(conn, room_id: int):
     return
 
 
-def _room_leave(conn, user: SafeUser, room_id: int):
+def _room_leave(conn, user: SafeUser, room_id: int) -> None:
     result = conn.execute(
         text(
             "SELECT j_usr_cnt, hst_id, users, r_res_cnt FROM rooms "
-            "WHERE room_id = :room_id for update"
+            "WHERE room_id = :room_id FOR UPDATE"
         ),
         {"room_id": room_id},
     )
@@ -390,7 +389,7 @@ def _room_leave(conn, user: SafeUser, room_id: int):
     return
 
 
-def room_leave(token: str, room_id: int):
+def room_leave(token: str, room_id: int) -> None:
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
         if user is None:

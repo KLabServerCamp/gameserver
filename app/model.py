@@ -3,7 +3,7 @@ import uuid
 from enum import Enum, IntEnum
 from itertools import count
 from typing import Optional
-from unittest import result
+# from unittest import result
 
 from fastapi import HTTPException
 from pydantic import BaseModel
@@ -79,7 +79,7 @@ def create_user(name: str, leader_card_id: int) -> str:
     token = str(uuid.uuid4())
     # NOTE: tokenが衝突したらリトライする必要がある.
     with engine.begin() as conn:
-        result = conn.execute(
+        conn.execute(
             text(
                 "INSERT INTO `user` (name, token, leader_card_id) \
                     VALUES (:name, :token, :leader_card_id)"
@@ -120,7 +120,7 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
     # このコードを実装してもらう
     with engine.begin() as conn:
         # TODO: 実装
-        result = conn.execute(
+        conn.execute(
             text(
                 "UPDATE `user` SET `name`=:name, \
                     `leader_card_id`=:leader_card_id \
@@ -309,7 +309,7 @@ def wait_room_user_list(room_id: int, token: str) -> list[RoomUser]:
 
 def start_room(room_id: int) -> None:
     with engine.begin() as conn:
-        result = conn.execute(
+        conn.execute(
             text("UPDATE `room` SET `status`=:status WHERE `id`=:room_id"),
             {"room_id": room_id, "status": WaitRoomStatus.LiveStart.value},
         )
@@ -319,7 +319,7 @@ def start_room(room_id: int) -> None:
 def end_room(room_id: int, judge_count_list: list[int], score: int, token: str) -> None:
     with engine.begin() as conn:
         user_id = _get_user_id_by_token(conn, token)
-        result = conn.execute(
+        conn.execute(
             text(
                 "INSERT INTO `room_result` (room_id, user_id, perfect, great, good, bad, miss) VALUES \
                 (:room_id, :user_id, :perfect, :great, :good, :bad, :miss)"
@@ -334,7 +334,7 @@ def end_room(room_id: int, judge_count_list: list[int], score: int, token: str) 
                 "miss": judge_count_list[4],
             },
         )
-        result = conn.execute(
+        conn.execute(
             text(
                 "UPDATE `room_member` SET `score`=:score WHERE `room_id`=:room_id AND `user_id`=:user_id"
             ),
@@ -423,13 +423,13 @@ def _leave_room_host(conn, room_id: int, user_id: int):
 def leave_room(room_id: int, token: str) -> None:
     with engine.begin() as conn:
         user_id = _get_user_id_by_token(conn, token)
-        result = _delete_room_member(conn, room_id, user_id)
+        _delete_room_member(conn, room_id, user_id)
         status = wait_room_status(room_id)
         host = _wait_room_host(conn, room_id)
 
         if host == user_id and status == WaitRoomStatus.Waiting:
-            result = _leave_room_host(conn, room_id, user_id)
+            _leave_room_host(conn, room_id, user_id)
         else:
-            result = _leave_room_user(conn, room_id, user_id)
+            _leave_room_user(conn, room_id, user_id)
 
     return None

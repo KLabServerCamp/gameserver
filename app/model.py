@@ -233,3 +233,20 @@ def room_wait(token: str, room_id: int) -> Tuple[WaitRoomStatus, List[RoomUser]]
         return _room_wait(conn, user, room_id)
 
 
+def _room_start(conn, user: SafeUser, room_id: int):
+    conn.execute(
+        text(
+            "UPDATE rooms SET status = :status WHERE room_id = :room_id AND hst_id = :hst_id"
+        ),
+        {"status": 2, "room_id": room_id, "hst_id": user.id},
+    )
+    return
+
+
+def room_start(token: str, room_id: int):
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken("指定されたtokenが不正です")
+        _room_start(conn, user, room_id)
+        return

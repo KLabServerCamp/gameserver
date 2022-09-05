@@ -58,11 +58,13 @@ def _get_user_by_token(conn: Connection, token: str) -> Optional[SafeUser]:
 
 def get_user_by_token(token: str) -> Optional[SafeUser]:
     with engine.begin() as conn:
+        conn: Connection
         return _get_user_by_token(conn, token)
 
 
 def update_user(token: str, name: str, leader_card_id: int) -> None:
     with engine.begin() as conn:
+        conn: Connection
         query_str: str = "UPDATE `user` \
             SET `name` = :name, `leader_card_id` = :leader_id \
             WHERE `token` = :token"
@@ -162,8 +164,32 @@ class ResultUser(BaseModel):
     score: int  # 獲得スコア
 
 
-def create_room(token: str, live_id: int, difficulty: LiveDifficulty) -> int:
-    raise NotImplementedError
+def _create_empty_room(conn: Connection, live_id: int, host_id: int) -> int:
+    query_str: str = "INSERT INTO `room` \
+        (`live_id`, `host_id`, `status`) \
+        VALUES (:live_id, :host_id, :status)"
+
+    result = conn.execute(
+        text(query_str),
+        {
+            "live_id": live_id,
+            "host_id": host_id,
+            "status": WaitRoomStatus.WAITING.value,
+        },
+    )
+
+    room_id: int = result.lastrowid
+    return room_id
+
+
+def create_room(token: str, live_id: int, duffuculty: LiveDifficulty) -> int:
+    with engine.begin() as conn:
+        conn: Connection
+        if user := _get_user_by_token(conn, token):
+            room_id: int = _create_empty_room(conn, live_id, user.id)
+            # TODO: ここでユーザを部屋に追加する
+            return room_id
+        raise InvalidToken
 
 
 def get_rooms(token: str, live_id: int) -> list[RoomInfo]:

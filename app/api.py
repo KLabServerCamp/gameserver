@@ -5,7 +5,7 @@ from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from . import model
-from .model import SafeUser
+from .model import LiveDifficulty, SafeUser
 
 app = FastAPI()
 
@@ -65,3 +65,22 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
     # print(req)
     model.update_user(token, req.user_name, req.leader_card_id)
     return {}
+
+
+# Room APIs
+
+
+class RoomCreateRequest(BaseModel):
+    live_id: int  # ルームで遊ぶ楽曲のID
+    selected_difficulty: LiveDifficulty  # 難易度
+
+
+class RoomCreateResponse(BaseModel):
+    room_id: int  # 発行されたルームのID（以後の通信はこのiDを添える）
+
+
+@app.post("/room/create", response_model=RoomCreateResponse)
+def create_room(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
+    """ルームを作成する"""
+    room_id = model.create_room(token, req.live_id, req.selected_difficulty)
+    return RoomCreateResponse(room_id=room_id)

@@ -10,11 +10,12 @@ CREATE TABLE `user` (
 DROP TABLE IF EXISTS `rooms`;
 CREATE TABLE `rooms` (
   `room_id` bigint not null auto_increment,
-  `status` int not null,
+  `status` int default 1,
   `live_id` int not null,
-  `j_usr_cnt` int not null,
-  `m_usr_cnt` int not null,
+  `j_usr_cnt` int default 1,
+  `m_usr_cnt` int default 4,
   `hst_id` int not null,
   `users` text,
+  `r_res_cnt` int default 0,
   PRIMARY KEY (`room_id`)
 );

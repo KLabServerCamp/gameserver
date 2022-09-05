@@ -6,6 +6,8 @@ from pydantic import BaseModel
 
 from . import model
 
+from typing import List, Tuple
+
 app = FastAPI()
 
 # Sample APIs
@@ -90,7 +92,7 @@ class RoomListRequest(BaseModel):
 
 
 class RoomListResponse(BaseModel):
-    room_info_list: list[model.RoomInfo]
+    room_info_list: List[model.RoomInfo]
 
 
 @app.post("/room/list", response_model=RoomListResponse)
@@ -122,7 +124,7 @@ class RoomWaitRequest(BaseModel):
 
 class RoomWaitResponse(BaseModel):
     status: model.WaitRoomStatus
-    room_user_list: list[model.RoomUser]
+    room_user_list: List[model.RoomUser]
 
 
 @app.post("/room/wait", response_model=RoomWaitResponse)
@@ -140,4 +142,17 @@ class RoomStartRequest(BaseModel):
 def room_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
     """ルーム待機"""
     model.room_start(token, req.room_id)
+    return
+
+
+class RoomEndRequest(BaseModel):
+    room_id: int
+    judge_count_list: List[int]
+    score: int
+
+
+@app.post("/room/end")
+def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
+    """ルーム待機"""
+    model.room_end(token, req.room_id, req.judge_count_list, req.score)
     return

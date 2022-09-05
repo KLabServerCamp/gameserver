@@ -125,8 +125,8 @@ def _create_room(conn, user: SafeUser, live_id: int, live_dif: LiveDifficulty) -
     users_json = json.dumps(users)
     result = conn.execute(
         text(
-            "INSERT INTO `rooms` (live_id, status, j_usr_cnt, m_usr_cnt, hst_id, users) \
-            VALUES (:live_id, 1, 1, 4, :hst_id, :users)"
+            "INSERT INTO `rooms` (live_id, hst_id, users) \
+            VALUES (:live_id, :hst_id, :users)"
         ),
         {"live_id": live_id, "hst_id": user.id, "users": users_json},
     )
@@ -249,4 +249,39 @@ def room_start(token: str, room_id: int):
         if user is None:
             raise InvalidToken("指定されたtokenが不正です")
         _room_start(conn, user, room_id)
+        return
+
+
+def _room_end(conn, user: SafeUser, room_id: int, judge_count_list: List[int], score: int):
+    result = conn.execute(
+        text(
+            "SELECT users, r_res_cnt FROM rooms WHERE room_id = :room_id for update"
+        ),
+        {"room_id": room_id},
+    )
+    row = result.one()
+    users = json.loads(row.users)
+    for i, User in enumerate(users):
+        if User["id"] == user.id:
+            User["judge_count_list"] = judge_count_list
+            User["score"] = score
+            users[i] = User
+    r_res_cnt = row.r_res_cnt + 1
+    users_json = json.dumps(users)
+    conn.execute(
+        text(
+            "UPDATE rooms SET users = :users, r_res_cnt = :r_res_cnt WHERE room_id = :room_id"
+        ),
+        {"users": users_json, "r_res_cnt": r_res_cnt, "room_id": room_id},
+    )
+    return
+
+
+def room_end(token: str, room_id: int, judge_count_list: List[int], score: int):
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken("指定されたtokenが不正です")
+        _room_end(conn, user, room_id, judge_count_list, score)
+        conn.execute(text("COMMIT"))
         return

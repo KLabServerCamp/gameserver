@@ -5,8 +5,8 @@ from fastapi import APIRouter, Depends
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
-from .. import model
-from ..model import (
+from ..model import room_models
+from ..model.base import (
     JoinRoomResult,
     LiveDifficulty,
     ResultUser,
@@ -31,7 +31,7 @@ class RoomCreateResponse(BaseModel):
 @router.post("/room/create", response_model=RoomCreateResponse)
 def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
     """create room"""
-    room_id = model.create_room(token, req.live_id, req.select_difficulty)
+    room_id = room_models.create_room(token, req.live_id, req.select_difficulty)
     return RoomCreateResponse(room_id=room_id)
 
 
@@ -54,9 +54,9 @@ class RoomListResponse(BaseModel):
 def room_list(req: RoomListRequest):
     print(req.live_id)
     if req.live_id == 0:
-        rooms = model.get_rooms()
+        rooms = room_models.get_rooms()
     else:
-        rooms = model.get_rooms(req.live_id)
+        rooms = room_models.get_rooms(req.live_id)
     tmp = []
     for room in rooms.all():
         tmp.append(
@@ -81,7 +81,7 @@ class RoomWaitResponse(BaseModel):
 
 @router.post("/room/wait", response_model=RoomWaitResponse)
 def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
-    status, room_users = model.get_room_users(token, req.room_id)
+    status, room_users = room_models.get_room_users(token, req.room_id)
     return RoomWaitResponse(status=status, room_user_list=room_users)
 
 
@@ -96,7 +96,7 @@ class RoomJoinResponse(BaseModel):
 
 @router.post("/room/join", response_model=RoomJoinResponse)
 def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
-    res = model.join_room(token, req.room_id, req.select_difficulty)
+    res = room_models.join_room(token, req.room_id, req.select_difficulty)
     return RoomJoinResponse(join_room_result=res)
 
 
@@ -106,7 +106,7 @@ class RoomStartRequest(BaseModel):
 
 @router.post("/room/start", response_model=Empty)
 def room_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
-    model.start_room(token, req.room_id)
+    room_models.start_room(token, req.room_id)
     return {}
 
 
@@ -119,7 +119,7 @@ class RoomEndRequest(BaseModel):
 @router.post("/room/end", response_model=Empty)
 def room_start(req: RoomEndRequest, token: str = Depends(get_auth_token)):
     print(req)
-    model.end_room(token, req.room_id, req.score, req.judge_count_list)
+    room_models.end_room(token, req.room_id, req.score, req.judge_count_list)
     return {}
 
 
@@ -133,7 +133,7 @@ class RoomResultResponse(BaseModel):
 
 @router.post("/room/result", response_model=RoomResultResponse)
 def room_result(req: RoomResultRequest):
-    res = model.get_results(req.room_id)
+    res = room_models.get_results(req.room_id)
     return RoomResultResponse(result_user_list=res)
 
 
@@ -143,5 +143,5 @@ class RoomLeaveRequest(BaseModel):
 
 @router.post("/room/leave", response_model=Empty)
 def room_result(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
-    model.leave_room(token, req.room_id)
+    room_models.leave_room(token, req.room_id)
     return {}

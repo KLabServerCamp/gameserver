@@ -87,6 +87,27 @@ class RoomUser(BaseModel):
         orm_mode = True
 
 
+class ResultUser(BaseModel):
+    """ユーザのスコア情報
+
+    Attributes
+    ----------
+    user_id: int
+        ユーザー識別子
+    judge_count_list: list[int]
+        各判定数（良い判定から昇順）
+    score: int
+        スコア
+    """
+
+    user_id: int
+    judge_count_list: list[int]
+    score: int
+
+    class Config:
+        orm_mode = True
+
+
 class RoomInfo(BaseModel):
     """ルーム情報
 
@@ -380,3 +401,36 @@ def store_score(
                 judge_count_list=json.dumps(judge_count_list),
             ),
         )
+
+
+def get_room_result(room_id: int) -> list[ResultUser]:
+    with engine.begin() as conn:
+        res = conn.execute(
+            text(
+                """
+                SELECT
+                    user_id,
+                    judge AS judge_count_list,
+                    score
+                FROM
+                    room_member
+                WHERE
+                    room_id = :room_id
+                    AND is_end = true
+                """
+            ),
+            dict(room_id=room_id),
+        )
+    res = res.fetchall()
+
+    if len(res) == 0:
+        return []
+
+    return [
+        ResultUser(
+            user_id=row.user_id,
+            judge_count_list=json.loads(row.judge_count_list),
+            score=row.score,
+        )
+        for row in res
+    ]

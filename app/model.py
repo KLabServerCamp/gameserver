@@ -166,7 +166,7 @@ def _get_room_list(conn, live_id: int) -> Optional[list[RoomInfo]]:
     )
     try:
         room_list = []
-        for room in result.all():
+        for room in result:
             room_list.append(
                 RoomInfo(
                     room_id=room.room_id,

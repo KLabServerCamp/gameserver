@@ -224,6 +224,36 @@ def _get_waiting_room_list(conn: Connection, live_id: int) -> list[RoomInfo]:
     ]
 
 
+def _get_host_id(conn: Connection, room_id: int) -> int:
+    query_str: str = "SELECT `host_id` FROM `room` WHERE `id`=:room_id"
+    return conn.execute(text(query_str), {"room_id": room_id}).one()[0]
+
+
+def _get_room_users(
+    conn: Connection,
+    room_id: int,
+    uid: int,
+) -> list[RoomUser]:
+    query_str: str = "\
+        SELECT  \
+            `user`.`id` AS user_id, \
+            `user`.`name`, \
+            `user`.`leader_card_id`, \
+            `room_user`.`difficulty` AS selected_difficulty, \
+            (`user`.`id` = :uid) AS is_me, \
+            (`user`.`id` = :host_id) AS is_host \
+        FROM `room_user` \
+        INNER JOIN `user` ON `room_user`.`user_id` = `user`.`id` \
+        WHERE `room_user`.`room_id` = :room_id"
+
+    host_id = _get_host_id(conn, room_id)
+    result = conn.execute(
+        text(query_str),
+        {"uid": uid, "host_id": host_id, "room_id": room_id},
+    ).all()
+    return [RoomUser.from_orm(row) for row in result]
+
+
 def _add_room_user(
     conn: Connection,
     room_id: int,

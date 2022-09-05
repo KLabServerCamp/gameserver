@@ -346,3 +346,11 @@ def get_room_status(room_id: int) -> WaitRoomStatus:
         raise Exception("room not found")
 
     return WaitRoomStatus(status[0])
+
+
+def start_room(room_id: int) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE room SET status = :status WHERE room_id = :room_id"),
+            dict(room_id=room_id, status=int(WaitRoomStatus.LIVE_START)),
+        )

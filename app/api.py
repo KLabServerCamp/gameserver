@@ -140,6 +140,18 @@ class RoomWaitResponse(BaseModel):
     room_user_list: list[RoomUser]
 
 
+class RoomStartRequest(BaseModel):
+    """ルーム開始時のリクエスト
+
+    Attributes
+    ----------
+    room_id: int
+        対象ルーム
+    """
+
+    room_id: int
+
+
 @app.post("/user/create", response_model=UserCreateResponse)
 def user_create(req: UserCreateRequest) -> UserCreateResponse:
     """新規ユーザー作成"""
@@ -226,3 +238,12 @@ def wait_room(
     else:
         room_user_list = model.get_room_user_list(req.room_id, me.id)
     return RoomWaitResponse(status=status, room_user_list=room_user_list)
+
+
+@app.post("/room/start", response_model=Empty)
+def start_room(req: RoomStartRequest, token: str = Depends(get_auth_token)) -> Empty:
+    """Roomをゲーム開始状態にする"""
+    # NOTE:
+    # オーナーかどうかを確認する必要があるかも
+    model.start_room(req.room_id)
+    return Empty()

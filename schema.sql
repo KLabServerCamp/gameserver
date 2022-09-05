@@ -14,6 +14,7 @@ CREATE TABLE `room` (
   `live_id` bigint NOT NULL,
   `joined_user_count` int NOT NULL,
   `max_user_count` int NOT NULL,
+  `select_difficulty` int NOT NULL,
   PRIMARY KEY (`room_id`)
 );
 
@@ -23,9 +24,11 @@ CREATE TABLE `room_member` (
   `room_member_id` bigint NOT NULL AUTO_INCREMENT,
   `room_id` bigint NOT NULL,
   `user_id` bigint NOT NULL,
-  PRIMARY KEY (`room_member_id`)
+  `score` int,
+  `judge` varchar(255),
+  PRIMARY KEY (`room_member_id`, `room_id`, `user_id`)
 );
 
 -- testデータ
-INSERT INTO `room` SET `live_id`=1001, `joined_user_count`=2, `max_user_count`=4;
-INSERT INTO `room` SET `live_id`=1002, `joined_user_count`=1, `max_user_count`=4; 
+INSERT INTO `room` SET `live_id`=1001, `select_difficulty`=1, `joined_user_count`=2, `max_user_count`=4;
+INSERT INTO `room` SET `live_id`=1002, `select_difficulty`=2, `joined_user_count`=1, `max_user_count`=4; 

@@ -26,6 +26,9 @@ CREATE TABLE `room_member` (
   `user_id` BIGINT NOT NULL,
   `live_difficulty` INT UNSIGNED NOT NULL,
   `is_owner` BOOLEAN NOT NULL,
+  `is_end` BOOLEAN NOT NULL,
+  `score` BIGINT UNSIGNED NOT NULL,
+  `judge` VARCHAR(255) NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `room_id` (`room_id`, `user_id`)
 );

@@ -184,8 +184,8 @@ def insert_room_member(
     with engine.begin() as conn:
         conn.execute(
             text(
-                "INSERT INTO `room_member` (room_id, user_id, live_difficulty, is_owner)"
-                "VALUES (:room_id, :user_id, :live_difficulty, :is_owner)",
+                "INSERT INTO `room_member` (room_id, user_id, live_difficulty, is_owner, is_end, score, judge)"
+                "VALUES (:room_id, :user_id, :live_difficulty, :is_owner, false, 0, '')",
             ),
             dict(
                 room_id=room_id,
@@ -353,4 +353,30 @@ def start_room(room_id: int) -> None:
         conn.execute(
             text("UPDATE room SET status = :status WHERE room_id = :room_id"),
             dict(room_id=room_id, status=int(WaitRoomStatus.LIVE_START)),
+        )
+
+
+def store_score(
+    room_id: int, user_id: int, judge_count_list: list[int], score: int
+) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                UPDATE room_member
+                SET
+                    is_end = true,
+                    score = :score,
+                    judge = :judge_count_list
+                WHERE
+                    room_id = :room_id
+                    AND user_id = :user_id
+            """
+            ),
+            dict(
+                room_id=room_id,
+                user_id=user_id,
+                score=score,
+                judge_count_list=json.dumps(judge_count_list),
+            ),
         )

@@ -247,3 +247,16 @@ def start_room(req: RoomStartRequest, token: str = Depends(get_auth_token)) -> E
     # オーナーかどうかを確認する必要があるかも
     model.start_room(req.room_id)
     return Empty()
+
+
+@app.post("/room/end", response_model=Empty)
+def end_room(req: RoomEndRequest, token: str = Depends(get_auth_token)) -> Empty:
+    """結果をサーバーに送信する"""
+    if len(req.judge_count_list) != 5:
+        raise Exception("Length of judge_count_list must be 5.")
+    me = model.get_user_by_token(token)
+    if me is None:
+        raise Exception("user not found")
+    else:
+        model.store_score(req.room_id, me.id, req.judge_count_list, req.score)
+    return Empty()

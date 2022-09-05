@@ -341,7 +341,8 @@ def result_room(room_id: int) -> list[ResultUser]:
         joined_user_count = _get_joined_user_count(conn, room_id)
         result = conn.execute(
             text(
-                "SELECT `user_id`, `perfect`, `great`, `good`, `bad`, `miss`, `score` FROM `room_member` WHERE `room_id`=:room_id"
+                "SELECT `user_id`, `perfect`, `great`, `good`, `bad`, `miss`, `score` \
+                    FROM `room_member` WHERE `room_id`=:room_id AND `score` IS NOT NULL"
             ),
             {"room_id": room_id},
         )

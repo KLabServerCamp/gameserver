@@ -184,8 +184,8 @@ def insert_room_member(
     with engine.begin() as conn:
         conn.execute(
             text(
-                "INSERT INTO `room_member` (room_id, user_id, live_difficulty, is_owner)"
-                "VALUES (:room_id, :user_id, :live_difficulty, :is_owner)",
+                "INSERT INTO `room_member` (room_id, user_id, live_difficulty, is_owner, is_end, score, judge)"
+                "VALUES (:room_id, :user_id, :live_difficulty, :is_owner, false, 0, '')",
             ),
             dict(
                 room_id=room_id,

@@ -434,3 +434,15 @@ def get_room_result(room_id: int) -> list[ResultUser]:
         )
         for row in res
     ]
+
+
+def leave_room(room_id: int, user_id: int) -> None:
+    # TODO:
+    # ホストが抜けた場合に、新しいホストを選ぶようにする
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "DELETE FROM room_member WHERE room_id = :room_id AND user_id = :user_id"
+            ),
+            dict(room_id=room_id, user_id=user_id),
+        )

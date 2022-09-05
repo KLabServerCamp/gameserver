@@ -120,7 +120,7 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
 
-def create_room(live_id: int, user_data: SafeUser, select_difficulty: int) -> int:
+def create_room(live_id: int, user_data: SafeUser, select_difficulty: LiveDifficulty) -> int:
     with engine.begin() as conn:  # トランザクション開始！
         #roomデータ追加
         result = conn.execute(
@@ -198,5 +198,58 @@ def get_room_list(live_id: int) -> list[RoomInfo]:
             )
             for row in result.all()
             ]
-
     return room_list
+
+
+def join_room(room_id: int, user_data: SafeUser, select_difficulty: LiveDifficulty) -> JoinRoomResult:
+    with engine.begin() as conn:
+        result = conn.execute(
+                    text(
+                        "SELECT `joined_user_count` FROM room \
+                        WHERE room_id=:room_id"
+                    ),
+                    {
+                        "room_id": room_id
+                    },
+                )
+
+        #解散済みであった場合の処理
+        try:
+            joined_user_count = result.one().joined_user_count
+        except NoResultFound:
+            return JoinRoomResult.Disbanded
+        
+        #満員であった場合の処理
+        if joined_user_count >= 4:
+            return JoinRoomResult.RoomFull
+
+        #入場処理
+        result2 = conn.execute(
+                    text(
+                        "UPDATE `room` \
+                        SET joined_user_count=:joined_user_count \
+                        WHERE room_id=:room_id"
+                    ),
+                    {
+                        "joined_user_count": joined_user_count + 1,
+                        "room_id": room_id
+                    },
+                )
+        
+        result3 = conn.execute(
+            text(
+                "INSERT INTO `room_member` (room_id, user_id, name, leader_card_id, select_difficulty, is_host) \
+                    VALUES (:room_id, :user_id, name, :leader_card_id, :select_difficulty, :is_host)"
+            ),
+            {
+                "room_id": room_id,
+                "user_id": user_data.id,
+                "name": user_data.name,
+                "leader_card_id": user_data.leader_card_id,
+                "select_difficulty": select_difficulty,
+                "is_host": False
+                },
+        )
+    return JoinRoomResult.Ok
+
+

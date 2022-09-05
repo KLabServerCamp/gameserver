@@ -146,4 +146,13 @@ def room_create(req: RoomCreateRequest):
 #入場可能なルーム一覧を取得
 @app.post("room/list", response_model=RoomListResponse)
 def room_list(req: RoomListRequest):
-    return model.get_room_list(req.live_id)
+    room_info_list = model.get_room_list(req.live_id)
+    return RoomListResponse(room_info_list=room_info_list)
+
+
+#ルームに入場
+@app.post("room/join", response_model=RoomJoinResponse)
+def room_join(req: RoomJoinRequest):
+    user_data = user_me()
+    join_room_result = model.join_room(req.room_id, user_data, req.select_difficulty)
+    return RoomJoinResponse(join_room_result=join_room_result)

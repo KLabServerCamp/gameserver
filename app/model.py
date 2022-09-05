@@ -210,6 +210,27 @@ def _get_room_info(conn: Connection, room_id: int) -> Optional[RoomInfo]:
     return None
 
 
+def _get_room_status(conn: Connection, room_id: int) -> WaitRoomStatus:
+    query_str: str = "SELECT `status` \
+        FROM `room` \
+        WHERE `id`=:room_id \
+        FOR UPDATE"
+    if row := conn.execute(text(query_str), {"room_id": room_id}).one():
+        return WaitRoomStatus(row[0])
+    return WaitRoomStatus.DISBANDED
+
+
+def _set_room_status(
+    conn: Connection,
+    room_id: int,
+    status: WaitRoomStatus,
+) -> None:
+    query_str: str = "UPDATE `room` \
+        SET `status`=:status \
+        WHERE `id`=:room_id"
+    conn.execute(text(query_str), {"status": status.value, "room_id": room_id})
+
+
 def _get_waiting_room_list(conn: Connection, live_id: int) -> list[RoomInfo]:
 
     query_str: str
@@ -270,6 +291,9 @@ def _add_room_user(
         if room.max_user_count <= room.joined_user_count:
             return JoinRoomResult.ROOM_FULL
 
+        if room.joined_user_count == (room.max_user_count - 1):
+            _set_room_status(conn, room_id, WaitRoomStatus.ROOM_FULL)
+
         query_str: str = "INSERT INTO `room_user` \
             (`room_id`, `user_id`, `difficulty`) \
             VALUES (:room_id, :user_id, :difficulty)"
@@ -304,7 +328,20 @@ def join_room(
     room_id: int,
     difficulty: LiveDifficulty,
 ) -> JoinRoomResult:
-    raise NotImplementedError
+    with engine.begin() as conn:
+        conn: Connection
+        if user := _get_user_by_token(conn, token):
+            return _add_room_user(conn, room_id, user.id, difficulty)
+        raise InvalidToken
+
+
+def wait_room(token: str, room_id: int) -> tuple[WaitRoomStatus, list[RoomUser]]:
+    with engine.begin() as conn:
+        conn: Connection
+        if user := _get_user_by_token(conn, token):
+            status = _get_room_status(conn, room_id)
+            return (status, _get_room_users(conn, room_id, user.id))
+        raise InvalidToken
 
 
 def leave_room(token: str, room_id: int) -> None:

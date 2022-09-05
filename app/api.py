@@ -5,7 +5,6 @@ from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from . import model
-from .model import LiveDifficulty, SafeUser
 
 app = FastAPI()
 
@@ -46,7 +45,7 @@ def get_auth_token(cred: HTTPAuthorizationCredentials = Depends(bearer)) -> str:
     return cred.credentials
 
 
-@app.get("/user/me", response_model=SafeUser)
+@app.get("/user/me", response_model=model.SafeUser)
 def user_me(token: str = Depends(get_auth_token)):
     user = model.get_user_by_token(token)
     if user is None:
@@ -72,7 +71,7 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
 
 class RoomCreateRequest(BaseModel):
     live_id: int  # ルームで遊ぶ楽曲のID
-    select_difficulty: LiveDifficulty  # 難易度
+    select_difficulty: model.LiveDifficulty  # 難易度
 
 
 class RoomCreateResponse(BaseModel):
@@ -103,3 +102,41 @@ def list_room(req: RoomListRequest) -> RoomListResponse:
     # print(req)
     room_info_list = model.get_room_list(req.live_id)
     return RoomListResponse(room_info_list=room_info_list)
+
+
+class RoomJoinRequest(BaseModel):
+    room_id: int  # 入場するルームのID
+    select_difficulty: model.LiveDifficulty  # 難易度
+
+
+class RoomJoinResponse(BaseModel):
+    join_room_result: model.JoinRoomResult  # 入場結果
+
+
+@app.post("/room/join", response_model=RoomJoinResponse)
+def join_room(
+    req: RoomJoinRequest, token: str = Depends(get_auth_token)
+) -> RoomJoinResponse:
+    """ルームに参加する"""
+    # print(req)
+    result = model.join_room(token, req.room_id, req.select_difficulty)
+    return RoomJoinResponse(join_room_result=result)
+
+
+class RoomWaitRequest(BaseModel):
+    room_id: int  # 入場するルームのID
+
+
+class RoomWaitResponse(BaseModel):
+    status: model.WaitRoomStatus  # 入場結果
+    room_user_list: list[model.RoomUser]  # ルーム内のユーザー一覧
+
+
+@app.post("/room/wait", response_model=RoomWaitResponse)
+def wait_room(
+    req: RoomWaitRequest, token: str = Depends(get_auth_token)
+) -> RoomWaitResponse:
+    """ルームに参加する"""
+    # print(req)
+    status, room_user_list = model.wait_room(token, req.room_id)
+    return RoomWaitResponse(status=status, room_user_list=room_user_list)

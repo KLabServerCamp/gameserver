@@ -285,3 +285,30 @@ def room_end(token: str, room_id: int, judge_count_list: List[int], score: int):
         _room_end(conn, user, room_id, judge_count_list, score)
         conn.execute(text("COMMIT"))
         return
+
+
+def _room_result(conn, room_id: int) -> List[ResultUser]:
+    result = conn.execute(
+        text(
+            "SELECT j_usr_cnt, r_res_cnt, users FROM rooms WHERE room_id = :room_id"
+        ),
+        {"room_id": room_id},
+    )
+    row = result.one()
+    if row.r_res_cnt < row.j_usr_cnt:
+        return []
+    users = json.loads(row.users)
+    res = [
+        ResultUser(
+            user_id=User["id"],
+            judge_count_list=User["judge_count_list"],
+            score=User["score"]
+        )
+        for User in users
+    ]
+    return res
+
+
+def room_result(room_id: int) -> List[ResultUser]:
+    with engine.begin() as conn:
+        return _room_result(conn, room_id)

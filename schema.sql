@@ -25,6 +25,7 @@ CREATE TABLE `room_member` (
   `room_id` bigint NOT NULL,
   `user_id` bigint NOT NULL,
   `score` int,
+  `select_difficulty` int NOT NULL,
   
   PRIMARY KEY (`room_id`, `user_id`)
 );

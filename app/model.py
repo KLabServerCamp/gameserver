@@ -156,7 +156,8 @@ def get_room_by_id(room_id: int) -> RoomInfo:
         max_user_count=row["max_user_count"]   
     )
 
-def _get_room_user(room_id: int) -> list[RoomUser]:
+# TODO: おかしいので直す
+def get_room_user_list(room_id: int) -> list[RoomUser]:
     with engine.begin() as conn:
         result = conn.execute(
             text(
@@ -230,7 +231,7 @@ def _join_room(room_id: int, select_difficulty: LiveDifficulty, user: SafeUser) 
     return True
 
 def join_room(room_id: int, select_difficulty: LiveDifficulty, user: SafeUser) -> JoinRoomResult:
-    # 部屋ロック
+    # TODO: 部屋ロック
     
     
     room_info = get_room_by_id(room_id)
@@ -243,7 +244,7 @@ def join_room(room_id: int, select_difficulty: LiveDifficulty, user: SafeUser) -
     else:
         success_join = _join_room(room_id, select_difficulty, user)
     
-    # 部屋ロック解除
+    # TODO: 部屋ロック解除
     if success_join:
         return JoinRoomResult.Ok
     else:
@@ -266,8 +267,8 @@ def get_room_wait(room_id: int):
 
     res = result.one
     return RoomWaitResponse(
-        wait_room_status=res["wait_room_status"]
-        room_member_list = _get_room_user(room_id)
+        wait_room_status=res["wait_room_status"],
+        room_member_list = get_room_user_list(room_id)
     )
     
 def update_wait_room_status(room_id: int, wait_room_status: WaitRoomStaus):
@@ -329,6 +330,7 @@ def get_result_user_list(room_id: int) -> list[ResultUser]:
             )
         )
     return result_user_list
+
 
 ## /room/end
 

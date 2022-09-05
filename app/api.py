@@ -3,7 +3,14 @@ from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from . import model
-from .model import JoinRoomResult, LiveDifficulty, RoomInfo, SafeUser
+from .model import (
+    JoinRoomResult,
+    LiveDifficulty,
+    RoomInfo,
+    RoomUser,
+    SafeUser,
+    WaitRoomStatus,
+)
 
 app = FastAPI()
 
@@ -106,6 +113,33 @@ class RoomJoinResponse(BaseModel):
     join_room_result: JoinRoomResult
 
 
+class RoomWaitRequest(BaseModel):
+    """ルーム待機時のリクエスト
+
+    Attributes
+    ----------
+    room_id: int
+        対象ルーム
+    """
+
+    room_id: int
+
+
+class RoomWaitResponse(BaseModel):
+    """ルーム待機時のレスポンス
+
+    Attributes
+    ----------
+    status: WaitRoomStatus
+        結果
+    room_user_list: list[RoomUser]
+        ルームにいるプレイヤー一覧
+    """
+
+    status: WaitRoomStatus
+    room_user_list: list[RoomUser]
+
+
 @app.post("/user/create", response_model=UserCreateResponse)
 def user_create(req: UserCreateRequest) -> UserCreateResponse:
     """新規ユーザー作成"""
@@ -178,3 +212,17 @@ def join_room(
     else:
         join_room_result = model.join_room(req.room_id, me.id, req.select_difficulty)
     return RoomJoinResponse(join_room_result=join_room_result)
+
+
+@app.post("/room/wait", response_model=RoomWaitResponse)
+def wait_room(
+    req: RoomWaitRequest, token: str = Depends(get_auth_token)
+) -> RoomWaitResponse:
+    """Roomの待機状態を取得する"""
+    status = model.get_room_status(req.room_id)
+    me = model.get_user_by_token(token)
+    if me is None:
+        raise Exception("user not found")
+    else:
+        room_user_list = model.get_room_user_list(req.room_id, me.id)
+    return RoomWaitResponse(status=status, room_user_list=room_user_list)

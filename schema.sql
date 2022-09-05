@@ -12,12 +12,19 @@ DROP TABLE IF EXISTS `room`;
 CREATE TABLE `room` (
   `room_id` bigint NOT NULL AUTO_INCREMENT,
   `live_id` int DEFAULT NOT NULL,
+  `owner` bigint NOT NULL,
   `joined_user_count` int DEFAULT NOT NULL,
   `max_user_count` int DEFAULT NOT NULL,
   `wait_room_status` int DEFAULT NOT NULL,
+  
+  PRIMARY KEY (`id`)
 );
 
 DROP TABLE IF EXISTS `room_member`;
 CREATE TABLE `room_member` (
-  `room_id` bigint NOT
-)
+  `room_id` bigint NOT NULL,
+  `user_id` bigint NOT NULL,
+  `score` int,
+  
+  PRIMARY KEY (`room_id`, `user_id`)
+);

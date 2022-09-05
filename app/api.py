@@ -5,30 +5,9 @@ from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from . import model
-from .model import SafeUser
+from .model import SafeUser, LiveDifficulty, JoinRoomResult, WaitRoomStatus
 
 app = FastAPI()
-
-# Enum
-
-
-class LiveDifficulty(Enum):
-    normal = 1
-    hard = 2
-
-
-class JoinRoomResult(Enum):
-    Ok = 1
-    RoomFull = 2
-    Disbanded = 3
-    OtherError = 4
-
-
-class WaitRoomStatus(Enum):
-    Waiting = 1
-    LiveStart = 2
-    Dissolution = 3
-
 
 # Class
 
@@ -187,4 +166,5 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
 @app.post("room/create", response_model=RoomCreateResponse)
 def room_create(req: RoomCreateRequest):
     user_data = user_me()
-    
+    room_id = model.create_room(req.live_id, user_data, req.select_difficulty)
+    return RoomCreateResponse(room_id=room_id)

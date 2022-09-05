@@ -1,3 +1,5 @@
+# api.pyからimport、参照しないようにしてみる
+
 import json
 import uuid
 from enum import Enum, IntEnum
@@ -8,10 +10,30 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
-from api import LiveDifficulty
-
 from .db import engine
 
+# Enum
+
+
+class LiveDifficulty(Enum):
+    normal = 1
+    hard = 2
+
+
+class JoinRoomResult(Enum):
+    Ok = 1
+    RoomFull = 2
+    Disbanded = 3
+    OtherError = 4
+
+
+class WaitRoomStatus(Enum):
+    Waiting = 1
+    LiveStart = 2
+    Dissolution = 3
+
+
+# Class
 
 class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げる"""
@@ -47,7 +69,7 @@ def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
     # TODO: 実装
     conn = engine.connect()
     result = conn.execute(
-        text("select * from user where token=:token"),
+        text("SELECT * FROM user WHERE token=:token"),
         dict(token=token),
     )
     try:
@@ -72,28 +94,35 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
 
-def create_room(live_id: int, select_difficulty: LiveDifficulty) -> int:
+def create_room(live_id: int, user_data: SafeUser, select_difficulty: int) -> int:
     with engine.begin() as conn:  # トランザクション開始！
         result = conn.execute(
             text(
-                "INSERT INTO `room` (live_id, joined_user_count) VALUES (:live_id, :joined_user_count)"
+                "INSERT INTO `room` (live_id, owner, status) VALUES (:live_id, :owner, :status)"
             ),
-            {"live_id": live_id, "joined_user_count": 1},
+            {"live_id": live_id, "owner": user_data.id, "status": WaitRoomStatus.Waiting},
         )
 
-        room_id = "xxx"
-        user_id = 
-
         result2 = conn.execute(
+            text(
+                "SELECT `room_id` FROM room WHERE `owner`=user_data.id"
+            ),
+        )
+        try:
+            room_id = result.one().room_id
+        except NoResultFound:
+            return None
+
+        result3 = conn.execute(
             text(
                 "INSERT INTO `room_member` (room_id, user_id, name, leader_card_id, select_difficulty, is_host) \
                     VALUES (:room_id, :user_id, name, :leader_card_id, :select_difficulty, :is_host)"
             ),
             {
                 "room_id": room_id,
-                "user_id": user_id,
-                "name": name,
-                "leader_card_id": leader_card_id,
+                "user_id": user_data.id,
+                "name": user_data.name,
+                "leader_card_id": user_data.leader_card_id,
                 "select_difficulty": select_difficulty,
                 "is_host": True
                 },

@@ -52,17 +52,10 @@ class WaitRoomStatus(Enum):
 
 # Model
 class RoomInfo(BaseModel):
-    id: int
+    room_id: int
     live_id: int
     joined_user_count: int
     max_user_count: int
-
-
-class RoomInfos(BaseModel):
-    __root__: list[RoomInfo]
-
-    class Config:
-        orm_mode = True
 
 
 class RoomUser(BaseModel):
@@ -163,7 +156,8 @@ def _create_room_member(
 def _get_room_list(conn, live_id: int) -> Optional[list[RoomInfo]]:
     result = conn.execute(
         text(
-            "SELECT `id`, `live_id`, `joined_user_count`, `max_user_count`, `wait_room_status` FROM `room` \
+            "SELECT `id`, `live_id`, `joined_user_count`, `max_user_count`, `wait_room_status` \
+                FROM `room` \
                 WHERE `live_id`=:live_id \
                     AND `wait_room_status`=:wait_room_status \
                     AND `joined_user_count` < `max_user_count`"
@@ -171,16 +165,23 @@ def _get_room_list(conn, live_id: int) -> Optional[list[RoomInfo]]:
         dict(live_id=live_id, wait_room_status=WaitRoomStatus.Waiting.value),
     )
     try:
-        rows = result.all()
+        room_list = list[RoomInfo]
+        map(
+            lambda row: room_list.append(
+                RoomInfo(
+                    room_id=row.room_id,
+                    live_id=row.live_id,
+                    joined_user_count=row.joined_user_count,
+                    max_user_count=row.max_user_count,
+                )
+            ),
+            result,
+        )
     except NoResultFound:
         return None
-    return list[RoomInfo.parse_obj(rows)]
+    return room_list
 
 
-def get_room_list(token: str, live_id: int) -> Optional[list[RoomInfo]]:
-    try:
-        user = get_user_by_token(token)
-    except user is None:
-        return InvalidToken
+def get_room_list(live_id: int) -> Optional[list[RoomInfo]]:
     with engine.begin() as conn:
         return _get_room_list(conn, live_id)

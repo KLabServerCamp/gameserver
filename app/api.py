@@ -170,3 +170,14 @@ class RoomResultResponse(BaseModel):
 def room_result(req: RoomResultRequest):
     """ライブ結果"""
     return RoomResultResponse(result_user_list=model.room_result(req.room_id))
+
+
+class RoomLeaveRequest(BaseModel):
+    room_id: int
+
+
+@app.post("/room/leave")
+def room_leave(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
+    """ルーム退出"""
+    model.room_leave(token, req.room_id)
+    return

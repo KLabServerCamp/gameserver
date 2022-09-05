@@ -125,8 +125,8 @@ def _create_room(conn, user: SafeUser, live_id: int, live_dif: LiveDifficulty) -
     users_json = json.dumps(users)
     result = conn.execute(
         text(
-            "INSERT INTO `rooms` (live_id, hst_id, users) \
-            VALUES (:live_id, :hst_id, :users)"
+            "INSERT INTO `rooms` (live_id, hst_id, users) "
+            "VALUES (:live_id, :hst_id, :users)"
         ),
         {"live_id": live_id, "hst_id": user.id, "users": users_json},
     )
@@ -143,7 +143,8 @@ def create_room(token: str, live_id: int, live_dif: LiveDifficulty) -> int:
 
 
 def _room_list(conn, live_id: int) -> List[RoomInfo]:
-    execute_sent = "SELECT room_id, live_id, j_usr_cnt, m_usr_cnt FROM rooms WHERE j_usr_cnt < m_usr_cnt AND status = 1"
+    execute_sent = "SELECT room_id, live_id, j_usr_cnt, m_usr_cnt FROM rooms "\
+                    "WHERE j_usr_cnt < m_usr_cnt AND status = 1"
     result = None
     if live_id == 0:
         result = conn.execute(text(execute_sent))
@@ -167,7 +168,8 @@ def room_list(live_id: int) -> List[RoomInfo]:
 def _room_join(conn, user: SafeUser, room_id: int, live_dif: LiveDifficulty) -> JoinRoomResult:
     result = conn.execute(
         text(
-            "SELECT status, j_usr_cnt, m_usr_cnt, users FROM rooms WHERE room_id = :room_id for update"
+            "SELECT status, j_usr_cnt, m_usr_cnt, users FROM rooms "
+            "WHERE room_id = :room_id for update"
         ),
         {"room_id": room_id},
     )
@@ -183,11 +185,15 @@ def _room_join(conn, user: SafeUser, room_id: int, live_dif: LiveDifficulty) -> 
         return JoinRoomResult.OtherError
     j_usr_cnt = row.j_usr_cnt + 1
     users = json.loads(row.users)
-    users.append({"id": user.id,"name": user.name,"leader_card_id": user.leader_card_id,"live_dif": live_dif.value})
+    users.append(
+        {"id": user.id, "name": user.name,
+         "leader_card_id": user.leader_card_id, "live_dif": live_dif.value}
+        )
     users_json = json.dumps(users)
     conn.execute(
         text(
-            "UPDATE rooms SET j_usr_cnt = :j_usr_cnt, users = :users where room_id = :room_id"
+            "UPDATE rooms SET j_usr_cnt = :j_usr_cnt, users = :users "
+            "WHERE room_id = :room_id"
         ),
         {"j_usr_cnt": j_usr_cnt, "users": users_json, "room_id": room_id}
     )
@@ -255,25 +261,35 @@ def room_start(token: str, room_id: int):
 def _room_end(conn, user: SafeUser, room_id: int, judge_count_list: List[int], score: int):
     result = conn.execute(
         text(
-            "SELECT users, r_res_cnt FROM rooms WHERE room_id = :room_id for update"
+            "SELECT j_usr_cnt, users, r_res_cnt FROM rooms "
+            "WHERE room_id = :room_id for update"
         ),
         {"room_id": room_id},
     )
     row = result.one()
     users = json.loads(row.users)
+    r_res_cnt = row.r_res_cnt
     for i, User in enumerate(users):
         if User["id"] == user.id:
             User["judge_count_list"] = judge_count_list
             User["score"] = score
             users[i] = User
-    r_res_cnt = row.r_res_cnt + 1
+            r_res_cnt += 1
     users_json = json.dumps(users)
     conn.execute(
         text(
-            "UPDATE rooms SET users = :users, r_res_cnt = :r_res_cnt WHERE room_id = :room_id"
+            "UPDATE rooms SET users = :users, r_res_cnt = :r_res_cnt "
+            "WHERE room_id = :room_id"
         ),
         {"users": users_json, "r_res_cnt": r_res_cnt, "room_id": room_id},
     )
+    if r_res_cnt == row.j_usr_cnt:
+        conn.execute(
+            text(
+                "UPDATE rooms SET status = 3 WHERE room_id = :room_id"
+            ),
+            {"room_id": room_id},
+        )
     return
 
 
@@ -290,7 +306,8 @@ def room_end(token: str, room_id: int, judge_count_list: List[int], score: int):
 def _room_result(conn, room_id: int) -> List[ResultUser]:
     result = conn.execute(
         text(
-            "SELECT j_usr_cnt, r_res_cnt, users FROM rooms WHERE room_id = :room_id"
+            "SELECT j_usr_cnt, r_res_cnt, users FROM rooms "
+            "WHERE room_id = :room_id"
         ),
         {"room_id": room_id},
     )
@@ -312,3 +329,63 @@ def _room_result(conn, room_id: int) -> List[ResultUser]:
 def room_result(room_id: int) -> List[ResultUser]:
     with engine.begin() as conn:
         return _room_result(conn, room_id)
+
+
+def _room_remove(conn, room_id: int):
+    conn.execute(
+        text(
+            "DELETE FROM rooms WHERE room_id = :room_id"
+        ),
+        {"room_id": room_id},
+    )
+    return
+
+
+def _room_leave(conn, user: SafeUser, room_id: int):
+    result = conn.execute(
+        text(
+            "SELECT j_usr_cnt, hst_id, users, r_res_cnt FROM rooms "
+            "WHERE room_id = :room_id for update"
+        ),
+        {"room_id": room_id},
+    )
+    row = result.one()
+    j_usr_cnt = row.j_usr_cnt - 1
+    if j_usr_cnt == 0:
+        _room_remove(conn, room_id)
+        return
+    hst_id = row.hst_id
+    users = json.loads(row.users)
+    r_res_cnt = row.r_res_cnt
+    is_room_mem = False
+    for i, User in enumerate(users):
+        if User["id"] == user.id:
+            is_room_mem = True
+            if "score" in User.keys():
+                r_res_cnt -= 1
+            else:
+                users.pop(i)
+            break
+    if not is_room_mem:
+        return
+    if hst_id == user.id:
+        hst_id = users[0]["id"]
+    users_json = json.dumps(users)
+    conn.execute(
+        text(
+            "UPDATE rooms SET j_usr_cnt = :j_usr_cnt, users = :users, "
+            "r_res_cnt = :r_res_cnt WHERE room_id = :room_id"
+        ),
+        {"j_usr_cnt": j_usr_cnt, "users": users_json, "r_res_cnt": r_res_cnt, "room_id": room_id},
+    )
+    return
+
+
+def room_leave(token: str, room_id: int):
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken("指定されたtokenが不正です")
+        _room_leave(conn, user, room_id)
+        conn.execute(text("COMMIT"))
+        return

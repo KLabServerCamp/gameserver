@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from . import model
 from .model import (
+    InvalidUser,
     JoinRoomResult,
     LiveDifficulty,
     ResultUser,
@@ -175,3 +176,10 @@ def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
     if wait_room_status is None or not wait_room_user_list:
         raise HTTPException(status_code=404)
     return RoomWaitResponse(status=wait_room_status, room_user_list=wait_room_user_list)
+
+
+@app.post("/room/start")
+def room_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
+    room_start_result = model.start_room(token, req.room_id)
+    if room_start_result is InvalidUser:
+        raise InvalidUser

@@ -16,6 +16,10 @@ class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げる"""
 
 
+class InvalidUser(Exception):
+    """オーナー以外がオーナー権が必要な操作をしたときに投げる"""
+
+
 # user = SafeUser(id=1, name="matac", leader_card_id=42)
 # user.dict()
 # user.json(ensure_ascii=False)
@@ -74,6 +78,12 @@ class ResultUser(BaseModel):
 
 
 # User
+def _is_user(token: str) -> None:
+    user = get_user_by_token(token)
+    if user is None:
+        raise InvalidToken
+
+
 def create_user(name: str, leader_card_id: int) -> str:
     """Create new user and returns their token"""
     token = str(uuid.uuid4())
@@ -234,7 +244,6 @@ def get_room_status(token: str, room_id: int) -> Optional[WaitRoomStatus]:
 
 
 def get_room_user_list(token: str, room_id: int) -> Optional[list[RoomUser]]:
-    # user情報取ってroom_userと比較せよ
     user = get_user_by_token(token)
     with engine.begin() as conn:
         result = conn.execute(
@@ -260,3 +269,26 @@ def get_room_user_list(token: str, room_id: int) -> Optional[list[RoomUser]]:
     except NoResultFound:
         return None
     return room_user_list
+
+
+def _is_host(room_id: int) -> bool:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("SELECT `is_host` FROM `room_member` WHERE `room_id`=:room_id"),
+            dict(room_id=room_id),
+        )
+    return result.one().is_host
+
+
+def start_room(token: str, room_id: int) -> Optional[InvalidUser]:
+    _is_user(token)
+    if not _is_host(room_id):
+        return InvalidUser
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "UPDATE `room` SET wait_room_status=:wait_room_status WHERE room_id=:room_id"
+            ),
+            dict(wait_room_status=WaitRoomStatus.LiveStart.value, room_id=room_id),
+        )
+        print(result)

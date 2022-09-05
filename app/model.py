@@ -24,6 +24,24 @@ class JoinRoomResult(IntEnum):
     OTHER_ERROR = 4
 
 
+class WaitRoomStatus(IntEnum):
+    """ルーム待機中の状態
+
+    Attributes
+    ----------
+    WAITING: int
+        ホストがライブ開始ボタン押すのを待っている
+    LIVE_START: int
+       ライブ画面遷移OK
+    DISSOLUTION: int
+        解散された
+    """
+
+    WAITING = 1
+    LIVE_START = 2
+    DISSOLUTION = 3
+
+
 class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げる"""
 
@@ -121,8 +139,10 @@ def create_room(token: str, live_id: int) -> int:
         res = conn.execute(text("SELECT COUNT(*) FROM `room`"))
         room_id = int(res.one()[0] + 1)
         conn.execute(
-            text("INSERT INTO `room` (room_id, live_id) VALUES (:room_id, :live_id)"),
-            dict(room_id=room_id, live_id=live_id),
+            text(
+                "INSERT INTO `room` (room_id, live_id, status) VALUES (:room_id, :live_id, :status)"
+            ),
+            dict(room_id=room_id, live_id=live_id, status=int(WaitRoomStatus.WAITING)),
         )
 
     return room_id
@@ -252,3 +272,18 @@ def join_room(
 
     insert_room_member(room_id, user_id, live_difficulty, False)
     return JoinRoomResult.OK
+
+
+def get_room_status(room_id: int) -> WaitRoomStatus:
+    with engine.begin() as conn:
+        res = conn.execute(
+            text("SELECT status FROM room WHERE room_id = :room_id"),
+            dict(room_id=room_id),
+        )
+
+    try:
+        status = res.one()
+    except NoResultFound:
+        raise Exception("room not found")
+
+    return WaitRoomStatus(status[0])

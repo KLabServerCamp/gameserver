@@ -79,6 +79,10 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
         return _update_user(conn, token, name, leader_card_id)
 
 
+
+### Roomの処理
+## /room/create
+
 # TODO: どうにかする
 MAX_USER_COUNT = 4
 def create_room(live_id: int, owner: SafeUser) -> int:
@@ -105,6 +109,8 @@ def create_room(live_id: int, owner: SafeUser) -> int:
     room_id = result.lastrowid
     return room_id
 
+
+## /room/list
 def get_room_list(live_id: int) -> list[RoomInfo]:
     with engine.begin() as conn:
         result = conn.execute(
@@ -150,6 +156,52 @@ def get_room_by_id(room_id: int) -> RoomInfo:
         max_user_count=row["max_user_count"]   
     )
 
+def _get_room_user(room_id: int) -> list[RoomUser]:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT * FROM `room_member` WHERE room_id=:room_id"
+            ),
+            {"room_id": room_id}
+        )
+    room_user_list = list[RoomUser]
+    for row in result:
+        room_user_list.append(
+            RoomUser(
+                user_id=row["user_id"],
+                name=row["name"],
+                leader_card_id=row["leader_card_id"],
+                select_difficulty=row["select_diffculty"],
+                is_me=row["is_me"],
+                is_host=row["is_host"]
+            )
+        )
+    return room_user_list
+
+
+def get_room_user(room_id: int, user: SafeUser) -> RoomUser:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("SELECT `room_member` * WHERE user_id=:user_id AND room_id=:room_id"),
+            {"user_id": user.id, "room_id": room_id}
+        )
+
+    room_info = get_room_by_id(room_id)
+    room_user = result[0]
+
+    return RoomUser(
+        user_id=room_id,
+        name=user.name,
+        leader_card_id=user.leader_card_id,
+        select_difficulty=room_user["select_difficulty"],
+        is_me=True,
+        is_host=bool(room_info.owner == user.id),
+    )
+
+
+    
+## /room/join
+
 def _join_room(room_id: int, select_difficulty: LiveDifficulty, user: SafeUser) -> bool:
     try:
         with engine.begin() as conn:
@@ -169,8 +221,6 @@ def _join_room(room_id: int, select_difficulty: LiveDifficulty, user: SafeUser) 
                     "name": user.name,
                     "leader_card_id": user.leader_card_id,
                     "select_difficulty": select_difficulty,
-                    # "is_me": is_me,
-                    # "is_host": is_host
                 }
           )
     except:
@@ -200,28 +250,7 @@ def join_room(room_id: int, select_difficulty: LiveDifficulty, user: SafeUser) -
         return JoinRoomResult.OtherError
     
 
-def _get_room_user(roomid: int) -> list[RoomUser]:
-    with engine.begin() as conn:
-        result = conn.execute(
-            text(
-                "SELECT * FROM `room_member` WHERE room_id=:room_id"
-            ),
-            {"room_id": room_id}
-        )
-    room_user_list = list[RoomUser]
-    for row in result:
-        room_user_list.append(
-            RoomUser(
-                user_id=row["user_id"],
-                name=row["name"],
-                leader_card_id=row["leader_card_id"],
-                select_difficulty=row["select_diffculty"],
-                is_me=row["is_me"],
-                is_host=row["is_host"]
-            )
-        )
-    return room_user_list
-    
+## /room/wait
 
 def get_room_wait(room_id: int):
     with engine.begin() as conn:
@@ -250,35 +279,22 @@ def update_wait_room_status(room_id: int, wait_room_status: WaitRoomStaus):
             {"wait_room_status": wait_room_status, "room_id": room_id}
         )
 
-def get_room_user(room_id: int, user: SafeUser) -> RoomUser:
-    with engine.begin() as conn:
-        result = conn.execute(
-            text("SELECT `room_member` * WHERE user_id=:user_id AND room_id=:room_id"),
-            {"user_id": user.id, "room_id": room_id}
-        )
-
-    room_info = get_room_by_id(room_id)
-    room_user = result[0]
-
-    return RoomUser(
-        user_id=room_id,
-        name=user.name,
-        leader_card_id=user.leader_card_id,
-        select_difficulty=room_user["select_difficulty"],
-        is_me=True,
-        is_host=bool(room_info.owner == user.id),
-    )
 
 
 def is_host(room_id: int, user: SafeUser) -> bool:
    room_user = get_room_user(room.id, user) 
    return room_user.is_host
 
+
+
+## /room/start
+
 def start_room(room_id: int, user: SafeUser):
     if is_host(room_id, user):
         model.update_wait_room_status(room_id, WaitRoomStatus.LiveStart)
 
 
+## /room/result
 
 # TODO: 実装途中
 def post_result(room_id: int, result_user: ResultUser):
@@ -294,10 +310,6 @@ def post_result(room_id: int, result_user: ResultUser):
             {}
         )
 
-def end_room(user_id: int, room_id: int, judge_count_list: list[int], score: int): 
-    post_result(room_id, ResultUser("user_id": user_id, "judge_count_list": judge_count_list, "score": score)) 
-    update_wait_room_status(room_id, WaitRoomStatus.Dissolution)
-    
 def get_result_user_list(room_id: int) -> list[ResultUser]:
     with engine.begin() as conn:
         result = conn.execute(
@@ -317,3 +329,12 @@ def get_result_user_list(room_id: int) -> list[ResultUser]:
             )
         )
     return result_user_list
+
+## /room/end
+
+def end_room(user_id: int, room_id: int, judge_count_list: list[int], score: int): 
+    post_result(room_id, ResultUser("user_id": user_id, "judge_count_list": judge_count_list, "score": score)) 
+    update_wait_room_status(room_id, WaitRoomStatus.Dissolution)
+    
+
+## /room/leave

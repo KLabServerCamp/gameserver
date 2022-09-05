@@ -89,6 +89,7 @@ class WaitRoomStatus(Enum):
 class RoomInfo(BaseModel):
     room_id: int
     live_id: int
+    owner: int
     joined_user_count: int
     max_user_count: int
     
@@ -147,6 +148,7 @@ def room_start(room_id: int, token: str = Depends(get_auth_token)):
     user = model.get_user_by_token(token)
     model.start_room(room_id, user)
     # model.update_wait_room_status(room_id, WaitRoomStatus.LiveStart)
+
 
 class RoomEndRequest(BaseModel):
     room_id: int

@@ -145,6 +145,7 @@ def get_room_by_id(room_id: int) -> RoomInfo:
     return RoomInfo(
         room_id=row["room_id"],
         live_id=row["live_id"],
+        owner=row["owner"],
         joined_user_count=row["join_user_count"],
         max_user_count=row["max_user_count"]   
     )
@@ -249,26 +250,28 @@ def update_wait_room_status(room_id: int, wait_room_status: WaitRoomStaus):
             {"wait_room_status": wait_room_status, "room_id": room_id}
         )
 
-# TODO: 途中
-def get_room_user(user: SafeUser) -> RoomUser:
+def get_room_user(room_id: int, user: SafeUser) -> RoomUser:
     with engine.begin() as conn:
         result = conn.execute(
-            text("SELECT `room_member` * WHERE user_id=:user_id"),
-            {"user_id":user.id}
+            text("SELECT `room_member` * WHERE user_id=:user_id AND room_id=:room_id"),
+            {"user_id": user.id, "room_id": room_id}
         )
-    row = result[0]
+
+    room_info = get_room_by_id(room_id)
+    room_user = result[0]
+
     return RoomUser(
-        user_id=,
-        name=,
-        leader_card_id=,
-        select_difficulty=,
-        is_me=,
-        is_host=,
+        user_id=room_id,
+        name=user.name,
+        leader_card_id=user.leader_card_id,
+        select_difficulty=room_user["select_difficulty"],
+        is_me=True,
+        is_host=bool(room_info.owner == user.id),
     )
 
 
-def is_host(room: RoomInfo, user: SafeUser) -> bool:
-   room_user = get_room_user(user) 
+def is_host(room_id: int, user: SafeUser) -> bool:
+   room_user = get_room_user(room.id, user) 
    return room_user.is_host
 
 def start_room(room_id: int, user: SafeUser):

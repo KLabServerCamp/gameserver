@@ -22,6 +22,7 @@ def _auth_header(i=0):
     token = user_tokens[i]
     return {"Authorization": f"bearer {token}"}
 
+
 def _auth_header1(i=1):
     token = user_tokens[i]
     return {"Authorization": f"bearer {token}"}
@@ -37,7 +38,7 @@ def test_room_1():
 
     room_id = response.json()["room_id"]
     print(f"room/create {room_id=}")
-    
+
     response = client.post("/room/list", json={"live_id": 1001})
     assert response.status_code == 200
     print("room/list response:", response.json())
@@ -48,3 +49,9 @@ def test_room_1():
         json={"room_id": room_id, "select_difficulty": 1},
     )
     assert response.status_code == 200
+
+    response = client.post(
+        "/room/wait", headers=_auth_header(), json={"room_id": room_id}
+    )
+    assert response.status_code == 200
+    print("room/wait response:", response.json())

@@ -30,11 +30,41 @@ class LiveDifficulty(Enum):
     normal = 1
     hard = 2
 
+
 class JoinRoomResult(Enum):
     Ok = 1
     RoomFull = 2
     Disbanded = 3
     OtherError = 4
+
+
+class WaitRoomStatus(Enum):
+    Waiting = 1
+    LiveStart = 2
+    Dissolution = 3
+
+
+class RoomInfo(BaseModel):
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int
+
+    class Config:
+        orm_mode = True
+
+
+class RoomUser(BaseModel):
+    user_id: int
+    name: str
+    leader_card_id: int
+    select_difficulty: LiveDifficulty
+    is_me: bool
+    is_host: bool
+
+    class Config:
+        orm_mode = True
+
 
 # User
 def create_user(name: str, leader_card_id: int) -> str:
@@ -99,56 +129,85 @@ def create_room(live_id: int, select_difficulty: LiveDifficulty, user: SafeUser)
             text(
                 "INSERT INTO `room_member` (room_id, user_id, name, leader_card_id, select_difficulty, is_me, is_host) VALUES (:room_id, :user_id, :name, :leader_card_id, :select_difficulty, :is_me, :is_host)"
             ),
-            {"room_id": room_id, "user_id": user.id, "name": user.name, "leader_card_id": user.leader_card_id, "select_difficulty": select_difficulty, "is_me": True, "is_host": True},
+            {
+                "room_id": room_id,
+                "user_id": user.id,
+                "name": user.name,
+                "leader_card_id": user.leader_card_id,
+                "select_difficulty": select_difficulty.value,
+                "is_me": True,
+                "is_host": True,
+            },
         )
     return room_id
 
-def list_room(live_id: int) -> list:
+
+def list_room(live_id: int) -> list[RoomInfo]:
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `live_id`=:live_id AND `room_status`=1"  
+                "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `live_id`=:live_id AND `room_status`=1"
             ),
             {"live_id": live_id},
         )
-        rows = result.all()
-    return rows
+        try:
+            rows = result.all()
+        except NoResultFound:
+            return None
+
+    return [RoomInfo.from_orm(row) for row in rows]
+
 
 def join_room(room_id: int, select_difficulty: LiveDifficulty, user: SafeUser) -> int:
     with engine.begin() as conn:
         ans = 1
         conn.execute(
-            text(
-                "SELECT * FROM room WHERE `room_id`=:room_id FOR UPDATE"  
-            ),
+            text("SELECT * FROM room WHERE `room_id`=:room_id FOR UPDATE"),
             {"room_id": room_id},
         )
         result = conn.execute(
-            text(
-                "SELECT COUNT(1) FROM room_member WHERE `room_id`=:room_id"  
-            ),
+            text("SELECT COUNT(1) FROM room_member WHERE `room_id`=:room_id"),
             {"room_id": room_id},
         )
         cnt = result.one()[0]
-        
+
         if cnt < 4:
             conn.execute(
                 text(
                     "INSERT INTO `room_member` (room_id, user_id, name, leader_card_id, select_difficulty, is_me, is_host) VALUES (:room_id, :user_id, :name, :leader_card_id, :select_difficulty, :is_me, :is_host)"
                 ),
-                {"room_id": room_id, "user_id": user.id, "name": user.name, "leader_card_id": user.leader_card_id, "select_difficulty": select_difficulty, "is_me": True, "is_host": False},
+                {
+                    "room_id": room_id,
+                    "user_id": user.id,
+                    "name": user.name,
+                    "leader_card_id": user.leader_card_id,
+                    "select_difficulty": select_difficulty.value,
+                    "is_me": True,
+                    "is_host": False,
+                },
             )
-            conn.execute(
-                text(
-                    "COMMIT"  
-                )
-            )
+            conn.execute(text("COMMIT"))
         else:
-            conn.execute(
-                text(
-                    "ROLLBACK"  
-                )
-            )
+            conn.execute(text("ROLLBACK"))
             ans = 2
 
     return ans
+
+
+def wait_room(room_id: int) -> dict:
+    with engine.begin() as conn:
+        status = 1
+        result = conn.execute(
+            text(
+                "SELECT `user_id`, `name`, `leader_card_id`, `select_difficulty`, `is_me`, `is_host` FROM `room_member` WHERE `room_id`=:room_id"
+            ),
+            {"room_id": room_id},
+        )
+        try:
+            rows = result.all()
+        except NoResultFound:
+            return None
+
+        room_user_list = [RoomUser.from_orm(row) for row in rows]
+
+    return {"status": status, "room_user_list": room_user_list}

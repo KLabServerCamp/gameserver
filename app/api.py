@@ -153,7 +153,11 @@ def create_room(
 ) -> RoomCreateResponse:
     """Roomを作成する"""
     room_id = model.create_room(token, req.live_id)
-    model.insert_room_member(room_id, token, req.select_difficulty, is_owner=True)
+    me = model.get_user_by_token(token)
+    if me is None:
+        raise Exception("user not found")
+    else:
+        model.insert_room_member(room_id, me.id, req.select_difficulty, is_owner=True)
     return RoomCreateResponse(room_id=room_id)
 
 
@@ -168,5 +172,9 @@ def join_room(
     req: RoomJoinRequest, token: str = Depends(get_auth_token)
 ) -> RoomJoinResponse:
     """Roomに参加する"""
-    join_room_result = model.join_room(req.room_id, token, req.select_difficulty)
+    me = model.get_user_by_token(token)
+    if me is None:
+        raise Exception("user not found")
+    else:
+        join_room_result = model.join_room(req.room_id, me.id, req.select_difficulty)
     return RoomJoinResponse(join_room_result=join_room_result)

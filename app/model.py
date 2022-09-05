@@ -129,17 +129,17 @@ def create_room(token: str, live_id: int) -> int:
 
 
 def insert_room_member(
-    room_id: int, user_token: str, live_difficulty: LiveDifficulty, is_owner: bool
+    room_id: int, user_id: int, live_difficulty: LiveDifficulty, is_owner: bool
 ) -> None:
     with engine.begin() as conn:
         conn.execute(
             text(
-                "INSERT INTO `room_member` (room_id, user_token, live_difficulty, is_owner)"
-                "VALUES (:room_id, :user_token, :live_difficulty, :is_owner)",
+                "INSERT INTO `room_member` (room_id, user_id, live_difficulty, is_owner)"
+                "VALUES (:room_id, :user_id, :live_difficulty, :is_owner)",
             ),
             dict(
                 room_id=room_id,
-                user_token=user_token,
+                user_id=user_id,
                 live_difficulty=int(live_difficulty),
                 is_owner=is_owner,
             ),
@@ -237,7 +237,7 @@ def get_room_info_by_room_id(room_id: int) -> Optional[RoomInfo]:
 
 
 def join_room(
-    room_id: int, user_token: str, live_difficulty: LiveDifficulty
+    room_id: int, user_id: int, live_difficulty: LiveDifficulty
 ) -> JoinRoomResult:
     room_info = get_room_info_by_room_id(room_id)
 
@@ -250,5 +250,5 @@ def join_room(
     # TODO:
     # すでに他のRoomに参加していたらエラーにするか、別の部屋に移動させる
 
-    insert_room_member(room_id, user_token, live_difficulty, False)
+    insert_room_member(room_id, user_id, live_difficulty, False)
     return JoinRoomResult.OK

@@ -31,5 +31,5 @@ CREATE TABLE `room_member` (
 );
 
 -- testデータ
-INSERT INTO `room` SET `live_id`=1001, `joined_user_count`=2, `max_user_count`=4;
+INSERT INTO `room` SET `live_id`=1001, `joined_user_count`=4, `max_user_count`=4;
 INSERT INTO `room` SET `live_id`=1002, `joined_user_count`=1, `max_user_count`=4; 

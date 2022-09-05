@@ -106,13 +106,13 @@ def get_rooms(live_id: int = 0):
         if live_id == 0:
             result = conn.execute(
                 text(
-                    "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room`"
+                    "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `status`=1 AND `joined_user_count`<`max_user_count`"
                 )
             )
         else:
             result = conn.execute(
                 text(
-                    "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `live_id`=:live_id"
+                    "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `live_id`=:live_id AND `status`=1 AND `joined_user_count`<`max_user_count`"
                 ),
                 dict(live_id=live_id),
             )

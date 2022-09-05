@@ -276,19 +276,17 @@ def wait_room_user_list(room_id: int, token: str) -> list[RoomUser]:
 
         result = conn.execute(
             text(
-                "SELECT `user_id`, `difficulty` FROM `room_member` WHERE `room_id`=:room_id"
+                "SELECT `user_id`, `name`, `leader_card_id`, `difficulty`, `token` FROM `room_member` \
+                    INNER JOIN `user` ON `room_member`.`user_id`=`user`.`id` WHERE `room_id`=:room_id"
             ),
             {"room_id": room_id},
         )
         try:
             rows = []
             for user in result.fetchall():
-                user_data = _get_user_by_id(conn, user.user_id)
-
                 is_me = False
-                if user_data.token == token:
+                if user.token == token:
                     is_me = True
-
                 is_host = False
                 if user.user_id == host:
                     is_host = True
@@ -296,8 +294,8 @@ def wait_room_user_list(room_id: int, token: str) -> list[RoomUser]:
                 rows.append(
                     RoomUser(
                         user_id=user.user_id,
-                        name=user_data.name,
-                        leader_card_id=user_data.leader_card_id,
+                        name=user.name,
+                        leader_card_id=user.leader_card_id,
                         select_difficulty=user.difficulty,
                         is_me=is_me,
                         is_host=is_host,

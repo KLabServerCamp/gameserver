@@ -167,7 +167,9 @@ def list_room(live_id: int) -> list[RoomInfo]:
     return [RoomInfo.from_orm(row) for row in rows]
 
 
-def join_room(room_id: int, select_difficulty: LiveDifficulty, user: SafeUser) -> int:
+def join_room(
+    room_id: int, select_difficulty: LiveDifficulty, user: SafeUser
+) -> JoinRoomResult:
     with engine.begin() as conn:
         ans = 1
         conn.execute(
@@ -233,7 +235,7 @@ def wait_room(room_id: int) -> dict:
     return {"status": status, "room_user_list": room_user_list}
 
 
-def start_room(room_id: int, user: SafeUser):
+def start_room(room_id: int, user: SafeUser) -> None:
     with engine.begin() as conn:
         result = conn.execute(
             text(
@@ -255,7 +257,9 @@ def start_room(room_id: int, user: SafeUser):
         )
 
 
-def end_room(room_id: int, judge_count_list: list[int], score: int, user: SafeUser):
+def end_room(
+    room_id: int, judge_count_list: list[int], score: int, user: SafeUser
+) -> None:
     with engine.begin() as conn:
         conn.execute(
             text(
@@ -286,7 +290,6 @@ def result_room(room_id: int) -> list[ResultUser]:
             rows = result.all()
         except NoResultFound:
             return None
-        print(rows)
         result_user_list = []
         for row in rows:
             result_user_list.append(

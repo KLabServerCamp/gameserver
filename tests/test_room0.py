@@ -49,6 +49,7 @@ def test_room_1():
         json={"room_id": room_id, "select_difficulty": 1},
     )
     assert response.status_code == 200
+    print("room/join response:", response.json())
 
     response = client.post(
         "/room/wait", headers=_auth_header(), json={"room_id": room_id}
@@ -91,4 +92,6 @@ def test_room_1():
         json={"room_id": room_id},
     )
     assert response.status_code == 200
-    print("room/end response:", response.json())
+    print("room/result response:", response.json())
+
+    assert response.status_code == 100

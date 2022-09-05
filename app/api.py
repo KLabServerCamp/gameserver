@@ -168,5 +168,4 @@ class RoomResultResponse(BaseModel):
 @app.post("/room/result", response_model=RoomResultResponse)
 def room_result(req: RoomResultRequest):
     result = model.result_room(req.room_id)
-    print(result)
     return RoomResultResponse(result_user_list=result)

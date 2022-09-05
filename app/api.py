@@ -1,11 +1,18 @@
-from enum import Enum
-
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from . import model
-from .model import LiveDifficulty, RoomID, RoomInfo, SafeUser, WaitRoomStatus
+from .model import (
+    JoinRoomResult,
+    LiveDifficulty,
+    ResultUser,
+    RoomID,
+    RoomInfo,
+    RoomUser,
+    SafeUser,
+    WaitRoomStatus,
+)
 
 app = FastAPI()
 
@@ -72,8 +79,9 @@ class RoomCreateRequest(BaseModel):
 
 
 @app.post("/room/create", response_model=RoomID)
-def create_room(req: RoomCreateRequest):
-    room_id = model.create_room(req.live_id, req.select_difficulty)
+def create_room(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
+    user_id = user_me(token)
+    room_id = model.create_room(req.live_id, req.select_difficulty, user_id)
     return RoomID(room_id=room_id)
 
 
@@ -98,18 +106,15 @@ class RoomJoinRequest(BaseModel):
     select_difficulty: LiveDifficulty  # 選択難易度
 
 
-class JoinRoomResult:
-    """ルーム入場の返却結果"""
-
-
 class RoomJoinResponse(BaseModel):
     join_room_result: JoinRoomResult  # ルーム入場結果
 
 
 @app.post("/room/join", response_model=RoomJoinResponse)
-def join_room(req: RoomJoinRequest):
-    result = model.join_room(req.room_id, req.select_difficulty)
-    return RoomJoinResponse(join_room_result=JoinRoomResult)
+def join_room(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
+    user_id = user_me(token)
+    room_result = model.join_room(req.room_id, req.select_difficulty, user_id)
+    return RoomJoinResponse(join_room_result=room_result)
 
 
 # Wait

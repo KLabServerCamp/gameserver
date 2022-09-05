@@ -1,7 +1,7 @@
 import json
 import uuid
 from enum import IntEnum
-from operator import ge
+from sqlite3 import OperationalError
 from tkinter.messagebox import NO
 from typing import Optional
 
@@ -40,11 +40,11 @@ def create_user(name: str, leader_card_id: int) -> str:
         user card leader id
     """
     token = str(uuid.uuid4())
-    # NOTE: tokenが衝突したらリトライする必要がある.
+    # TODO: tokenが衝突したらリトライする必要がある.
     with engine.begin() as conn:
         conn.execute(
             text(
-                "INSERT INTO `user` (name, token, leader_card_id) "
+                "INSERT INTO user (name, token, leader_card_id) "
                 "VALUES (:name, :token, :leader_card_id)"
             ),
             {"name": name, "token": token, "leader_card_id": leader_card_id},
@@ -219,16 +219,35 @@ class ResultUser(BaseModel):
 
 
 # === room sql execution ======================================================
-def create_room(live_id: int, select_difficulty: int) -> dict[str, int]:
+def create_room(live_id: int, select_difficulty: int, user_id: int) -> int:
     with engine.begin() as conn:
-        conn.execute(
+        # create new room
+        res = conn.execute(
             text(
-                "INSERT INTO room (live_id, joined_user_count, max_user_count) "
-                "VALUES (:live_id, 0, 4)"
+                "INSERT INTO room (live_id, joined_user_count) "
+                "VALUES (:live_id, 1);"
+                "SELECT LAST_INSERT_ID();"
             ),
             {"live_id": live_id},
         )
-    return {}
+        # created room id
+        room_id = res.lastrawid
+
+        # create new room_member
+        conn.execute(
+            text(
+                "INSERT INTO room_member (room_id, user_id, select_difficulty, is_host) "
+                "VALUE (:room_id, :user_id, :select_difficulty, :is_host)"
+            ),
+            {
+                "room_id": room_id,
+                "user_id": user_id,
+                "select_difficulty": select_difficulty,
+                "is_host": 1,
+            },
+        )
+
+    return room_id
 
 
 def get_rooms_by_live_id(live_id) -> list[RoomInfo]:
@@ -242,15 +261,38 @@ def get_rooms_by_live_id(live_id) -> list[RoomInfo]:
     return rooms
 
 
-def join_room(room_id, select_difficulty):
+def join_room(room_id, select_difficulty, user_id) -> JoinRoomResult:
     with engine.begin() as conn:
-        result = conn.execute(
+        # update joined user count if it is less than 4.
+        # TODO: identify if room is full or disbanded.
+        try:
+            conn.execute(
+                text(
+                    "UPDATE room "
+                    "SET joined_user_count = "
+                    "CASE WHEN joined_user_count < 4 THEN joined_user_count + 1 "
+                    "END "
+                    "WHERE room_id = :room_id"
+                ),
+                {"room_id": room_id},
+            )
+        except OperationalError:
+            return JoinRoomResult.RoomFull
+
+        # create new room_member
+        conn.execute(
             text(
-                "UPDATE room SET name = :name, leader_card_id = :leader_card_id "
-                "WHERE token = :token"
+                "INSERT INTO room_member (room_id, user_id, select_difficulty, is_host) "
+                "VALUE (:room_id, :user_id, :select_difficulty, :is_host)"
             ),
+            {
+                "room_id": room_id,
+                "user_id": user_id,
+                "select_difficulty": select_difficulty,
+                "is_host": 0,
+            },
         )
-    return result
+    return JoinRoomResult.Ok
 
 
 def wait_room(room_id):

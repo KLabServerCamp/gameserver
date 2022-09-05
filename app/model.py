@@ -236,8 +236,8 @@ def get_room_wait(room_id: int):
 
     res = result.one
     return RoomWaitResponse(
-        wait_room_status=res[wait_room_status]
-        room_user_list = _get_room_user(room_id)
+        wait_room_status=res["wait_room_status"]
+        room_member_list = _get_room_user(room_id)
     )
     
 def update_wait_room_status(room_id: int, wait_room_status: WaitRoomStaus):
@@ -248,6 +248,34 @@ def update_wait_room_status(room_id: int, wait_room_status: WaitRoomStaus):
             ),
             {"wait_room_status": wait_room_status, "room_id": room_id}
         )
+
+# TODO: 途中
+def get_room_user(user: SafeUser) -> RoomUser:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("SELECT `room_member` * WHERE user_id=:user_id"),
+            {"user_id":user.id}
+        )
+    row = result[0]
+    return RoomUser(
+        user_id=,
+        name=,
+        leader_card_id=,
+        select_difficulty=,
+        is_me=,
+        is_host=,
+    )
+
+
+def is_host(room: RoomInfo, user: SafeUser) -> bool:
+   room_user = get_room_user(user) 
+   return room_user.is_host
+
+def start_room(room_id: int, user: SafeUser):
+    if is_host(room_id, user):
+        model.update_wait_room_status(room_id, WaitRoomStatus.LiveStart)
+
+
 
 # TODO: 実装途中
 def post_result(room_id: int, result_user: ResultUser):

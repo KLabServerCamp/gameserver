@@ -143,8 +143,10 @@ def wait_room(room_id: int):
     return res
 
 @app.post("/room/start")
-def room_start(room_id: int):
-    model.update_wait_room_status(room_id, WaitRoomStatus.LiveStart)
+def room_start(room_id: int, token: str = Depends(get_auth_token)):
+    user = model.get_user_by_token(token)
+    model.start_room(room_id, user)
+    # model.update_wait_room_status(room_id, WaitRoomStatus.LiveStart)
 
 class RoomEndRequest(BaseModel):
     room_id: int

@@ -344,3 +344,48 @@ def get_results(room_id: int) -> List[ResultUser]:
         )
 
         return res
+
+
+def leave_room(token: str, room_id: int):
+    usr = validUser(token)
+    # TODO: ホスト委譲も追加する
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT `joined_user_count` FROM `room` WHERE `room_id`=:room_id FOR UPDATE"
+            ),
+            dict(room_id=room_id),
+        )
+        try:
+            user_count = result.one().joined_user_count
+        except:
+            raise HTTPException(status_code=404)
+
+        result = conn.execute(
+            text(
+                "DELETE FROM `room_member` WHERE `room_id`=:room_id AND `user_id`=:user_id"
+            ),
+            dict(room_id=room_id, user_id=usr.id),
+        )
+        print(result.rowcount)
+        if result.rowcount != 1:
+            raise HTTPException(status_code=404)
+
+        print(user_count)
+        print(user_count)
+        print(user_count)
+        print(user_count)
+        if user_count == 1:
+            conn.execute(
+                text(
+                    "UPDATE `room` SET `joined_user_count`=:count, `status`=3 WHERE `room_id`=:room_id"
+                ),
+                dict(count=user_count - 1, room_id=room_id),
+            )
+        else:
+            conn.execute(
+                text(
+                    "UPDATE `room` SET `joined_user_count`=:count WHERE `room_id`=:room_id"
+                ),
+                dict(count=user_count - 1, room_id=room_id),
+            )

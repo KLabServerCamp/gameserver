@@ -344,6 +344,16 @@ def wait_room(token: str, room_id: int) -> tuple[WaitRoomStatus, list[RoomUser]]
         raise InvalidToken
 
 
+def start_room(token: str, room_id: int) -> None:
+    with engine.begin() as conn:
+        conn: Connection
+        if user := _get_user_by_token(conn, token):
+            if user.id == _get_host_id(conn, room_id):
+                _set_room_status(conn, room_id, WaitRoomStatus.STARTED)
+                return
+        raise InvalidToken
+
+
 def leave_room(token: str, room_id: int) -> None:
     raise NotImplementedError
 

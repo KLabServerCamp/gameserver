@@ -136,7 +136,21 @@ class RoomWaitResponse(BaseModel):
 def wait_room(
     req: RoomWaitRequest, token: str = Depends(get_auth_token)
 ) -> RoomWaitResponse:
-    """ルームに参加する"""
+    """ルーム待機する"""
     # print(req)
     status, room_user_list = model.wait_room(token, req.room_id)
     return RoomWaitResponse(status=status, room_user_list=room_user_list)
+
+
+class RoomStartRequest(BaseModel):
+    room_id: int  # 入場するルームのID
+
+
+@app.post("/room/start")
+def start_room(
+    req: RoomStartRequest,
+    token: str = Depends(get_auth_token),
+) -> None:
+    """ルーム開始する"""
+    # print(req)
+    model.start_room(token, req.room_id)

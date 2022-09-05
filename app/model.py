@@ -57,6 +57,36 @@ class SafeUser(BaseModel):
         orm_mode = True
 
 
+class RoomUser(BaseModel):
+    """ルームに参加しているユーザー
+
+    Attributes
+    ----------
+    user_id: int
+        ユーザー識別子
+    name: str
+        ユーザ名
+    leader_card_id: int
+        設定アバター
+    select_difficulty: LiveDifficulty
+        選択難易度
+    is_me: bool
+        リクエストを投げたユーザと同じか
+    is_host: bool
+        部屋を立てた人か
+    """
+
+    user_id: int
+    name: str
+    leader_card_id: int
+    select_difficulty: LiveDifficulty
+    is_me: bool
+    is_host: bool
+
+    class Config:
+        orm_mode = True
+
+
 class RoomInfo(BaseModel):
     """ルーム情報
 
@@ -272,6 +302,35 @@ def join_room(
 
     insert_room_member(room_id, user_id, live_difficulty, False)
     return JoinRoomResult.OK
+
+
+def get_room_user_list(room_id: int, user_id: int) -> list[RoomUser]:
+    with engine.begin() as conn:
+        res = conn.execute(
+            text(
+                """
+                SELECT
+                    room_member.user_id,
+                    user.name,
+                    user.leader_card_id,
+                    room_member.live_difficulty AS select_difficulty,
+                    user.id = :user_id AS is_me,
+                    room_member.is_owner AS is_host
+                FROM
+                    room_member
+                    JOIN user
+                        ON room_member.user_id = user.id
+                WHERE
+                    room_id = :room_id
+                """
+            ),
+            dict(room_id=room_id, user_id=user_id),
+        )
+    res = res.fetchall()
+
+    if len(res) == 0:
+        return []
+    return [RoomUser.from_orm(row) for row in res]
 
 
 def get_room_status(room_id: int) -> WaitRoomStatus:

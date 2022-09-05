@@ -10,6 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
 from .db import engine
+from .exceptions import InvalidToken
 
 
 class LiveDifficulty(IntEnum):
@@ -40,10 +41,6 @@ class WaitRoomStatus(IntEnum):
     WAITING = 1
     LIVE_START = 2
     DISSOLUTION = 3
-
-
-class InvalidToken(Exception):
-    """指定されたtokenが不正だったときに投げる"""
 
 
 class SafeUser(BaseModel):

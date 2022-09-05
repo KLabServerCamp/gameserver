@@ -82,8 +82,7 @@ def create_user(name: str, leader_card_id: int) -> str:
     with engine.begin() as conn:
         conn.execute(
             text(
-                "INSERT INTO `user` (name, token, leader_card_id) \
-                    VALUES (:name, :token, :leader_card_id)"
+                "INSERT INTO `user` (name, token, leader_card_id) VALUES (:name, :token, :leader_card_id)"
             ),
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
@@ -95,8 +94,7 @@ def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
     # TODO: 実装
     result = conn.execute(
         text(
-            "SELECT `id`, `name`, `leader_card_id` FROM `user` \
-                    WHERE `token`=:token"
+            "SELECT `id`, `name`, `leader_card_id` FROM `user` WHERE `token`=:token"
         ),
         {"token": token},
     )
@@ -123,9 +121,7 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
         # TODO: 実装
         conn.execute(
             text(
-                "UPDATE `user` SET `name`=:name, \
-                    `leader_card_id`=:leader_card_id \
-                    WHERE `token`=:token"
+                "UPDATE `user` SET `name`=:name, `leader_card_id`=:leader_card_id WHERE `token`=:token"
             ),
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
@@ -137,9 +133,7 @@ def create_room(live_id: int, select_difficulty: int, token: str) -> int:
         user_id = _get_user_id_by_token(conn, token)
         result = conn.execute(
             text(
-                "INSERT INTO `room` \
-                (live_id, owner, max_user_count) \
-                VALUES (:live_id, :owner, :max_user_count)"
+                "INSERT INTO `room` (live_id, owner, max_user_count) VALUES (:live_id, :owner, :max_user_count)"
             ),
             {
                 "live_id": live_id,
@@ -152,8 +146,7 @@ def create_room(live_id: int, select_difficulty: int, token: str) -> int:
 
         result = conn.execute(
             text(
-                "INSERT INTO `room_member` (room_id, user_id, difficulty) \
-                    VALUES (:room_id, :user_id, :difficulty)"
+                "INSERT INTO `room_member` (room_id, user_id, difficulty) VALUES (:room_id, :user_id, :difficulty)"
             ),
             {"room_id": room_id, "user_id": user_id, "difficulty": select_difficulty},
         )
@@ -186,8 +179,7 @@ def get_rooms_by_live_id(live_id: int) -> list[RoomInfo]:
 def _join_room(conn, room_id: int, select_difficulty: int, user_id: int):
     result = conn.execute(
         text(
-            "INSERT INTO `room_member` (room_id, user_id, difficulty) \
-                VALUES (:room_id, :user_id, :difficulty)"
+            "INSERT INTO `room_member` (room_id, user_id, difficulty) VALUES (:room_id, :user_id, :difficulty)"
         ),
         {
             "room_id": room_id,

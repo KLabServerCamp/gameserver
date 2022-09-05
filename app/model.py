@@ -198,7 +198,7 @@ def join_room(room_id: int, select_difficulty: int, token: str) -> JoinRoomResul
         user_id = _get_user_id_by_token(conn, token)
         result = conn.execute(
             text(
-                "SELECT `status`, `joined_user_count`, `max_user_count` FROM `room` WHERE `id`=:room_id"
+                "SELECT `status`, `joined_user_count`, `max_user_count` FROM `room` WHERE `id`=:room_id FOR UPDATE"
             ),
             {"room_id": room_id},
         )

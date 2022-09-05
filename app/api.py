@@ -8,6 +8,7 @@ from . import model
 from .model import (
     JoinRoomResult,
     LiveDifficulty,
+    ResultUser,
     RoomInfo,
     RoomUser,
     SafeUser,
@@ -71,12 +72,6 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
 
 
 # Room APIs
-class ResultUser(BaseModel):
-    user_id: int
-    judge_count_list: list[int]
-    score: int
-
-
 class RoomCreateRequest(BaseModel):
     live_id: int
     select_difficulty: LiveDifficulty
@@ -138,3 +133,13 @@ def room_wait(req: RoomWaitRequest):
     return RoomWaitResponse(
         status=result["status"], room_user_list=result["room_user_list"]
     )
+
+
+class RoomStartRequest(BaseModel):
+    room_id: int
+
+
+@app.post("/room/start")
+def room_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
+    user = user_me(token)
+    model.start_room(req.room_id, user)

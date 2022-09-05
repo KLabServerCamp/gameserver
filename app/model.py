@@ -66,6 +66,15 @@ class RoomUser(BaseModel):
         orm_mode = True
 
 
+class ResultUser(BaseModel):
+    user_id: int
+    judge_count_list: list[int]
+    score: int
+
+    class Config:
+        orm_mode = True
+
+
 # User
 def create_user(name: str, leader_card_id: int) -> str:
     """Create new user and returns their token"""
@@ -116,7 +125,7 @@ def create_room(live_id: int, select_difficulty: LiveDifficulty, user: SafeUser)
     with engine.begin() as conn:
         conn.execute(
             text(
-                "INSERT INTO `room` (token, live_id, joined_user_count, max_user_count, room_status) VALUES (:token, :live_id, 1, :max_user_count, 1)"
+                "INSERT INTO `room` (token, live_id, joined_user_count, max_user_count, join_status, wait_status) VALUES (:token, :live_id, 1, :max_user_count, 1, 1)"
             ),
             {"token": token, "live_id": live_id, "max_user_count": 4},
         )
@@ -146,7 +155,7 @@ def list_room(live_id: int) -> list[RoomInfo]:
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `live_id`=:live_id AND `room_status`=1"
+                "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `live_id`=:live_id AND `join_status`=1"
             ),
             {"live_id": live_id},
         )
@@ -166,12 +175,17 @@ def join_room(room_id: int, select_difficulty: LiveDifficulty, user: SafeUser) -
             {"room_id": room_id},
         )
         result = conn.execute(
+            text("SELECT `max_user_count` FROM `room` WHERE `room_id`=:room_id"),
+            {"room_id": room_id},
+        )
+        max_user_count = result.one()[0]
+        result = conn.execute(
             text("SELECT COUNT(1) FROM room_member WHERE `room_id`=:room_id"),
             {"room_id": room_id},
         )
         cnt = result.one()[0]
 
-        if cnt < 4:
+        if cnt < max_user_count:
             conn.execute(
                 text(
                     "INSERT INTO `room_member` (room_id, user_id, name, leader_card_id, select_difficulty, is_me, is_host) VALUES (:room_id, :user_id, :name, :leader_card_id, :select_difficulty, :is_me, :is_host)"
@@ -186,6 +200,12 @@ def join_room(room_id: int, select_difficulty: LiveDifficulty, user: SafeUser) -
                     "is_host": False,
                 },
             )
+            if cnt == max_user_count - 1:
+                conn.execute(
+                    text("UPDATE `room` SET join_status=2 WHERE room_id=:room_id"),
+                    {"room_id": room_id},
+                )
+
             conn.execute(text("COMMIT"))
         else:
             conn.execute(text("ROLLBACK"))
@@ -211,3 +231,25 @@ def wait_room(room_id: int) -> dict:
         room_user_list = [RoomUser.from_orm(row) for row in rows]
 
     return {"status": status, "room_user_list": room_user_list}
+
+
+def start_room(room_id: int, user: SafeUser):
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT `is_host` FROM `room_member` WHERE `room_id`=:room_id AND `user_id`=:user_id"
+            ),
+            {"room_id": room_id, "user_id": user.id},
+        )
+        try:
+            row = result.one()
+        except NoResultFound:
+            return None
+        if row.is_host != 1:
+            return None
+        conn.execute(
+            text(
+                "UPDATE `room` SET join_status=2, wait_status=2 WHERE room_id=:room_id"
+            ),
+            {"room_id": room_id},
+        )

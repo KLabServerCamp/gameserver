@@ -126,7 +126,7 @@ def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty) -> 
             {"live_id": live_id},
         )
     room_id = result.lastrowid
-    _create_room_member(token, room_id, select_difficulty, True)
+    _create_room_member(token, room_id, select_difficulty, is_host=True)
 
     return room_id
 
@@ -183,3 +183,42 @@ def _get_room_list(conn, live_id: int) -> Optional[list[RoomInfo]]:
 def get_room_list(live_id: int) -> Optional[list[RoomInfo]]:
     with engine.begin() as conn:
         return _get_room_list(conn, live_id)
+
+
+def join_room(
+    token: str, room_id: int, select_difficulty: LiveDifficulty
+) -> Optional[JoinRoomResult]:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT `joined_user_count`, `max_user_count`, `wait_room_status` FROM `room` \
+            WHERE `room_id`=:room_id"
+            ),
+            dict(room_id=room_id),
+        )
+        print(result)
+    try:
+        room = result.one()
+        if room.joined_user_count >= room.max_user_count:
+            return JoinRoomResult.RoomFull
+        elif room.wait_room_status == WaitRoomStatus.Dissolution.value:
+            return JoinRoomResult.Disbanded
+    except NoResultFound:
+        return JoinRoomResult.OtherError
+
+    # 1つのトランザクションにまとめたい
+    _create_room_member(token, room_id, select_difficulty, is_host=False)
+    _update_room(token, room_id)
+
+    return JoinRoomResult.Ok
+
+
+def _update_room(token: str, room_id: int) -> None:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "UPDATE `room` SET joined_user_count=joined_user_count + 1 WHERE room_id=:room_id"
+            ),
+            dict(token=token, room_id=room_id),
+        )
+        print(result)

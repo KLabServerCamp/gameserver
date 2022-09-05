@@ -289,6 +289,12 @@ def result_room(room_id: int) -> list[ResultUser]:
         print(rows)
         result_user_list = []
         for row in rows:
-            result_user_list.append(ResultUser(user_id=row[0], judge_count_list=[row[i] for i in range(1, 6)], score=row[6]))
+            result_user_list.append(
+                ResultUser(
+                    user_id=row[0],
+                    judge_count_list=[row[i] for i in range(1, 6)],
+                    score=row[6],
+                )
+            )
 
     return result_user_list

@@ -309,6 +309,15 @@ def get_results(room_id: int) -> List[ResultUser]:
     with engine.begin() as conn:
         result = conn.execute(
             text(
+                "SELECT `user_id` FROM `room_member` WHERE `room_id`=:room_id AND (`judge_count_list` IS NULL OR `score` IS NULL)"
+            ),
+            dict(room_id=room_id),
+        )
+        if len(result.all()) != 0:
+            return []
+
+        result = conn.execute(
+            text(
                 "SELECT `user_id`, `judge_count_list`, `score` FROM `room_member` WHERE `room_id`=:room_id"
             ),
             dict(room_id=room_id),
@@ -328,5 +337,10 @@ def get_results(room_id: int) -> List[ResultUser]:
         except Exception as e:
             print(e)
             return []
+
+        result = conn.execute(
+            text("UPDATE `room` SET `status`=3 WHERE `room_id`=:room_id"),
+            dict(room_id=room_id),
+        )
 
         return res

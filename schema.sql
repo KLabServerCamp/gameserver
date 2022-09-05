@@ -16,20 +16,18 @@ CREATE TABLE `room` (
   `joined_user_count` int DEFAULT NULL,
   `max_user_count` int DEFAULT NULL,
   `room_status` int DEFAULT NULL,
-  PRIMARY KEY (`room_id`),
-  UNIQUE KEY `token` (`token`)
+  PRIMARY KEY (`room_id`)
 );
 
 DROP TABLE IF EXISTS `room_member`;
 CREATE TABLE `room_member` (
   `id` bigint NOT NULL AUTO_INCREMENT,
-  `room_id` int DEFAULT NULL,
-  `user_id` int DEFAULT NULL,
+  `room_id` bigint DEFAULT NULL,
+  `user_id` bigint DEFAULT NULL,
   `name` varchar(255) DEFAULT NULL,
   `leader_card_id` int DEFAULT NULL,
   `select_difficulty` varchar(255) DEFAULT NULL,
   `is_me` int DEFAULT NULL,
   `is_host` int DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `id` (`id`)
+  PRIMARY KEY (`id`)
 );

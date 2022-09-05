@@ -81,7 +81,7 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
 
 
 # Room
-def create_room(live_id: str, select_difficulty: LiveDifficulty, user: SafeUser) -> int:
+def create_room(live_id: int, select_difficulty: LiveDifficulty, user: SafeUser) -> int:
     token = str(uuid.uuid4())
     with engine.begin() as conn:
         conn.execute(
@@ -94,16 +94,16 @@ def create_room(live_id: str, select_difficulty: LiveDifficulty, user: SafeUser)
             text("SELECT `room_id` FROM `room` WHERE `token`=:token"),
             dict(token=token),
         )
-        id = result.one().room_id
+        room_id = result.one().room_id
         conn.execute(
             text(
                 "INSERT INTO `room_member` (room_id, user_id, name, leader_card_id, select_difficulty, is_me, is_host) VALUES (:room_id, :user_id, :name, :leader_card_id, :select_difficulty, :is_me, :is_host)"
             ),
-            {"room_id": id, "user_id": user.id, "name": user.name, "leader_card_id": user.leader_card_id, "select_difficulty": select_difficulty, "is_me": True, "is_host": True},
+            {"room_id": room_id, "user_id": user.id, "name": user.name, "leader_card_id": user.leader_card_id, "select_difficulty": select_difficulty, "is_me": True, "is_host": True},
         )
-    return id
+    return room_id
 
-def list_room(live_id: str) -> list:
+def list_room(live_id: int) -> list:
     with engine.begin() as conn:
         result = conn.execute(
             text(
@@ -114,19 +114,41 @@ def list_room(live_id: str) -> list:
         rows = result.all()
     return rows
 
-def join_room(room_id: str, select_difficulty: LiveDifficulty, user: SafeUser) -> int:
+def join_room(room_id: int, select_difficulty: LiveDifficulty, user: SafeUser) -> int:
     with engine.begin() as conn:
+        ans = 1
         conn.execute(
             text(
-                "INSERT INTO `room_member` (room_id, user_id, name, leader_card_id, select_difficulty, is_me, is_host) VALUES (:room_id, :user_id, :name, :leader_card_id, :select_difficulty, :is_me, :is_host)"
-            ),
-            {"room_id": room_id, "user_id": user.id, "name": user.name, "leader_card_id": user.leader_card_id, "select_difficulty": select_difficulty, "is_me": True, "is_host": False},
-        )
-        result = conn.execute(
-            text(
-                "SELECT `room_status` FROM `room` WHERE `room_id`=:room_id"  
+                "SELECT * FROM room WHERE `room_id`=:room_id FOR UPDATE"  
             ),
             {"room_id": room_id},
         )
+        result = conn.execute(
+            text(
+                "SELECT COUNT(1) FROM room_member WHERE `room_id`=:room_id"  
+            ),
+            {"room_id": room_id},
+        )
+        cnt = result.one()[0]
+        
+        if cnt < 4:
+            conn.execute(
+                text(
+                    "INSERT INTO `room_member` (room_id, user_id, name, leader_card_id, select_difficulty, is_me, is_host) VALUES (:room_id, :user_id, :name, :leader_card_id, :select_difficulty, :is_me, :is_host)"
+                ),
+                {"room_id": room_id, "user_id": user.id, "name": user.name, "leader_card_id": user.leader_card_id, "select_difficulty": select_difficulty, "is_me": True, "is_host": False},
+            )
+            conn.execute(
+                text(
+                    "COMMIT"  
+                )
+            )
+        else:
+            conn.execute(
+                text(
+                    "ROLLBACK"  
+                )
+            )
+            ans = 2
 
-    return result.room_status
+    return ans

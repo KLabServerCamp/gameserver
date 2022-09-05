@@ -152,6 +152,9 @@ class RoomUser(BaseModel):
     is_me: bool  # リクエストを投げたユーザーか
     is_host: bool  # 部屋を立てた人か
 
+    class Config:
+        orm_mode = True
+
 
 class ResultUser(BaseModel):
     """結果画面に表示するユーザーの情報
@@ -191,11 +194,7 @@ def _get_joined_user_count(conn: Connection, room_id: int) -> int:
     return conn.execute(text(query_str), {"room_id": room_id}).one()[0]
 
 
-def _get_room_info(
-    conn: Connection,
-    room_id: int,
-    uid: int,
-) -> Optional[RoomInfo]:
+def _get_room_info(conn: Connection, room_id: int) -> Optional[RoomInfo]:
     query_str: str = "SELECT `live_id` \
         FROM `room` \
         WHERE `id`=:room_id \
@@ -211,13 +210,27 @@ def _get_room_info(
     return None
 
 
+def _get_waiting_room_list(conn: Connection, live_id: int) -> list[RoomInfo]:
+    query_str: str = "SELECT `id` FROM `room` \
+        WHERE `live_id`=:live_id AND `status`=:status \
+        FOR UPDATE"
+
+    result = conn.execute(
+        text(query_str),
+        {"live_id": live_id, "status": WaitRoomStatus.WAITING.value},
+    )
+    return [
+        x for x in [_get_room_info(conn, row["id"]) for row in result] if x
+    ]
+
+
 def _add_room_user(
     conn: Connection,
     room_id: int,
     uid: int,
     difficulty: LiveDifficulty,
 ) -> JoinRoomResult:
-    if room := _get_room_info(conn, room_id, uid):
+    if room := _get_room_info(conn, room_id):
         if room.max_user_count <= room.joined_user_count:
             return JoinRoomResult.ROOM_FULL
 
@@ -244,8 +257,12 @@ def create_room(token: str, live_id: int, duffuculty: LiveDifficulty) -> int:
         raise InvalidToken
 
 
-def get_rooms(token: str, live_id: int) -> list[RoomInfo]:
-    raise NotImplementedError
+def get_room_list(token: str, live_id: int) -> list[RoomInfo]:
+    with engine.begin() as conn:
+        conn: Connection
+        if _ := _get_user_by_token(conn, token):
+            return _get_waiting_room_list(conn, live_id)
+        raise InvalidToken
 
 
 def join_room(

@@ -13,7 +13,7 @@ app = FastAPI()
 
 
 @app.get("/")
-async def root():
+async def root() -> dict[str, str]:
     return {"message": "Hello World"}
 
 
@@ -80,7 +80,28 @@ class RoomCreateResponse(BaseModel):
 
 
 @app.post("/room/create", response_model=RoomCreateResponse)
-def create_room(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
+def create_room(
+    req: RoomCreateRequest, token: str = Depends(get_auth_token)
+) -> RoomCreateResponse:
     """ルームを作成する"""
+    # print(req)
     room_id = model.create_room(token, req.live_id, req.selected_difficulty)
     return RoomCreateResponse(room_id=room_id)
+
+
+class RoomListRequest(BaseModel):
+    live_id: int  # ルームで遊ぶ楽曲のID
+
+
+class RoomListResponse(BaseModel):
+    room_info_list: list[model.RoomInfo]  # 入場可能なルームのリスト
+
+
+@app.post("/room/list", response_model=RoomListResponse)
+def list_room(
+    req: RoomListRequest, token: str = Depends(get_auth_token)
+) -> RoomListResponse:
+    """ルームを作成する"""
+    # print(req)
+    room_info_list = model.get_room_list(token, req.live_id)
+    return RoomListResponse(room_info_list=room_info_list)

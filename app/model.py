@@ -256,20 +256,6 @@ def _wait_room_host(conn, room_id: int) -> int:
     return host_user.owner
 
 
-def _get_user_by_id(conn, user_id: int):
-    result = conn.execute(
-        text(
-            "SELECT `name`, `token`, `leader_card_id` FROM `user` WHERE `id`=:user_id"
-        ),
-        {"user_id": user_id},
-    )
-    try:
-        user_data = result.one()
-    except NoResultFound:
-        return None
-    return user_data
-
-
 def wait_room_user_list(room_id: int, token: str) -> list[RoomUser]:
     with engine.begin() as conn:
         host = _wait_room_host(conn, room_id)

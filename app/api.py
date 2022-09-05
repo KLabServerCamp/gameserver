@@ -5,7 +5,15 @@ from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from . import model
-from .model import LiveDifficulty, RoomInfo, SafeUser
+from .model import (
+    JoinRoomResult,
+    LiveDifficulty,
+    ResultUser,
+    RoomInfo,
+    RoomUser,
+    SafeUser,
+    WaitRoomStatus,
+)
 
 app = FastAPI()
 
@@ -72,7 +80,7 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
 
 # Rooms APIs
 
-
+# /room/create
 class RoomCreateRequest(BaseModel):
     live_id: int
     select_difficulty: LiveDifficulty
@@ -82,12 +90,59 @@ class RoomCreateResponse(BaseModel):
     room_id: int
 
 
+# /room/list
 class RoomListRequest(BaseModel):
     live_id: int
 
 
 class RoomListResponse(BaseModel):
     room_info_list: list[RoomInfo]
+
+
+# /room/join
+class RoomJoinRequest(BaseModel):
+    room_id: int
+    select_difficulty: LiveDifficulty
+
+
+class RoomJoinResponse(BaseModel):
+    join_room_result: JoinRoomResult
+
+
+# /room/wait
+class RoomWaitRequest(BaseModel):
+    room_id: int
+    room_user_list: list[RoomUser]
+
+
+class RoomWaitResponse(BaseModel):
+    status: WaitRoomStatus
+
+
+# /room/start
+class RoomStartRequest(BaseModel):
+    room_id: int
+
+
+# /room/end
+class RoomEndRequest(BaseModel):
+    room_id: int
+    judge_count_list: list[int]
+    score: int
+
+
+# /room/result
+class RoomResultRequest(BaseModel):
+    room_id: int
+
+
+class RoomResultResponse(BaseModel):
+    result_user_list: list[ResultUser]
+
+
+# /room/leave
+class RoomLeaveRequest(BaseModel):
+    room_id: int
 
 
 @app.post("/room/create", response_model=RoomCreateResponse)

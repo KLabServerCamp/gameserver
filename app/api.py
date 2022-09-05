@@ -6,6 +6,7 @@ from . import model
 from .model import (
     JoinRoomResult,
     LiveDifficulty,
+    ResultUser,
     RoomInfo,
     RoomUser,
     SafeUser,
@@ -172,6 +173,32 @@ class RoomEndRequest(BaseModel):
     score: int
 
 
+class RoomResultRequest(BaseModel):
+    """ルームの結果取得時のリクエスト
+
+    end 叩いたあとにこれをポーリングする。 クライアントはn秒間隔で投げる想定。
+
+    Attributes
+    ----------
+    room_id: int
+        対象ルーム
+    """
+
+    room_id: int
+
+
+class RoomResultResponse(BaseModel):
+    """ルームの結果取得時のレスポンス
+
+    Attributes
+    ----------
+    result_user_list: list[ResultUser]
+        自身を含む各ユーザーの結果。※全員揃っていない待機中は[]が返却される想定
+    """
+
+    result_user_list: list[ResultUser]
+
+
 @app.post("/user/create", response_model=UserCreateResponse)
 def user_create(req: UserCreateRequest) -> UserCreateResponse:
     """新規ユーザー作成"""
@@ -280,3 +307,10 @@ def end_room(req: RoomEndRequest, token: str = Depends(get_auth_token)) -> Empty
     else:
         model.store_score(req.room_id, me.id, req.judge_count_list, req.score)
     return Empty()
+
+
+@app.post("/room/result", response_model=RoomResultResponse)
+def get_room_result(req: RoomResultRequest) -> RoomResultResponse:
+    """ルームの結果を取得する"""
+    result_user_list = model.get_room_result(req.room_id)
+    return RoomResultResponse(result_user_list=result_user_list)

@@ -212,7 +212,7 @@ def join_room(
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "SELECT `joined_user_count`, `max_user_count`, `status` FROM `room` WHERE `room_id`=:room_id"
+                "SELECT `joined_user_count`, `max_user_count`, `status` FROM `room` WHERE `room_id`=:room_id FOR UPDATE"
             ),
             dict(room_id=room_id),
         )
@@ -367,14 +367,9 @@ def leave_room(token: str, room_id: int):
             ),
             dict(room_id=room_id, user_id=usr.id),
         )
-        print(result.rowcount)
         if result.rowcount != 1:
             raise HTTPException(status_code=404)
 
-        print(user_count)
-        print(user_count)
-        print(user_count)
-        print(user_count)
         if user_count == 1:
             conn.execute(
                 text(
@@ -388,4 +383,17 @@ def leave_room(token: str, room_id: int):
                     "UPDATE `room` SET `joined_user_count`=:count WHERE `room_id`=:room_id"
                 ),
                 dict(count=user_count - 1, room_id=room_id),
+            )
+
+            result = conn.execute(
+                text("SELECT `user_id` FROM `room_member` WHERE `room_id`=:room_id"),
+                dict(room_id=room_id),
+            )
+            next_host = result.first()
+
+            conn.execute(
+                text(
+                    "UPDATE `room_member` SET `is_host`=true WHERE `room_id`=:room_id AND `user_id`=:user_id"
+                ),
+                dict(room_id=room_id, user_id=next_host.user_id),
             )

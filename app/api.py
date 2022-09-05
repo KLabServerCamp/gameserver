@@ -112,11 +112,11 @@ class RoomJoinResponse(BaseModel):
 # /room/wait
 class RoomWaitRequest(BaseModel):
     room_id: int
-    room_user_list: list[RoomUser]
 
 
 class RoomWaitResponse(BaseModel):
     status: WaitRoomStatus
+    room_user_list: list[RoomUser]
 
 
 # /room/start
@@ -166,3 +166,12 @@ def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
     if join_room_result is None:
         raise HTTPException(status_code=404)
     return RoomJoinResponse(join_room_result=join_room_result)
+
+
+@app.post("/room/wait", response_model=RoomWaitResponse)
+def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
+    wait_room_status = model.get_room_status(token, req.room_id)
+    wait_room_user_list = model.get_room_user_list(token, req.room_id)
+    if wait_room_status is None or not wait_room_user_list:
+        raise HTTPException(status_code=404)
+    return RoomWaitResponse(status=wait_room_status, room_user_list=wait_room_user_list)

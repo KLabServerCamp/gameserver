@@ -185,6 +185,17 @@ def get_room_list(live_id: int) -> Optional[list[RoomInfo]]:
         return _get_room_list(conn, live_id)
 
 
+def _update_room(token: str, room_id: int) -> None:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "UPDATE `room` SET joined_user_count=joined_user_count + 1 WHERE room_id=:room_id"
+            ),
+            dict(token=token, room_id=room_id),
+        )
+        print(result)
+
+
 def join_room(
     token: str, room_id: int, select_difficulty: LiveDifficulty
 ) -> Optional[JoinRoomResult]:
@@ -213,12 +224,39 @@ def join_room(
     return JoinRoomResult.Ok
 
 
-def _update_room(token: str, room_id: int) -> None:
+def get_room_status(token: str, room_id: int) -> Optional[WaitRoomStatus]:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("SELECT `wait_room_status` FROM `room` WHERE `room_id`=:room_id"),
+            dict(room_id=room_id),
+        )
+    return WaitRoomStatus(result.one().wait_room_status)
+
+
+def get_room_user_list(token: str, room_id: int) -> Optional[list[RoomUser]]:
+    # user情報取ってroom_userと比較せよ
+    user = get_user_by_token(token)
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "UPDATE `room` SET joined_user_count=joined_user_count + 1 WHERE room_id=:room_id"
+                "SELECT `user_id`, `name`, `leader_card_id`, `select_difficulty`, `is_host` \
+                    FROM `room_member` WHERE `room_id`=:room_id"
             ),
-            dict(token=token, room_id=room_id),
+            dict(room_id=room_id),
         )
-        print(result)
+    try:
+        room_user_list = []
+        for room_user in result:
+            room_user_list.append(
+                RoomUser(
+                    user_id=room_user.user_id,
+                    name=room_user.name,
+                    leader_card_id=room_user.leader_card_id,
+                    select_difficulty=room_user.select_difficulty,
+                    is_me=room_user.user_id == user.id,
+                    is_host=room_user.is_host,
+                )
+            )
+    except NoResultFound:
+        return None
+    return room_user_list

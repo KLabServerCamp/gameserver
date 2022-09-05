@@ -8,7 +8,6 @@ from typing import Optional
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
-from app.api import LiveDifficulty
 
 from app.db import engine
 
@@ -114,7 +113,7 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
 
 
 def _create_room(
-    conn, token: str, live_id: int, select_difficulty: LiveDifficulty
+    conn, token: str, live_id: int, select_difficulty: int
 ) -> int:
     result = conn.execute(
         text(

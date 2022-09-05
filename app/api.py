@@ -1,6 +1,6 @@
 from enum import Enum
 
-from lib2to3.pytree import Base
+# from lib2to3.pytree import Base
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel

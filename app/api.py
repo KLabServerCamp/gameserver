@@ -1,8 +1,8 @@
 from fastapi import Depends, FastAPI, HTTPException
-from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from . import model
+from .dependencies import get_auth_token
 from .model import (
     JoinRoomResult,
     LiveDifficulty,
@@ -216,16 +216,6 @@ def user_create(req: UserCreateRequest) -> UserCreateResponse:
     """新規ユーザー作成"""
     token = model.create_user(req.user_name, req.leader_card_id)
     return UserCreateResponse(user_token=token)
-
-
-bearer = HTTPBearer()
-
-
-def get_auth_token(cred: HTTPAuthorizationCredentials = Depends(bearer)) -> str:
-    assert cred is not None
-    if not cred.credentials:
-        raise HTTPException(status_code=401, detail="invalid credential")
-    return cred.credentials
 
 
 @app.get("/user/me", response_model=SafeUser)

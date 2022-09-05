@@ -308,7 +308,7 @@ def end_room(token: str, room_id: int, score: int, judge_count_list: List[int]) 
                 "UPDATE `room_member` SET `judge_count_list`=:judge_count_list, `score`=:score WHERE `room_id`=:room_id AND `user_id`=:user_id"
             ),
             dict(
-                judge_count_list=str(judge_count_list),
+                judge_count_list=",".join(map(str, judge_count_list)),
                 score=score,
                 room_id=room_id,
                 user_id=usr.id,
@@ -334,10 +334,11 @@ def get_results(room_id: int) -> List[ResultUser]:
         res = []
         try:
             for userRes in result.all():
-                # TODO: evalは危険，これを使わないデータ構造に変更する
                 tmp = ResultUser(
                     user_id=userRes.user_id,
-                    judge_count_list=eval(userRes.judge_count_list),
+                    judge_count_list=[
+                        int(i) for i in userRes.judge_count_list.split(",")
+                    ],
                     score=userRes.score,
                 )
                 res.append(tmp)

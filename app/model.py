@@ -10,6 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import NoResultFound
 
+from . import config
 from .db import engine
 
 
@@ -33,6 +34,7 @@ def create_user(name: str, leader_card_id: int) -> str:
     token = str(uuid.uuid4())
     # NOTE: tokenが衝突したらリトライする必要がある.
     with engine.begin() as conn:
+        conn: Connection
         result = conn.execute(
             text(
                 "INSERT INTO `user` (name, token, leader_card_id) \
@@ -108,8 +110,8 @@ class JoinRoomResult(IntEnum):
 class WaitRoomStatus(IntEnum):
     """待機部屋の状態
 
-    - WAITING: まだ誰も入っていない
-    - STARTED: すでに誰かが入っている
+    - WAITING: ホストがライブ開始ボタン押すのを待っている
+    - STARTED: ライブ画面遷移OK
     - DISBANDED: 部屋が解散した
     """
 
@@ -182,12 +184,62 @@ def _create_empty_room(conn: Connection, live_id: int, host_id: int) -> int:
     return room_id
 
 
+def _get_joined_user_count(conn: Connection, room_id: int) -> int:
+    query_str: str = "SELECT COUNT(1) FROM `room_user` \
+        WHERE `room_id`=:room_id \
+        FOR UPDATE"
+    return conn.execute(text(query_str), {"room_id": room_id}).one()[0]
+
+
+def _get_room_info(
+    conn: Connection,
+    room_id: int,
+    uid: int,
+) -> Optional[RoomInfo]:
+    query_str: str = "SELECT `live_id` \
+        FROM `room` \
+        WHERE `id`=:room_id \
+        FOR UPDATE"
+
+    if row := conn.execute(text(query_str), {"room_id": room_id}).one():
+        return RoomInfo(
+            room_id=room_id,
+            live_id=row["live_id"],
+            joined_user_count=_get_joined_user_count(conn, room_id),
+            max_user_count=config.MAX_ROOM_USER_COUNT,
+        )
+    return None
+
+
+def _add_room_user(
+    conn: Connection,
+    room_id: int,
+    uid: int,
+    difficulty: LiveDifficulty,
+) -> JoinRoomResult:
+    if room := _get_room_info(conn, room_id, uid):
+        if room.max_user_count <= room.joined_user_count:
+            return JoinRoomResult.ROOM_FULL
+
+        query_str: str = "INSERT INTO `room_user` \
+            (`room_id`, `user_id`, `difficulty`) \
+            VALUES (:room_id, :user_id, :difficulty)"
+
+        conn.execute(
+            text(query_str),
+            {"room_id": room_id, "user_id": uid, "difficulty": difficulty.value},
+        )
+
+        return JoinRoomResult.OK
+    return JoinRoomResult.OTHER_ERROR
+
+
 def create_room(token: str, live_id: int, duffuculty: LiveDifficulty) -> int:
     with engine.begin() as conn:
         conn: Connection
         if user := _get_user_by_token(conn, token):
             room_id: int = _create_empty_room(conn, live_id, user.id)
-            # TODO: ここでユーザを部屋に追加する
+            _add_room_user(conn, room_id, user.id, duffuculty)
             return room_id
         raise InvalidToken
 

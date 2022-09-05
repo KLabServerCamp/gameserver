@@ -173,7 +173,6 @@ class RoomJoinResponse(BaseModel):
 
 @app.post("/room/join", response_model=RoomJoinResponse)
 def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
-    """新規ルーム作成"""
     # 入力：部屋ID,難易度
     # 出力：部屋入場結果
     join_result = model.join_room(token, req.room_id, req.select_difficulty)
@@ -188,6 +187,14 @@ class RoomWaitRequest(BaseModel):
 class RoomWaitResponse(BaseModel):
     status: WaitRoomStatus
     room_user_list: list[RoomUser]
+
+
+@app.post("/room/wait", response_model=RoomWaitResponse)
+def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
+    result = model.wait_room(req.room_id, token)
+    return RoomJoinResponse(
+        status=result.status, room_user_list=result.user_list
+    )
 
 
 class RoomStartRequest(BaseModel):

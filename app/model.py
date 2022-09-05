@@ -121,19 +121,21 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
 def _create_room(
     conn, token: str, live_id: int, select_difficulty: LiveDifficulty
 ) -> int:
-    result = conn.execute(
+    result = _get_user_by_token(conn, token)
+    user_id = result.id
+    result2 = conn.execute(
         text(
             "INSERT INTO `room`"
-            + " (live_id, owner_token, status, joined_user_count,"
+            + " (live_id, host_user_id, status, joined_user_count,"
             + " max_user_count) VALUES (:live_id, :token, :status,"
             + " :joined_user_count, :max_user_count)"
         ),
         {
-            "live_id": live_id, "token": token, "status": 1,
+            "live_id": live_id, "host_user_id": user_id, "status": 1,
             "joined_user_count": 0, "max_user_count": 4
         },
     )
-    room_id = result.lastrowid
+    room_id = result2.lastrowid
     _ = _join_room(conn, token, room_id, select_difficulty)
     return room_id
 
@@ -234,3 +236,37 @@ def join_room(
     """Create new room and returns its id"""
     with engine.begin() as conn:
         return _join_room(conn, token, room_id, select_difficulty)
+
+
+def _wait_room(conn, room_id: int, token: str) -> int:
+    result = conn.execute(
+        text(
+            "SELECT host_user_id FROM room"
+            + " WHERE room_id = :room_id"
+        ),
+        {"room_id": room_id},
+    )
+    _host_user_id = result.one()
+    host_user_id = _host_user_id.host_user_id
+
+    result2 = conn.execute(
+        text(
+            "SELECT user_id, name, leader_card_id, select_difficulty,"
+            + " CASE WHEN token==*token* THEN 1 ELSE 0 END AS is_me,"
+            + " CASE WHEN user_id== :host_user_id THEN 1 ELSE 0 END AS is_host"
+            + " FROM"
+            + " (SELECT id AS user_id, name, leader_card_id"
+            + " FROM user) AS _user LEFT OUTER JOIN"
+            + " (SELECT user_id, select_difficulty FROM room_member"
+            + " WHERE room_id = :room_id) AS _room_member"
+            + " ON _user.id = _room_members.user_id"
+        ),
+        {"host_user_id": host_user_id, "room_id": room_id},
+    )
+    print(result2)
+    return result2.all()
+
+
+def wait_room(room_id: int, token: str) -> int:
+    with engine.begin() as conn:
+        return _wait_room(conn, room_id, token)

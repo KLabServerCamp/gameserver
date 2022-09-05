@@ -13,7 +13,7 @@ DROP TABLE IF EXISTS `room`;
 CREATE TABLE `room` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `live_id` bigint NOT NULL,
-  `owner_token` varchar(255) DEFAULT NULL,
+  `host_user_id` bigint NOT NULL,
   `status` int NOT NULL,
   `joined_user_count` bigint NOT NULL,
   `max_user_count` bigint NOT NULL,

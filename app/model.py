@@ -3,7 +3,6 @@ import uuid
 from enum import Enum, IntEnum
 from itertools import count
 from typing import Optional
-# from unittest import result
 
 from fastapi import HTTPException
 from pydantic import BaseModel
@@ -11,6 +10,8 @@ from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
 from .db import engine
+
+# from unittest import result
 
 
 class InvalidToken(Exception):
@@ -319,26 +320,22 @@ def start_room(room_id: int) -> None:
 def end_room(room_id: int, judge_count_list: list[int], score: int, token: str) -> None:
     with engine.begin() as conn:
         user_id = _get_user_id_by_token(conn, token)
+
         conn.execute(
             text(
-                "INSERT INTO `room_result` (room_id, user_id, perfect, great, good, bad, miss) VALUES \
-                (:room_id, :user_id, :perfect, :great, :good, :bad, :miss)"
+                "UPDATE `room_member` SET `score`=:score, `perfect`=:perfect, `great`=:great, `good`=:good, `bad`=:bad, `miss`=:miss \
+                    WHERE `room_id`=:room_id AND `user_id`=:user_id"
             ),
             {
                 "room_id": room_id,
                 "user_id": user_id,
+                "score": score,
                 "perfect": judge_count_list[0],
                 "great": judge_count_list[1],
                 "good": judge_count_list[2],
                 "bad": judge_count_list[3],
                 "miss": judge_count_list[4],
             },
-        )
-        conn.execute(
-            text(
-                "UPDATE `room_member` SET `score`=:score WHERE `room_id`=:room_id AND `user_id`=:user_id"
-            ),
-            {"room_id": room_id, "user_id": user_id, "score": score},
         )
     return None
 
@@ -360,9 +357,7 @@ def result_room(room_id: int) -> list[ResultUser]:
         joined_user_count = _get_joined_user_count(conn, room_id)
         result = conn.execute(
             text(
-                "SELECT `room_member`.`user_id`, `perfect`, `great`, `good`, `bad`, `miss`, `score` \
-                    FROM `room_result` INNER JOIN `room_member` ON `room_result`.`room_id` = `room_member`.`room_id` \
-                        WHERE `room_result`.`room_id`=:room_id"
+                "SELECT `user_id`, `perfect`, `great`, `good`, `bad`, `miss`, `score` FROM `room_member` WHERE `room_id`=:room_id"
             ),
             {"room_id": room_id},
         )

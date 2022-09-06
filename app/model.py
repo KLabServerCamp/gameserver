@@ -271,7 +271,7 @@ def _wait_room(conn, room_id: int, token: str) -> int:
     host_user_id = element.host_user_id
     status = element.status
     joined_user_count = element.joined_user_count
-    print("参加者人数",joined_user_count)
+    # print("参加者人数",joined_user_count)
     result = _get_user_by_token(conn, token)
     my_user_id = result.id
 
@@ -281,10 +281,10 @@ def _wait_room(conn, room_id: int, token: str) -> int:
             + " CASE WHEN user_id = :my_user_id THEN 1 ELSE 0 END AS is_me,"
             + " CASE WHEN user_id = :host_user_id THEN 1 ELSE 0 END AS is_host"
             + " FROM"
-            + " (SELECT id, name, leader_card_id FROM user) AS _user"
-            + " LEFT OUTER JOIN"
             + " (SELECT user_id, select_difficulty FROM room_member"
             + " WHERE room_id = :room_id) AS _room_member"
+            + " LEFT OUTER JOIN"
+            + " (SELECT id, name, leader_card_id FROM user) AS _user"
             + " ON _user.id = _room_member.user_id"
         ),
         {
@@ -319,7 +319,11 @@ def start_room(room_id: int):
         return _start_room(conn, room_id)
 
 
-def _end_room(conn, room_id: int, judge_count_list: list[int], score: int):
+def _end_room(
+    conn, room_id: int, judge_count_list: list[int], score: int, token: str
+):
+    result = _get_user_by_token(conn, token)
+    my_user_id = result.id
     _ = conn.execute(
         text(
             "UPDATE `room_member`"
@@ -330,6 +334,7 @@ def _end_room(conn, room_id: int, judge_count_list: list[int], score: int):
             + " `judge_miss`= :judge_miss,"
             + " `score`= :score"
             + " WHERE `room_id` = :room_id"
+            + " AND `user_id` = :my_user_id"
         ),
         {
             "judge_perfect": judge_count_list[0],
@@ -338,7 +343,8 @@ def _end_room(conn, room_id: int, judge_count_list: list[int], score: int):
             "judge_bad": judge_count_list[3],
             "judge_miss": judge_count_list[4],
             "score": score,
-            "room_id": room_id
+            "room_id": room_id,
+            "my_user_id": my_user_id
         },
     )
     return
@@ -360,19 +366,35 @@ def _result_room(conn, room_id: int):
             "room_id": room_id
         },
     )
-    # TODO 本当は全員の結果が出たら以下の処理を行いたい
-    _ = conn.execute(
+    rows = result.all()
+
+    result2 = conn.execute(
         text(
-            "UPDATE `room`"
-            + " SET `status`= :status"
-            + " WHERE `id` = :room_id"
+            "SELECT joined_user_count"
+            + " FROM `room` WHERE `id` = :room_id"
         ),
-        {
-            "status": 3,
-            "room_id": room_id
-        },
+        {"room_id": room_id},
     )
-    return result.all()
+    elements = result2.one()
+    joined_user_count = elements.joined_user_count
+
+    finish = 0
+    for row in rows:
+        if row.judge_perfect + row.judge_great + row.judge_good + row.judge_bad + row.judge_miss > 0:
+            finish += 1
+    if finish == joined_user_count:
+        _ = conn.execute(
+            text(
+                "UPDATE `room`"
+                + " SET `status`= :status"
+                + " WHERE `id` = :room_id"
+            ),
+            {
+                "status": 3,
+                "room_id": room_id
+            },
+        )
+    return rows
 
 
 def result_room(room_id: int):

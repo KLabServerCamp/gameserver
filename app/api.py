@@ -273,3 +273,9 @@ class RoomLeaveRequest(BaseModel):
 
 class RoomLeaveResponse(BaseModel):
     pass
+
+
+@app.post("/room/leave", response_model=RoomLeaveResponse)
+def room_leave(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
+    model.leave_room(req.room_id, token)
+    return RoomLeaveResponse()

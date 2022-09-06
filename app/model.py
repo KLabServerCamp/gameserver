@@ -342,9 +342,43 @@ def _result_room(conn, room_id: int):
             "room_id": room_id
         },
     )
+    # 4人結果が出たら
+    _ = conn.execute(
+        text(
+            "UPDATE `room`"
+            + " SET `status`= :status,"
+            + " WHERE `room_id` = :room_id"
+        ),
+        {
+            "status": 3,
+            "room_id": room_id
+        },
+    )
     return result.all()
 
 
 def result_room(room_id: int):
     with engine.begin() as conn:
         return _result_room(conn, room_id)
+
+
+def _leave_room(conn, room_id: int, token: str):
+    result = _get_user_by_token(conn, token)
+    my_user_id = result.id
+    _ = conn.execute(
+        text(
+            "DELETE FROM room_member"
+            + " WHERE `room_id` = :room_id"
+            + " AND `user_id` = :user_id"
+        ),
+        {
+            "room_id": room_id,
+            "user_id": my_user_id
+        },
+    )
+    return
+
+
+def leave_room(room_id: int, token: str):
+    with engine.begin() as conn:
+        return _leave_room(conn, room_id, token)

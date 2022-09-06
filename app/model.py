@@ -1,6 +1,7 @@
 # api.pyからimport、参照しないようにしてみる
 
 import json
+from urllib import request
 import uuid
 from enum import Enum, IntEnum
 from typing import Optional, Tuple
@@ -298,5 +299,31 @@ def room_start_(room_id: int) -> None:
                 WHERE room_id=:room_id"
             ),
             {"status": WaitRoomStatus.LiveStart, "room_id": room_id},
+        )
+    return
+
+def list_to_str(list_data: list[int]) -> str:
+    result = ""
+    for data in list_data:
+        result = result + str(data) + ","
+    return result[:-1]
+
+def str_to_list(str_data: str) -> list[int]:
+    return [int(data) for data in str_data.split(",")]
+
+def room_end_(request_user_id: int, room_id: int, score: int, judge_count_list: list[int]) -> None:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "UPDATE `room_member` \
+                SET score=:score, judge=:judge \
+                WHERE room_id=:room_id AND user_id=:user_id"
+            ),
+            {
+                "score": score,
+                "judge": list_to_str(judge_count_list),
+                "room_id": room_id,
+                "user_id": request_user_id
+            },
         )
     return

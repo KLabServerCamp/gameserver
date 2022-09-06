@@ -128,8 +128,9 @@ class RoomWaitResponse(BaseModel):
 
 
 @app.post("/room/wait", response_model=RoomWaitResponse)
-def room_wait(req: RoomWaitRequest):
-    result = model.wait_room(req.room_id)
+def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
+    user = user_me(token)
+    result = model.wait_room(req.room_id, user)
     return RoomWaitResponse(
         status=result["status"], room_user_list=result["room_user_list"]
     )

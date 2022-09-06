@@ -136,7 +136,7 @@ def create_room(live_id: int, select_difficulty: LiveDifficulty, user: SafeUser)
         room_id = result.one().room_id
         conn.execute(
             text(
-                "INSERT INTO `room_member` (room_id, user_id, name, leader_card_id, select_difficulty, is_me, is_host) VALUES (:room_id, :user_id, :name, :leader_card_id, :select_difficulty, :is_me, :is_host)"
+                "INSERT INTO `room_member` (room_id, user_id, name, leader_card_id, select_difficulty, is_host) VALUES (:room_id, :user_id, :name, :leader_card_id, :select_difficulty, :is_host)"
             ),
             {
                 "room_id": room_id,
@@ -144,7 +144,6 @@ def create_room(live_id: int, select_difficulty: LiveDifficulty, user: SafeUser)
                 "name": user.name,
                 "leader_card_id": user.leader_card_id,
                 "select_difficulty": select_difficulty.value,
-                "is_me": True,
                 "is_host": True,
             },
         )
@@ -190,7 +189,7 @@ def join_room(
         if cnt < max_user_count:
             conn.execute(
                 text(
-                    "INSERT INTO `room_member` (room_id, user_id, name, leader_card_id, select_difficulty, is_me, is_host) VALUES (:room_id, :user_id, :name, :leader_card_id, :select_difficulty, :is_me, :is_host)"
+                    "INSERT INTO `room_member` (room_id, user_id, name, leader_card_id, select_difficulty, is_host) VALUES (:room_id, :user_id, :name, :leader_card_id, :select_difficulty, :is_host)"
                 ),
                 {
                     "room_id": room_id,
@@ -198,7 +197,6 @@ def join_room(
                     "name": user.name,
                     "leader_card_id": user.leader_card_id,
                     "select_difficulty": select_difficulty.value,
-                    "is_me": True,
                     "is_host": False,
                 },
             )
@@ -220,7 +218,7 @@ def join_room(
     return ans
 
 
-def wait_room(room_id: int) -> dict:
+def wait_room(room_id: int, user: SafeUser) -> dict:
     with engine.begin() as conn:
         result = conn.execute(
             text(
@@ -230,7 +228,7 @@ def wait_room(room_id: int) -> dict:
         )
         result2 = conn.execute(
             text(
-                "SELECT `user_id`, `name`, `leader_card_id`, `select_difficulty`, `is_me`, `is_host` FROM `room_member` WHERE `room_id`=:room_id"
+                "SELECT `user_id`, `name`, `leader_card_id`, `select_difficulty`, `is_host` FROM `room_member` WHERE `room_id`=:room_id"
             ),
             {"room_id": room_id},
         )
@@ -240,7 +238,20 @@ def wait_room(room_id: int) -> dict:
         except NoResultFound:
             return None
 
-        room_user_list = [RoomUser.from_orm(row) for row in rows]
+        room_user_list = []
+
+        for row in rows:
+            is_me = user.id == row[0]
+            room_user_list.append(
+                RoomUser(
+                    user_id=row[0],
+                    name=row[1],
+                    leader_card_id=row[2],
+                    select_difficulty=row[3],
+                    is_me=is_me,
+                    is_host=row[4],
+                )
+            )
 
     return {"status": status, "room_user_list": room_user_list}
 

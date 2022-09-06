@@ -7,7 +7,6 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
-from sqlalchemy.exc import NoResultFound
 
 from . import config
 from .db import engine
@@ -47,7 +46,7 @@ def create_user(name: str, leader_card_id: int) -> str:
             text(query_str),
             {"name": name, "token": token, "leader_id": leader_card_id},
         )
-        logger.info(result)
+        logger.debug(result)
     return token
 
 
@@ -58,7 +57,7 @@ def _get_user_by_token(conn: Connection, token: str) -> Optional[SafeUser]:
         WHERE `token`=:token"
 
     result = conn.execute(text(query_str), {"token": token})
-    if row := result.one():
+    if row := result.one_or_none():
         logger.debug(row)
         return SafeUser.from_orm(row)
     return None
@@ -73,17 +72,18 @@ def get_user_by_token(token: str) -> Optional[SafeUser]:
 def update_user(token: str, name: str, leader_card_id: int) -> None:
     with engine.begin() as conn:
         conn: Connection
-        query_str: str = "\
-            UPDATE `user` SET \
-                `name` = :name, \
-                `leader_card_id` = :leader_id \
-            WHERE `token` = :token"
+        if _ := _get_user_by_token(conn, token):
+            query_str: str = "\
+                UPDATE `user` SET \
+                    `name` = :name, \
+                    `leader_card_id` = :leader_id \
+                WHERE `token` = :token"
 
-        result = conn.execute(
-            text(query_str),
-            {"name": name, "leader_id": leader_card_id, "token": token},
-        )
-        logger.debug(result)
+            conn.execute(
+                text(query_str),
+                {"name": name, "leader_id": leader_card_id, "token": token},
+            )
+        raise InvalidToken()
 
 
 # Room
@@ -217,7 +217,8 @@ def _get_room_info(conn: Connection, room_id: int) -> Optional[RoomInfo]:
         GROUP BY `room`.`id` \
         FOR UPDATE"
 
-    if row := conn.execute(text(query_str), {"room_id": room_id}).one():
+    result = conn.execute(text(query_str), {"room_id": room_id})
+    if row := result.one_or_none():
         return RoomInfo.from_orm(row)
     return None
 
@@ -228,7 +229,9 @@ def _get_room_status(conn: Connection, room_id: int) -> WaitRoomStatus:
         FROM `room` \
         WHERE `id`=:room_id \
         FOR UPDATE"
-    if row := conn.execute(text(query_str), {"room_id": room_id}).one():
+
+    result = conn.execute(text(query_str), {"room_id": room_id})
+    if row := result.one_or_none():
         return WaitRoomStatus(row[0])
     raise HTTPException(status_code=404, detail="Room not found")
 
@@ -269,7 +272,8 @@ def _get_waiting_room_list(conn: Connection, live_id: int) -> list[RoomInfo]:
 
 def _get_host_id(conn: Connection, room_id: int) -> int:
     query_str: str = "SELECT `host_id` FROM `room` WHERE `id`=:room_id"
-    if host := conn.execute(text(query_str), {"room_id": room_id}).one():
+    result = conn.execute(text(query_str), {"room_id": room_id})
+    if host := result.one_or_none():
         return host[0]
     raise HTTPException(status_code=404, detail="Room not found")
 
@@ -459,18 +463,26 @@ def get_room_result(room_id: int) -> list[ResultUser]:
         ]
 
         query_str = "\
-            SELECT `room`.`initial_member` \
+            SELECT \
+                TIMESTAMPDIFF(SECOND, \
+                    `created_at`, \
+                    CURRENT_TIMESTAMP \
+                ) AS timespan, \
+                `initial_member` \
             FROM `room` \
-            WHERE `room`.`id` = :room_id \
+            WHERE `id` = :room_id \
         "
-        init_member: int = conn.execute(
+        creation_data = conn.execute(
             text(query_str),
             {"room_id": room_id},
-        ).one()[0]
+        ).one()
+        logger.debug(creation_data)
 
-        logging.warning(len(ret))
-        if len(ret) < init_member:
+        is_timeout = 60 * config.RESULT_TIMEOUT_MIN < creation_data["timespan"]
+        if not is_timeout and (len(ret) < creation_data["initial_member"]):
+            logging.debug(result)
             return list[ResultUser]()
+        _set_room_status(conn, room_id, WaitRoomStatus.DISSOLUTION)
         return ret
 
 
@@ -478,6 +490,11 @@ def leave_room(token: str, room_id: int) -> None:
     with engine.begin() as conn:
         conn: Connection
         if user := _get_user_by_token(conn, token):
+
+            if len(_get_room_users(conn, room_id, user.id)) < 2:
+                # 自分が一人だったら部屋を解散状態にする
+                _set_room_status(conn, room_id, WaitRoomStatus.DISSOLUTION)
+
             query_str: str = "\
                 DELETE FROM `room_user` \
                 WHERE `room_id`=:room_id AND `user_id`=:user_id \

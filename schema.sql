@@ -18,6 +18,7 @@ CREATE TABLE `room` (
   `status` tinyint NOT NULL,
   `initial_member` tinyint NOT NULL DEFAULT 0,
   `max_user` tinyint NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`host_id`) REFERENCES `user` (`id`)
 );

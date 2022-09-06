@@ -115,19 +115,17 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
 
 # Room
 def create_room(live_id: int, select_difficulty: LiveDifficulty, user: SafeUser) -> int:
-    token = str(uuid.uuid4())
     with engine.begin() as conn:
         conn.execute(
             text(
-                "INSERT INTO `room` (token, live_id, joined_user_count, max_user_count, join_status, wait_status) VALUES (:token, :live_id, 1, :max_user_count, 1, 1)"
+                "INSERT INTO `room` (live_id, joined_user_count, max_user_count, join_status, wait_status) VALUES (:live_id, 1, :max_user_count, 1, 1)"
             ),
-            {"token": token, "live_id": live_id, "max_user_count": 4},
+            {"live_id": live_id, "max_user_count": 4},
         )
         result = conn.execute(
-            text("SELECT `room_id` FROM `room` WHERE `token`=:token"),
-            dict(token=token),
+            text("SELECT LAST_INSERT_ID()")
         )
-        room_id = result.one().room_id
+        room_id = result.one()[0]
         conn.execute(
             text(
                 "INSERT INTO `room_member` (room_id, user_id, name, leader_card_id, select_difficulty, is_host) VALUES (:room_id, :user_id, :name, :leader_card_id, :select_difficulty, :is_host)"

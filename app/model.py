@@ -362,20 +362,39 @@ def get_room_result(room_id: int) -> Optional[list[ResultUser]]:
         return []
 
 
-def _delete_room_member(
-    token: str, room_id: int, select_difficulty: LiveDifficulty, is_host: bool
-) -> None:
+def _delete_room_member(token: str, room_id: int) -> None:
     user_id = _user_judge(token)
-    if _is_host(room_id, user_id) and True:
-
+    if _is_host(room_id, user_id):
         with engine.begin() as conn:
             result = conn.execute(
                 text(
-                    "DELETE FROM `room_member` WHERE `room_id`=:room_id AND `user_id`=:user_id"
+                    "SELECT `user_id` FROM `room_member` \
+                        WHERE `room_id`=:room_id AND `is_host`=false"
                 ),
-                dict(room_id=room_id, user_id=user_id),
+                dict(room_id=room_id),
             )
-        print(result)
+            become_host = result.first()
+        if become_host is None:
+            return
+        with engine.begin() as conn:
+            result = conn.execute(
+                text(
+                    "UPDATE `room_member` SET is_host=true \
+                        WHERE room_id=:room_id AND user_id=:user_id"
+                ),
+                dict(
+                    room_id=room_id,
+                    user_id=become_host.user_id,
+                ),
+            )
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "DELETE FROM `room_member` WHERE `room_id`=:room_id AND `user_id`=:user_id"
+            ),
+            dict(room_id=room_id, user_id=user_id),
+        )
+    print(result)
 
 
 def leave_room(token: str, room_id: int) -> None:

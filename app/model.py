@@ -249,7 +249,7 @@ def join_room(
 def _wait_room(conn, room_id: int, token: str) -> int:
     result = conn.execute(
         text(
-            "SELECT host_user_id, status FROM room"
+            "SELECT host_user_id, status, joined_user_count FROM room"
             + " WHERE id = :room_id"
         ),
         {"room_id": room_id},
@@ -257,6 +257,7 @@ def _wait_room(conn, room_id: int, token: str) -> int:
     element = result.one()
     host_user_id = element.host_user_id
     status = element.status
+    joined_user_count = element.joined_user_count
 
     result = _get_user_by_token(conn, token)
     my_user_id = result.id
@@ -279,8 +280,9 @@ def _wait_room(conn, room_id: int, token: str) -> int:
             "room_id": room_id
         },
     )
-    # print(result2)
-    return [status, result2.all()]
+    room_user_list=result2.all()
+    print("結果2", room_user_list[0:joined_user_count])
+    return [status, room_user_list[0:joined_user_count]]
 
 
 def wait_room(room_id: int, token: str) -> int:
@@ -349,8 +351,8 @@ def _result_room(conn, room_id: int):
     _ = conn.execute(
         text(
             "UPDATE `room`"
-            + " SET `status`= :status,"
-            + " WHERE `room_id` = :room_id"
+            + " SET `status`= :status"
+            + " WHERE `id` = :room_id"
         ),
         {
             "status": 3,
@@ -377,6 +379,30 @@ def _leave_room(conn, room_id: int, token: str):
         {
             "room_id": room_id,
             "user_id": my_user_id
+        },
+    )
+    result2 = conn.execute(
+        text(
+            "SELECT joined_user_count"
+            + " FROM `room` WHERE `id` = :room_id"
+        ),
+        {"room_id": room_id},
+    )
+    try:
+        elements = result2.one()
+        joined_user_count = elements.joined_user_count
+    except Exception as e:
+        print("エラー文", e)
+        return
+    _ = conn.execute(
+        text(
+            "UPDATE `room`"
+            + " SET `joined_user_count`= :joined_user_count,"
+            + " WHERE `room_id` = :room_id"
+        ),
+        {
+            "joined_user_count": joined_user_count-1,
+            "room_id": room_id
         },
     )
     return

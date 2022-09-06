@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
-from sqlalchemy.exc import NoResultFound
+from sqlalchemy.exc import NoResultFound, IntegrityError
 
 from .db import engine
 
@@ -30,22 +30,16 @@ def create_user(name: str, leader_card_id: int) -> str:
     with engine.begin() as conn:
         while True:
             token = str(uuid.uuid4())
-            result = conn.execute(
-                text(
-                    "SELECT token FROM user WHERE token = :token"
-                ),
-                {"token": token},
-            )
-            row_or_None = result.one_or_none()
-            if row_or_None is not None:
+            try:
+                conn.execute(
+                    text(
+                        "INSERT INTO `user` (name, token, leader_card_id) "
+                        "VALUES (:name, :token, :leader_card_id)"
+                    ),
+                    {"name": name, "token": token, "leader_card_id": leader_card_id},
+                )
+            except IntegrityError:
                 continue
-            result = conn.execute(
-                text(
-                    "INSERT INTO `user` (name, token, leader_card_id) "
-                    "VALUES (:name, :token, :leader_card_id)"
-                ),
-                {"name": name, "token": token, "leader_card_id": leader_card_id},
-            )
             break
     return token
 

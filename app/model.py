@@ -1,5 +1,5 @@
-import uuid
 import json
+import uuid
 from enum import IntEnum
 from sqlite3 import OperationalError
 
@@ -45,8 +45,16 @@ def create_user(name: str, leader_card_id: int) -> str:
     with engine.begin() as conn:
         conn.execute(
             text(
-                "INSERT INTO user (name, token, leader_card_id) "
-                "VALUES (:name, :token, :leader_card_id)"
+                "INSERT INTO user("
+                "  name,"
+                "  token,"
+                "  leader_card_id"
+                ")"
+                "VALUES("
+                "  :name,"
+                "  :token,"
+                "  :leader_card_id"
+                ")"
             ),
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
@@ -54,7 +62,9 @@ def create_user(name: str, leader_card_id: int) -> str:
 
 
 def _get_user_by_token(conn: Connection, token: str) -> Optional[SafeUser]:
-    result = conn.execute(text("SELECT * FROM user WHERE token = :token"), {"token": token})
+    result = conn.execute(
+        text("SELECT * FROM user WHERE token = :token"), {"token": token}
+    )
     try:
         row = result.one()
     except NoResultFound:
@@ -107,8 +117,13 @@ def update_user(
         with engine.begin() as conn:
             conn.execute(
                 text(
-                    "UPDATE user SET name = :name, leader_card_id = :leader_card_id "
-                    "WHERE token = :token"
+                    "UPDATE"
+                    "  user "
+                    "SET"
+                    "  name = :name,"
+                    "  leader_card_id = :leader_card_id "
+                    "WHERE"
+                    "  token = :token"
                 ),
                 {"name": name, "leader_card_id": leader_card_id, "token": token},
             )
@@ -157,7 +172,13 @@ def delete_user_by_token(token: str) -> None:
     """
     with engine.begin() as conn:
         conn.execute(
-            text("DELETE FROM user WHERE token = :token"),
+            text(
+                "DELETE "
+                "FROM"
+                "  user "
+                "WHERE"
+                "  token = :token"
+            ),
             {"token": token},
         )
 
@@ -355,16 +376,16 @@ def wait_room(room_id: int, user_id: int) -> tuple[WaitRoomStatus, list[RoomUser
         )
     users = []
     for row in user_rows:
-        user = RoomUser(
-            user_id=row[0],
-            name=row[1],
-            leader_card_id=row[2],
-            select_difficulty=row[3],
-            is_me=user_id == row[0],
-            is_host=row[4]
+        users.append(
+            RoomUser(
+                user_id=row[0],
+                name=row[1],
+                leader_card_id=row[2],
+                select_difficulty=row[3],
+                is_me=user_id == row[0],
+                is_host=row[4],
+            )
         )
-        users.append(user)
-
     return (WaitRoomStatus(status), users)
 
 
@@ -383,7 +404,9 @@ def start_room(room_id: int) -> None:
         )
 
 
-def end_room(room_id: int, judge_count_list: list[int], score: int, user_id: int) -> None:
+def end_room(
+    room_id: int, judge_count_list: list[int], score: int, user_id: int
+) -> None:
     with engine.begin() as conn:
         # change room status
         conn.execute(
@@ -434,10 +457,32 @@ def all_user_results(room_id: int) -> list[ResultUser]:
         )
     results = []
     for row in res:
-        pass
+        results.append(
+            ResultUser(
+                user_id=row[0], judge_count_list=json.loads(row[1]), score=row[2]
+            )
+        )
 
     return results
 
 
 def leave_room(room_id: int, user_id: int) -> None:
-    pass
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE"
+                "  room "
+                "SET"
+                "  joined_user_count = CASE"
+                "    WHEN joined_user_count > 0 THEN joined_user_count - 1"
+                "  END "
+                "WHERE"
+                "  room_id = :room_id;"
+                "DELETE"
+                "FROM"
+                "  room_member "
+                "WHERE"
+                "  user_id = :user_id"
+            ),
+            {"room_id": room_id, "user_id": user_id},
+        )

@@ -8,5 +8,5 @@ CREATE TABLE `room_member` (
   `is_host` boolean NOT NULL,
   `score` int,
   `judge` varchar(255),
-  PRIMARY KEY (`room_id`, `user_id`),
+  PRIMARY KEY (`room_id`, `user_id`)
 );

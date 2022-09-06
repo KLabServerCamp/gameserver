@@ -136,7 +136,7 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
 
 
 #ルームを新規で建てる
-@app.post("room/create", response_model=RoomCreateResponse)
+@app.post("/room/create", response_model=RoomCreateResponse)
 def room_create(req: RoomCreateRequest):
     user_data = user_me()
     room_id = model.create_room(req.live_id, user_data, req.select_difficulty)
@@ -144,14 +144,14 @@ def room_create(req: RoomCreateRequest):
 
 
 #入場可能なルーム一覧を取得
-@app.post("room/list", response_model=RoomListResponse)
+@app.post("/room/list", response_model=RoomListResponse)
 def room_list(req: RoomListRequest):
     room_info_list = model.get_room_list(req.live_id)
     return RoomListResponse(room_info_list=room_info_list)
 
 
 #ルームに入場
-@app.post("room/join", response_model=RoomJoinResponse)
+@app.post("/room/join", response_model=RoomJoinResponse)
 def room_join(req: RoomJoinRequest):
     user_data = user_me()
     join_room_result = model.join_room(req.room_id, user_data, req.select_difficulty)
@@ -159,7 +159,7 @@ def room_join(req: RoomJoinRequest):
 
 
 #ルーム待機中
-@app.post("room/wait", response_model=RoomWaitResponse)
+@app.post("/room/wait", response_model=RoomWaitResponse)
 def room_wait(req: RoomWaitRequest):
     user_data = user_me()
     status, room_user_list = model.get_wait_room_status(req.room_id, user_data.id)
@@ -167,14 +167,14 @@ def room_wait(req: RoomWaitRequest):
 
 
 #ルームのライブ開始
-@app.post("room/start", response_model=RoomStartResponse)
+@app.post("/room/start", response_model=RoomStartResponse)
 def room_start(req: RoomStartRequest):
     model.room_start_(req.room_id)
     return RoomStartResponse()
 
 
 #ルームのライブ終了時リクエスト
-@app.post("room/end", response_model=RoomEndResponse)
+@app.post("/room/end", response_model=RoomEndResponse)
 def room_end(req: RoomEndRequest):
     user_data = user_me()
     model.room_end_(user_data.id, req.room_id, req.score, req.judge_count_list)
@@ -182,15 +182,15 @@ def room_end(req: RoomEndRequest):
 
 
 #ルームのライブ終了後
-@app.post("room/result", response_model=RoomResultResponse)
+@app.post("/room/result", response_model=RoomResultResponse)
 def room_result(req: RoomResultRequest):
     result_user_list = model.get_room_result(req.room_id)
     return RoomResultResponse(result_user_list=result_user_list)
 
 
 #ルーム退出リクエスト
-@app.post("room/leave", response_model=RoomLeaveResponse)
+@app.post("/room/leave", response_model=RoomLeaveResponse)
 def room_leave(req: RoomLeaveRequest):
     user_data = user_me()
-    model.room_leave_(req.room_id, user_data.id):
+    model.room_leave_(req.room_id, user_data.id)
     return RoomLeaveResponse()

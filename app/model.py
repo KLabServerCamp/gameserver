@@ -107,7 +107,7 @@ class RoomInfo(BaseModel):
     room_id: int
     live_id: int
     joined_user_count: int
-    max_user_cout: int
+    max_user_count: int
 
 
 class RoomUser(BaseModel):
@@ -164,7 +164,7 @@ def _room_list(conn, live_id: int) -> list[RoomInfo]:
     rows = result.all()
     room_infos = [RoomInfo(room_id=row.room_id, live_id=row.live_id,
                            joined_user_count=row.j_usr_cnt,
-                           max_user_cout=row.m_usr_cnt) for row in rows]
+                           max_user_count=row.m_usr_cnt) for row in rows]
     return room_infos
 
 

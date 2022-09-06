@@ -417,6 +417,29 @@ def store_score(
         )
 
 
+def get_room_finished_users_count(room_id: int) -> int:
+    with engine.begin() as conn:
+        res = conn.execute(
+            text(
+                """
+                SELECT
+                    count(*)
+                FROM
+                    room_member
+                WHERE
+                    room_id = :room_id
+                    AND is_end = true
+                """
+            ),
+            dict(room_id=room_id),
+        )
+    try:
+        row = res.one()
+        return int(row[0])
+    except NoResultFound:
+        return 0
+
+
 def get_room_result(room_id: int) -> list[ResultUser]:
     with engine.begin() as conn:
         res = conn.execute(

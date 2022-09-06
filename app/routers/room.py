@@ -273,7 +273,13 @@ def end_room(req: RoomEndRequest, token: str = Depends(get_auth_token)) -> Empty
 @router.post("/result", response_model=RoomResultResponse)
 def get_room_result(req: RoomResultRequest) -> RoomResultResponse:
     """ルームの結果を取得する"""
+    finished_users_cnt = model.get_room_finished_users_count(req.room_id)
     result_user_list = model.get_room_result(req.room_id)
+
+    # 全員が終了した場合のみリザルトを返す
+    if len(result_user_list) < finished_users_cnt:
+        return RoomResultResponse(result_user_list=[])
+
     return RoomResultResponse(result_user_list=result_user_list)
 
 

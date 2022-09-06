@@ -15,7 +15,7 @@ CREATE TABLE `room` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `live_id` int NOT NULL,
   `host_id` bigint NOT NULL,
-  `status` int NOT NULL,
+  `status` tinyint NOT NULL,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`host_id`) REFERENCES `user` (`id`)
 );
@@ -24,7 +24,8 @@ CREATE TABLE `room_user` (
   `room_id` bigint NOT NULL,
   `user_id` bigint NOT NULL,
   `difficulty` tinyint NOT NULL,
-  `score` int NOT NULL DEFAULT 0,
+  `score` int,
+  `judge` varchar(255),
   PRIMARY KEY (`room_id`, `user_id`),
   FOREIGN KEY (`room_id`) REFERENCES `room` (`id`),
   FOREIGN KEY (`user_id`) REFERENCES `user` (`id`)

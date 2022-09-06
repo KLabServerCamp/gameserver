@@ -360,7 +360,7 @@ def leave_room(room_id: int, user: SafeUser) -> None:
         else:
             conn.execute(
                 text(
-                    "UPDATE `room` SET joined_user_count=:joined_user_count WHERE room_id=:room_id"
+                    "UPDATE `room` SET joined_user_count=:joined_user_count, join_status=1 WHERE room_id=:room_id"
                 ),
                 {"joined_user_count": cnt - 1, "room_id": room_id},
             )

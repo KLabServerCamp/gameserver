@@ -122,9 +122,7 @@ def create_room(live_id: int, select_difficulty: LiveDifficulty, user: SafeUser)
             ),
             {"live_id": live_id, "max_user_count": 4},
         )
-        result = conn.execute(
-            text("SELECT LAST_INSERT_ID()")
-        )
+        result = conn.execute(text("SELECT LAST_INSERT_ID()"))
         room_id = result.one()[0]
         conn.execute(
             text(
@@ -343,7 +341,9 @@ def leave_room(room_id: int, user: SafeUser) -> None:
         )
         cnt = result.one()[0]
         result2 = conn.execute(
-            text("SELECT `is_host` FROM room_member WHERE `room_id`=:room_id AND `user_id`=:user_id"),
+            text(
+                "SELECT `is_host` FROM room_member WHERE `room_id`=:room_id AND `user_id`=:user_id"
+            ),
             {"room_id": room_id, "user_id": user.id},
         )
         is_host = result2.one()[0]
@@ -372,7 +372,9 @@ def leave_room(room_id: int, user: SafeUser) -> None:
                 )
                 next_user_id = result3.one()[0]
                 conn.execute(
-                    text("UPDATE `room_member` SET is_host=1 WHERE `room_id`=:room_id AND `user_id`=:user_id"),
+                    text(
+                        "UPDATE `room_member` SET is_host=1 WHERE `room_id`=:room_id AND `user_id`=:user_id"
+                    ),
                     {"room_id": room_id, "user_id": next_user_id},
                 )
 

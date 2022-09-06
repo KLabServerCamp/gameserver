@@ -24,6 +24,8 @@ async def root():
 
 
 # User APIs
+
+# /user/create
 class UserCreateRequest(BaseModel):
     user_name: str
     leader_card_id: int
@@ -50,6 +52,7 @@ def get_auth_token(cred: HTTPAuthorizationCredentials = Depends(bearer)) -> str:
     return cred.credentials
 
 
+# /user/me
 @app.get("/user/me", response_model=SafeUser)
 def user_me(token: str = Depends(get_auth_token)):
     user = model.get_user_by_token(token)
@@ -59,6 +62,7 @@ def user_me(token: str = Depends(get_auth_token)):
     return user
 
 
+# /user/update
 class Empty(BaseModel):
     pass
 
@@ -72,6 +76,8 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
 
 
 # Room APIs
+
+# /room/create
 class RoomCreateRequest(BaseModel):
     live_id: int
     select_difficulty: LiveDifficulty
@@ -88,6 +94,7 @@ def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
     return RoomCreateResponse(room_id=id)
 
 
+# /room/list
 class RoomListRequest(BaseModel):
     live_id: int
 
@@ -102,6 +109,7 @@ def room_list(req: RoomListRequest):
     return RoomListResponse(room_info_list=rooms)
 
 
+# /room/join
 class RoomJoinRequest(BaseModel):
     room_id: int
     select_difficulty: LiveDifficulty
@@ -118,6 +126,7 @@ def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
     return RoomJoinResponse(join_room_result=result)
 
 
+# /room/wait
 class RoomWaitRequest(BaseModel):
     room_id: int
 
@@ -136,6 +145,7 @@ def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
     )
 
 
+# /room/start
 class RoomStartRequest(BaseModel):
     room_id: int
 
@@ -147,6 +157,7 @@ def room_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
     return {}
 
 
+# /room/end
 class RoomEndRequest(BaseModel):
     room_id: int
     judge_count_list: list[int]
@@ -160,6 +171,7 @@ def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
     return {}
 
 
+# /room/result
 class RoomResultRequest(BaseModel):
     room_id: int
 
@@ -174,6 +186,7 @@ def room_result(req: RoomResultRequest):
     return RoomResultResponse(result_user_list=result)
 
 
+# /room/leave
 class RoomLeaveRequest(BaseModel):
     room_id: int
 

@@ -253,23 +253,19 @@ def _join_room(room_id: int, select_difficulty: LiveDifficulty, user: SafeUser) 
         with engine.begin() as conn:
             result = conn.execute(
                 text(
-                    "INSERTT INTO `room_member` SET \
+                    "INSERT INTO `room_member` SET \
                         `room_id`=:room_id, \
-                        `user_id`=:user_id \
-                        `name`=:name \
-                        `leader_card_id`=:leader_card_id \
-                        `select_difficulty`=:select_difficulty" 
+                        `user_id`=:user_id, \
+                        `select_difficulty`=:select_difficulty"
                 ),
                 {
                     "room_id": room_id,
                     "user_id": user.id,
-                    "name": user.name,
-                    "leader_card_id": user.leader_card_id,
-                    "select_difficulty": select_difficulty,
+                    "select_difficulty": select_difficulty.value,
                 }
-          )
-    except:
-        # TODO: print(error)
+            )
+    except Exception as e:
+        print(e)
         return False
 
     return True
@@ -277,8 +273,6 @@ def _join_room(room_id: int, select_difficulty: LiveDifficulty, user: SafeUser) 
 def join_room(room_id: int, select_difficulty: LiveDifficulty, user: SafeUser) -> JoinRoomResult:
     # TODO: 部屋ロック
     
-    tmp = get_room_by_id(room_id)
-    print(tmp)
     try:
         room_info = get_room_by_id(room_id)
     except:

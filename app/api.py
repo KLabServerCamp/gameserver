@@ -171,8 +171,6 @@ class RoomResultResponse(BaseModel):
 @app.post("/room/result", response_model=RoomResultResponse)
 def room_result(req: RoomResultRequest):
     result_user_list = model.result_room(req.room_id)
-    if result_user_list == []:
-        return RoomResultResponse(result_user_list=[])
 
     return RoomResultResponse(result_user_list=result_user_list)
 

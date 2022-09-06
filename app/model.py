@@ -250,7 +250,7 @@ def create_room(live_id: int, select_difficulty: int, user_id: int) -> int:
     return room_id
 
 
-def get_rooms_by_live_id(live_id) -> list[RoomInfo]:
+def get_rooms_by_live_id(live_id: int) -> list[RoomInfo]:
     with engine.begin() as conn:
         result = conn.execute(
             text("SELECT * FROM room WHERE live_id = :live_id"), {"live_id": live_id}
@@ -261,7 +261,7 @@ def get_rooms_by_live_id(live_id) -> list[RoomInfo]:
     return rooms
 
 
-def join_room(room_id, select_difficulty, user_id) -> JoinRoomResult:
+def join_room(room_id: int, select_difficulty: int, user_id: int) -> JoinRoomResult:
     with engine.begin() as conn:
         # update joined user count if it is less than 4.
         # TODO: identify if room is full or disbanded.
@@ -295,5 +295,31 @@ def join_room(room_id, select_difficulty, user_id) -> JoinRoomResult:
     return JoinRoomResult.Ok
 
 
-def wait_room(room_id):
-    pass
+def wait_room(room_id: int, user_id: int) -> tuple[WaitRoomStatus, list[RoomUser]]:
+    with engine.begin() as conn:
+        rooms = conn.execute(
+            text("SELECT status FROM room WHERE room_id = :room_id"),
+            {"room_id": room_id},
+        )
+        status = rooms.scaler_one()
+        user_rows = conn.execute(
+            text(
+                "SELECT"
+                "  RM.user_id,"
+                "  user.name,"
+                "  user.leader_card_id,"
+                "  user.select_difficulty,"
+                "  RM.is_host"
+                "FROM"
+                "  room_member AS RM"
+                "  JOIN user ON RM.user_id = user.id "
+                "WHERE"
+                "  RM.room_id = :room_id"
+            ),
+            {"room_id": room_id},
+        )
+    users = []
+    for row in user_rows:
+        users.append(RoomUser.from_orm(row))
+
+    return (WaitRoomStatus(status), users)

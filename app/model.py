@@ -223,6 +223,7 @@ def get_room_user_list(room_id: int) -> list[RoomUser]:
             ),
             {"room_id": room_id}
         )
+    room_info = get_room_by_id(room_id)
     room_user_list = []
     for row in result:
         user = get_user_by_id(row["user_id"])
@@ -232,9 +233,8 @@ def get_room_user_list(room_id: int) -> list[RoomUser]:
                 name=user.name,
                 leader_card_id=user.leader_card_id,
                 select_difficulty=row["select_difficulty"],
-                # TODO: 値調整
                 is_me=False,
-                is_host=False
+                is_host=bool(room_info.owner_id == user.id)
             )
         )
     return room_user_list

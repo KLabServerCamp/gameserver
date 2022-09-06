@@ -78,7 +78,7 @@ class ResultUser(BaseModel):
 
 
 # User
-def _user_judge(token: str) -> int:
+def _user_judge(token: str) -> Optional[int]:
     user = get_user_by_token(token)
     if user is None:
         raise InvalidToken
@@ -196,13 +196,13 @@ def get_room_list(live_id: int) -> Optional[list[RoomInfo]]:
         return _get_room_list(conn, live_id)
 
 
-def _update_room(token: str, room_id: int) -> None:
+def _update_room_joined_user_count(token: str, room_id: int, inc_dec_num: int) -> None:
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "UPDATE `room` SET joined_user_count=joined_user_count + 1 WHERE room_id=:room_id"
+                "UPDATE `room` SET joined_user_count=joined_user_count + :inc_dec_num WHERE room_id=:room_id"
             ),
-            dict(token=token, room_id=room_id),
+            dict(inc_dec_num=inc_dec_num, token=token, room_id=room_id),
         )
         print(result)
 
@@ -230,7 +230,7 @@ def join_room(
 
     # 1つのトランザクションにまとめたい
     _create_room_member(token, room_id, select_difficulty, is_host=False)
-    _update_room(token, room_id)
+    _update_room_joined_user_count(token, room_id, inc_dec_num=1)
 
     return JoinRoomResult.Ok
 
@@ -360,3 +360,24 @@ def get_room_result(room_id: int) -> Optional[list[ResultUser]]:
         return result_user_list
     else:
         return []
+
+
+def _delete_room_member(
+    token: str, room_id: int, select_difficulty: LiveDifficulty, is_host: bool
+) -> None:
+    user_id = _user_judge(token)
+    if _is_host(room_id, user_id) and True:
+
+        with engine.begin() as conn:
+            result = conn.execute(
+                text(
+                    "DELETE FROM `room_member` WHERE `room_id`=:room_id AND `user_id`=:user_id"
+                ),
+                dict(room_id=room_id, user_id=user_id),
+            )
+        print(result)
+
+
+def leave_room(token: str, room_id: int) -> None:
+    _update_room_joined_user_count(token, room_id, inc_dec_num=-1)
+    _delete_room_member(token, room_id)

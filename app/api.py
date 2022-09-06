@@ -194,3 +194,8 @@ def room_result(req: RoomResultRequest):
     if result_user_list is None:
         raise HTTPException(status_code=404)
     return RoomResultResponse(result_user_list=result_user_list)
+
+
+@app.post("/room/leave")
+def room_leave(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
+    model.leave_room(token, req.room_id)

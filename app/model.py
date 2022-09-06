@@ -376,6 +376,7 @@ def get_room_result(room_id: int) -> Optional[list[ResultUser]]:
 def _delete_room_member(token: str, room_id: int) -> None:
     user_id = _user_judge(token)
     if _is_host(room_id, user_id):
+        # ホストでないユーザーを探す
         with engine.begin() as conn:
             result = conn.execute(
                 text(
@@ -385,8 +386,20 @@ def _delete_room_member(token: str, room_id: int) -> None:
                 dict(room_id=room_id),
             )
             become_host = result.first()
+        # 他にユーザーがいなかった場合、部屋を終了する
         if become_host is None:
+            with engine.begin() as conn:
+                result = conn.execute(
+                    text(
+                        "UPDATE `room` SET wait_room_status=:wait_room_status WHERE room_id=:room_id"
+                    ),
+                    dict(
+                        wait_room_status=WaitRoomStatus.Dissolution.value,
+                        room_id=room_id,
+                    ),
+                )
             return
+        # ホストでないユーザーをホストに昇格する
         with engine.begin() as conn:
             result = conn.execute(
                 text(

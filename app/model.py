@@ -12,6 +12,8 @@ from sqlalchemy.exc import NoResultFound
 from . import config
 from .db import engine
 
+logger = logging.getLogger(__name__)
+
 
 class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げる"""
@@ -34,27 +36,32 @@ def create_user(name: str, leader_card_id: int) -> str:
     # NOTE: tokenが衝突したらリトライする必要がある.
     with engine.begin() as conn:
         conn: Connection
+        query_str: str = "\
+            INSERT INTO `user` SET \
+            `name` = :name, \
+            `leader_card_id` = :leader_id, \
+            `token` = :token \
+            "
+
         result = conn.execute(
-            text(
-                "INSERT INTO `user` (name, token, leader_card_id) \
-                    VALUES (:name, :token, :leader_card_id)"
-            ),
-            {"name": name, "token": token, "leader_card_id": leader_card_id},
+            text(query_str),
+            {"name": name, "token": token, "leader_id": leader_card_id},
         )
-        logging.log(logging.DEBUG, result)
+        logger.info(result)
     return token
 
 
 def _get_user_by_token(conn: Connection, token: str) -> Optional[SafeUser]:
-    query_str: str = "SELECT `id`, `name`, `leader_card_id` \
-            FROM `user` \
-            WHERE `token`=:token"
+    query_str: str = "\
+        SELECT `id`, `name`, `leader_card_id` \
+        FROM `user` \
+        WHERE `token`=:token"
 
     result = conn.execute(text(query_str), {"token": token})
-    try:
-        return SafeUser.from_orm(result.one())
-    except NoResultFound:
-        return None
+    if row := result.one():
+        logger.debug(row)
+        return SafeUser.from_orm(row)
+    return None
 
 
 def get_user_by_token(token: str) -> Optional[SafeUser]:
@@ -66,15 +73,17 @@ def get_user_by_token(token: str) -> Optional[SafeUser]:
 def update_user(token: str, name: str, leader_card_id: int) -> None:
     with engine.begin() as conn:
         conn: Connection
-        query_str: str = "UPDATE `user` \
-            SET `name` = :name, `leader_card_id` = :leader_id \
+        query_str: str = "\
+            UPDATE `user` SET \
+                `name` = :name, \
+                `leader_card_id` = :leader_id \
             WHERE `token` = :token"
 
         result = conn.execute(
             text(query_str),
             {"name": name, "leader_id": leader_card_id, "token": token},
         )
-        logging.log(logging.DEBUG, result)
+        logger.debug(result)
 
 
 # Room
@@ -150,7 +159,7 @@ class RoomUser(BaseModel):
     user_id: int  # ユーザー識別子
     name: str  # ユーザー名
     leader_card_id: int  # リーダーカードの識別子
-    selected_difficulty: LiveDifficulty  # 選択難易度
+    select_difficulty: LiveDifficulty  # 選択難易度
     is_me: bool  # リクエストを投げたユーザーか
     is_host: bool  # 部屋を立てた人か
 
@@ -275,7 +284,7 @@ def _get_room_users(
             `user`.`id` AS user_id, \
             `user`.`name`, \
             `user`.`leader_card_id`, \
-            `room_user`.`difficulty` AS selected_difficulty, \
+            `room_user`.`difficulty` AS select_difficulty, \
             (`user`.`id` = :uid) AS is_me, \
             (`user`.`id` = :host_id) AS is_host \
         FROM `room_user` \
@@ -361,6 +370,7 @@ def wait_room(
             user_list = _get_room_users(conn, room_id, user.id)
             if len(user_list) < 1:
                 _set_room_status(conn, room_id, WaitRoomStatus.DISSOLUTION)
+                return (WaitRoomStatus.DISSOLUTION, user_list)
 
             status = _get_room_status(conn, room_id)
             return (status, user_list)
@@ -383,10 +393,12 @@ def end_room(token: str, room_id: int, judge: str, score: int) -> None:
         conn: Connection
         if user := _get_user_by_token(conn, token):
 
-            query_str: str = "UPDATE `room_user` \
-                SET `judge`=:judge, `score`=:score \
+            query_str: str = "\
+                UPDATE `room_user` SET \
+                    `judge`=:judge, \
+                    `score`=:score \
                 WHERE `room_id`=:room_id AND `user_id`=:user_id"
-            logging.warning(judge)
+            logger.debug(judge)
 
             conn.execute(
                 text(query_str),
@@ -406,12 +418,14 @@ def get_room_result(room_id: int) -> list[ResultUser]:
     with engine.begin() as conn:
         conn: Connection
 
-        query_str: str = "SELECT \
-            `user_id`, \
-            `judge` AS judge_count_list, \
-            `score` \
+        query_str: str = "\
+            SELECT \
+                `user_id`, \
+                `judge` AS judge_count_list, \
+                `score` \
             FROM `room_user` \
-            WHERE `room_id`=:room_id "
+            WHERE `room_id`=:room_id \
+        "
 
         result = conn.execute(
             text(query_str),
@@ -433,8 +447,10 @@ def leave_room(token: str, room_id: int) -> None:
     with engine.begin() as conn:
         conn: Connection
         if user := _get_user_by_token(conn, token):
-            query_str: str = "DELETE FROM `room_user` \
-                WHERE `room_id`=:room_id AND `user_id`=:user_id"
+            query_str: str = "\
+                DELETE FROM `room_user` \
+                WHERE `room_id`=:room_id AND `user_id`=:user_id \
+            "
 
             conn.execute(
                 text(query_str),

@@ -178,7 +178,7 @@ class RoomResultRequest(BaseModel):
 
 
 class RoomResultResponse(BaseModel):
-    room_result: list[model.ResultUser]  # ルームの結果
+    result_user_list: list[model.ResultUser]  # ルームの結果
 
 
 @app.post("/room/result", response_model=RoomResultResponse)
@@ -186,7 +186,7 @@ def result_room(req: RoomResultRequest) -> RoomResultResponse:
     """ルーム結果を表示する"""
     # print(req)
     result = model.get_room_result(req.room_id)
-    return RoomResultResponse(room_result=result)
+    return RoomResultResponse(result_user_list=result)
 
 
 class RoomLeaveRequest(BaseModel):

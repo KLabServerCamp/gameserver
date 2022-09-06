@@ -129,7 +129,9 @@ class RoomWaitResponse(BaseModel):
 def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
     """ルーム待機"""
     wait_room_result = model.room_wait(token, req.room_id)
-    return RoomWaitResponse(status=wait_room_result[0], room_user_list=wait_room_result[1])
+    return RoomWaitResponse(
+        status=wait_room_result[0], room_user_list=wait_room_result[1]
+    )
 
 
 class RoomStartRequest(BaseModel):

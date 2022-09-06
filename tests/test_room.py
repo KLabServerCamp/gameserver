@@ -68,3 +68,89 @@ def test_room_1():
     )
     assert response.status_code == 200
     print("room/result response:", response.json())
+
+
+def test_room_2():
+    response = client.post(
+        "/room/create",
+        headers=_auth_header(),
+        json={"live_id": 1002, "select_difficulty": 1},
+    )
+    assert response.status_code == 200
+
+    room_id = response.json()["room_id"]
+    print(f"room/create {room_id=}")
+
+    for i in range(5):
+        response = client.post(
+            "/room/join",
+            headers=_auth_header(i),
+            json={"room_id": room_id, "select_difficulty": 1},
+        )
+        print(response.text)
+        assert response.status_code == 200
+        if i == 0:
+            assert response.json()["join_room_result"] == 4
+        elif i == 4:
+            assert response.json()["join_room_result"] == 2
+        else:
+            assert response.json()["join_room_result"] == 1
+
+    response = client.post(
+        "/room/start", headers=_auth_header(), json={"room_id": room_id}
+    )
+    assert response.status_code == 200
+
+    response = client.post(
+        "/room/leave",
+        headers=_auth_header(0),
+        json={"room_id": room_id},
+    )
+    assert response.status_code == 200
+
+    response = client.post(
+        "/room/leave",
+        headers=_auth_header(1),
+        json={"room_id": room_id},
+    )
+    assert response.status_code == 200
+
+    response = client.post(
+        "/room/join",
+        headers=_auth_header(0),
+        json={"room_id": room_id, "select_difficulty": 1},
+    )
+    assert response.status_code == 200
+
+    response = client.post(
+        "/room/leave",
+        headers=_auth_header(2),
+        json={"room_id": room_id},
+    )
+    assert response.status_code == 200
+    print(response.json())
+
+    response = client.post(
+        "/room/leave",
+        headers=_auth_header(3),
+        json={"room_id": room_id},
+    )
+    assert response.status_code == 200
+    print(response.json())
+
+    response = client.post(
+        "/room/leave",
+        headers=_auth_header(0),
+        json={"room_id": room_id},
+    )
+    assert response.status_code == 200
+    print(response.json())
+
+    response = client.post(
+        "/room/join",
+        headers=_auth_header(0),
+        json={"room_id": room_id, "select_difficulty": 1},
+    )
+    assert response.status_code == 200
+    print(room_id)
+    print(response.text)

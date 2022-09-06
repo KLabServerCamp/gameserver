@@ -1,4 +1,4 @@
-from asyncio.windows_events import NULL
+# from asyncio.windows_events import NULL
 import json
 import uuid
 from enum import Enum, IntEnum
@@ -10,7 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
-from app.api import JoinRoomResult, LiveDifficulty, ResultUser, RoomInfo, RoomWaitResponse, WaitRoomStatus
+# from app.api import JoinRoomResult, LiveDifficulty, ResultUser, RoomInfo, RoomWaitResponse, WaitRoomStatus
 
 from .db import engine
 
@@ -81,6 +81,44 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
 
 
 ### Roomの処理
+
+
+
+class LiveDifficulty(Enum):
+    normal = 1
+    hard = 2
+
+class JoinRoomResult(Enum):
+    Ok = 1
+    RoomFull = 2
+    Disbanded = 3
+    OtherError = 4
+
+
+class WaitRoomStatus(Enum):
+    Wating = 1
+    LiveStart = 2
+    Dissolution = 3
+
+class RoomInfo(BaseModel):
+    room_id: int
+    live_id: int
+    owner: int
+    joined_user_count: int
+    max_user_count: int
+    
+class RoomUser(BaseModel):
+    user_id: int
+    name: str
+    leader_card_id: int
+    select_difficulty: LiveDifficulty
+    is_me: bool
+    is_host: bool
+    
+class ResultUser(BaseModel):
+    user_id: int
+    judge_count_list: list[int]
+    score: int
 ## /room/create
 
 # TODO: どうにかする
@@ -266,12 +304,12 @@ def get_room_wait(room_id: int):
     assert len(result) == 1
 
     res = result.one
-    return RoomWaitResponse(
-        wait_room_status=res["wait_room_status"],
-        room_member_list = get_room_user_list(room_id)
-    )
+    # return RoomWaitResponse(
+    #     wait_room_status=res["wait_room_status"],
+    #     room_member_list = get_room_user_list(room_id)
+    # )
     
-def update_wait_room_status(room_id: int, wait_room_status: WaitRoomStaus):
+def update_wait_room_status(room_id: int, wait_room_status: WaitRoomStatus):
     with engine.begin() as conn:
         result = conn.execute(
             text(

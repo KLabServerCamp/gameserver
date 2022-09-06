@@ -11,6 +11,8 @@ from sqlalchemy.exc import NoResultFound
 from .db import engine
 from .exceptions import InvalidToken
 
+MAX_USER_COUNT = 4
+
 
 class LiveDifficulty(IntEnum):
     NORMAL = 1
@@ -187,9 +189,25 @@ def create_room(token: str, live_id: int) -> int:
         room_id = int(res.one()[0] + 1)
         conn.execute(
             text(
-                "INSERT INTO `room` (room_id, live_id, status) VALUES (:room_id, :live_id, :status)"
+                """
+                INSERT INTO `room` (
+                    room_id,
+                    live_id,
+                    status,
+                    max_user_count
+                ) VALUES (
+                    :room_id,
+                    :live_id,
+                    :status,
+                    :max_user_count
+                )"""
             ),
-            dict(room_id=room_id, live_id=live_id, status=int(WaitRoomStatus.WAITING)),
+            dict(
+                room_id=room_id,
+                live_id=live_id,
+                status=int(WaitRoomStatus.WAITING),
+                max_user_count=MAX_USER_COUNT,
+            ),
         )
 
     return room_id
@@ -222,7 +240,7 @@ def _get_room_list_all() -> list[RoomInfo]:
                     room.room_id,
                     room.live_id,
                     count(room_member.user_id) as joined_user_count,
-                    4 as max_user_count
+                    max_user_count
                 FROM
                     room
                     JOIN room_member
@@ -247,7 +265,7 @@ def _get_room_list_by_live_id(live_id: int) -> list[RoomInfo]:
                     room.room_id,
                     room.live_id,
                     count(room_member.user_id) as joined_user_count,
-                    4 as max_user_count
+                    max_user_count
                 FROM
                     room
                     JOIN room_member
@@ -285,7 +303,7 @@ def get_room_info_by_room_id(room_id: int) -> Optional[RoomInfo]:
                     room.room_id,
                     room.live_id,
                     count(room_member.user_id) as joined_user_count,
-                    4 as max_user_count
+                    max_user_count
                 FROM
                     room
                     JOIN room_member

@@ -15,6 +15,7 @@ CREATE TABLE `room` (
   `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `room_id` BIGINT UNSIGNED NOT NULL,
   `live_id` INT UNSIGNED NOT NULL,
+  `max_user_count` INT UNSIGNED NOT NULL,
   `status` INT UNSIGNED NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `room_id` (`room_id`)

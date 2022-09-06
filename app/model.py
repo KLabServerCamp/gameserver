@@ -222,7 +222,7 @@ def join_room(
 
 def wait_room(room_id: int) -> dict:
     with engine.begin() as conn:
-        result1 = conn.execute(
+        result = conn.execute(
             text(
                 "SELECT `join_status` FROM `room` WHERE `room_id`=:room_id"
             ),
@@ -235,7 +235,7 @@ def wait_room(room_id: int) -> dict:
             {"room_id": room_id},
         )
         try:
-            status = result1.one()[0]
+            status = result.one()[0]
             rows = result2.all()
         except NoResultFound:
             return None
@@ -292,12 +292,20 @@ def result_room(room_id: int) -> list[ResultUser]:
     with engine.begin() as conn:
         result = conn.execute(
             text(
+                "SELECT `joined_user_count` FROM `room` WHERE `room_id`=:room_id"
+            ),
+            {"room_id": room_id},
+        )
+        result2 = conn.execute(
+            text(
                 "SELECT `user_id`, `judge1`, `judge2`, `judge3`, `judge4`, `judge5`, `score` FROM `room_member` WHERE `room_id`=:room_id"
             ),
             {"room_id": room_id},
         )
         try:
-            rows = result.all()
+            joined_user_count = result.one()[0]
+            rows = result2.all()
+            cnt = len(rows)
         except NoResultFound:
             return None
         result_user_list = []
@@ -309,8 +317,10 @@ def result_room(room_id: int) -> list[ResultUser]:
                     score=row[6],
                 )
             )
-
-    return result_user_list
+    if cnt == joined_user_count:
+        return result_user_list
+    else:
+        return []
 
 
 def leave_room(room_id: int, user: SafeUser) -> None:

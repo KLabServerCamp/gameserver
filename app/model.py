@@ -62,17 +62,11 @@ class RoomUser(BaseModel):
     is_me: bool
     is_host: bool
 
-    class Config:
-        orm_mode = True
-
 
 class ResultUser(BaseModel):
     user_id: int
     judge_count_list: list[int]
     score: int
-
-    class Config:
-        orm_mode = True
 
 
 # User
@@ -152,12 +146,19 @@ def create_room(live_id: int, select_difficulty: LiveDifficulty, user: SafeUser)
 
 def list_room(live_id: int) -> list[RoomInfo]:
     with engine.begin() as conn:
-        result = conn.execute(
-            text(
-                "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `live_id`=:live_id AND `join_status`=1"
-            ),
-            {"live_id": live_id},
-        )
+        if live_id == 0:
+            result = conn.execute(
+                text(
+                    "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `join_status`=1"
+                ),
+            )
+        else:
+            result = conn.execute(
+                text(
+                    "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `live_id`=:live_id AND `join_status`=1"
+                ),
+                {"live_id": live_id},
+            )
         try:
             rows = result.all()
         except NoResultFound:
@@ -201,8 +202,10 @@ def join_room(
                 },
             )
             conn.execute(
-                text("UPDATE `room` SET joined_user_count=:joined_user_count WHERE room_id=:room_id"),
-                {"joined_user_count": cnt+1, "room_id": room_id},
+                text(
+                    "UPDATE `room` SET joined_user_count=:joined_user_count WHERE room_id=:room_id"
+                ),
+                {"joined_user_count": cnt + 1, "room_id": room_id},
             )
             if cnt == max_user_count - 1:
                 conn.execute(
@@ -221,9 +224,7 @@ def join_room(
 def wait_room(room_id: int, user: SafeUser) -> dict:
     with engine.begin() as conn:
         result = conn.execute(
-            text(
-                "SELECT `join_status` FROM `room` WHERE `room_id`=:room_id"
-            ),
+            text("SELECT `join_status` FROM `room` WHERE `room_id`=:room_id"),
             {"room_id": room_id},
         )
         result2 = conn.execute(
@@ -302,9 +303,7 @@ def end_room(
 def result_room(room_id: int) -> list[ResultUser]:
     with engine.begin() as conn:
         result = conn.execute(
-            text(
-                "SELECT `joined_user_count` FROM `room` WHERE `room_id`=:room_id"
-            ),
+            text("SELECT `joined_user_count` FROM `room` WHERE `room_id`=:room_id"),
             {"room_id": room_id},
         )
         result2 = conn.execute(
@@ -353,10 +352,14 @@ def leave_room(room_id: int, user: SafeUser) -> None:
         )
         if cnt == 1:
             conn.execute(
-                text("DELETE FROM `room` WHERE `room_id`=:room_id"), {"room_id": room_id},)
+                text("DELETE FROM `room` WHERE `room_id`=:room_id"),
+                {"room_id": room_id},
+            )
         else:
             conn.execute(
-                text("UPDATE `room` SET joined_user_count=:joined_user_count WHERE room_id=:room_id"),
-                {"joined_user_count": cnt-1, "room_id": room_id},
+                text(
+                    "UPDATE `room` SET joined_user_count=:joined_user_count WHERE room_id=:room_id"
+                ),
+                {"joined_user_count": cnt - 1, "room_id": room_id},
             )
         conn.execute(text("COMMIT"))

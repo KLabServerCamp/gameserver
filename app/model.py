@@ -280,7 +280,7 @@ def _wait_room(conn, room_id: int, token: str) -> int:
             "room_id": room_id
         },
     )
-    room_user_list=result2.all()
+    room_user_list = result2.all()
     print("結果2", room_user_list[0:joined_user_count])
     return [status, room_user_list[0:joined_user_count]]
 
@@ -370,6 +370,19 @@ def result_room(room_id: int):
 def _leave_room(conn, room_id: int, token: str):
     result = _get_user_by_token(conn, token)
     my_user_id = result.id
+    result2 = conn.execute(
+        text(
+            "SELECT host_user_id"
+            + " FROM `room` WHERE `id` = :room_id"
+        ),
+        {"room_id": room_id},
+    )
+    try:
+        elements = result2.one()
+        host_user_id = elements.host_user_id
+    except Exception as e:
+        print("エラー文", e)
+        return
     _ = conn.execute(
         text(
             "DELETE FROM room_member"
@@ -381,30 +394,44 @@ def _leave_room(conn, room_id: int, token: str):
             "user_id": my_user_id
         },
     )
-    result2 = conn.execute(
-        text(
-            "SELECT joined_user_count"
-            + " FROM `room` WHERE `id` = :room_id"
-        ),
-        {"room_id": room_id},
-    )
-    try:
-        elements = result2.one()
-        joined_user_count = elements.joined_user_count
-    except Exception as e:
-        print("エラー文", e)
-        return
     _ = conn.execute(
         text(
             "UPDATE `room`"
-            + " SET `joined_user_count`= :joined_user_count,"
+            + " SET `joined_user_count`= :joined_user_count-1,"
             + " WHERE `room_id` = :room_id"
         ),
         {
-            "joined_user_count": joined_user_count-1,
             "room_id": room_id
         },
     )
+    if my_user_id == host_user_id:
+        # TODO ホスト移行処理
+        print("ホスト移行したい")
+        result3 = conn.execute(
+            text(
+                "SELECT user_id"
+                + " FROM `room_member` WHERE `room_id` = :room_id"
+            ),
+            {"room_id": room_id},
+        )
+        try:
+            _post_host_user_id = result3.one()
+            post_host_user_id = _post_host_user_id.user_id
+        except Exception as e:
+            # 1人の部屋から抜けるとこちらに入るはず
+            print("エラー文", e)
+            return
+        _ = conn.execute(
+            text(
+                "UPDATE `room`"
+                + " SET `host_user_id`= :post_host_user_id,"
+                + " WHERE `room_id` = :room_id"
+            ),
+            {
+                "post_host_user_id": post_host_user_id,
+                "room_id": room_id
+            },
+        )
     return
 
 

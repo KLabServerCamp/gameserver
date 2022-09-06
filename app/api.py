@@ -204,7 +204,6 @@ def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
                 is_host=row.is_host
             )
         )
-    print(output)
     return RoomWaitResponse(status=result[0], room_user_list=output)
 
 
@@ -244,6 +243,28 @@ class RoomResultRequest(BaseModel):
 
 class RoomResultResponse(BaseModel):
     result_user_list: list[ResultUser]
+
+
+@app.post("/room/result", response_model=RoomResultResponse)
+def room_result(req: RoomResultRequest):
+    result = model.result_room(req.room_id)
+    output = []
+    for row in result:
+        output.append(
+            dict(
+                user_id=row.user_id,
+                judge_count_list=[
+                    row.judge_perfect,
+                    row.judge_great,
+                    row.judge_good,
+                    row.judge_bad,
+                    row.judge_miss,
+                ],
+                score=row.score
+            )
+        )
+    print("出力：", output)
+    return RoomResultResponse(result_user_list=output)
 
 
 class RoomLeaveRequest(BaseModel):

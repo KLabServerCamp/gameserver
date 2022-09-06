@@ -212,13 +212,16 @@ def _join_room(
     _ = conn.execute(
         text(
             "INSERT INTO `room_member` (room_id, user_id, score,"
-            + "judge, select_difficulty)"
+            + "judge_perfect, judge_great, judge_good, judge_bad,"
+            + " judge_miss, select_difficulty)"
             + " VALUES (:room_id, :user_id, :score,"
-            + " :judge, :select_difficulty)"
+            + " :judge_perfect, :judge_great, :judge_good,"
+            + " :judge_bad, :judge_miss, :select_difficulty)"
         ),
         {
             "room_id": room_id, "user_id": user_id,
-            "score": 0, "judge": 0,
+            "score": 0, "judge_perfect": 0, "judge_great": 0,
+            "judge_good": 0, "judge_bad": 0, "judge_miss": 0,
             "select_difficulty": select_difficulty.value
         },
     )
@@ -301,12 +304,21 @@ def start_room(room_id: int):
 def _end_room(conn, room_id: int, judge_count_list: list[int], score: int):
     _ = conn.execute(
         text(
-            "UPDATE `room_member` SET `judge`= :judge_count_list,"
+            "UPDATE `room_member`"
+            + " SET `judge_perfect`= :judge_perfect,"
+            + " `judge_great`= :judge_great,"
+            + " `judge_good`= :judge_good,"
+            + " `judge_bad`= :judge_bad,"
+            + " `judge_miss`= :judge_miss,"
             + " `score`= :score"
             + " WHERE `room_id` = :room_id"
         ),
         {
-            "judge_count_list": judge_count_list,
+            "judge_perfect": judge_count_list[0],
+            "judge_great": judge_count_list[1],
+            "judge_good": judge_count_list[2],
+            "judge_bad": judge_count_list[3],
+            "judge_miss": judge_count_list[4],
             "score": score,
             "room_id": room_id
         },
@@ -317,3 +329,22 @@ def _end_room(conn, room_id: int, judge_count_list: list[int], score: int):
 def end_room(room_id: int, judge_count_list: list[int], score: int):
     with engine.begin() as conn:
         return _end_room(conn, room_id, judge_count_list, score)
+
+
+def _result_room(conn, room_id: int):
+    result = conn.execute(
+        text(
+            "SELECT user_id, judge_perfect, judge_great, judge_good,"
+            + " judge_bad, judge_miss, score FROM room_member"
+            + " WHERE `room_id` = :room_id"
+        ),
+        {
+            "room_id": room_id
+        },
+    )
+    return result.all()
+
+
+def result_room(room_id: int):
+    with engine.begin() as conn:
+        return _result_room(conn, room_id)

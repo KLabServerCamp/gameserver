@@ -57,6 +57,7 @@ class ResultUser(BaseModel):
     judge_count_list: list[int]
     score: int
 
+
 class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げる"""
 
@@ -72,7 +73,7 @@ class SafeUser(BaseModel):
         orm_mode = True
 
 
-#部屋の最大人数
+# 部屋の最大人数
 MAX_USER_COUNT = 4
 
 
@@ -120,28 +121,33 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
 
-def create_room(live_id: int, user_data: SafeUser, select_difficulty: LiveDifficulty) -> int:
+
+def create_room(
+    live_id: int, user_data: SafeUser, select_difficulty: LiveDifficulty
+) -> int:
     with engine.begin() as conn:  # トランザクション開始！
-        #roomデータ追加
+        # roomデータ追加
         result = conn.execute(
             text(
                 "INSERT INTO `room` (live_id, owner, status, joined_user_count) VALUES (:live_id, :owner, :status, 1)"
             ),
-            {"live_id": live_id, "owner": user_data.id, "status": WaitRoomStatus.Waiting},
+            {
+                "live_id": live_id,
+                "owner": user_data.id,
+                "status": WaitRoomStatus.Waiting,
+            },
         )
 
-        #room_id取得
+        # room_id取得
         result2 = conn.execute(
-            text(
-                "SELECT `room_id` FROM room WHERE `owner`=user_data.id"
-            ),
+            text("SELECT `room_id` FROM room WHERE `owner`=user_data.id"),
         )
         try:
             room_id = result.one().room_id
         except NoResultFound:
             return None
 
-        #room_memberデータ追加
+        # room_memberデータ追加
         result3 = conn.execute(
             text(
                 "INSERT INTO `room_member` (room_id, user_id, name, leader_card_id, select_difficulty, is_host) \
@@ -153,8 +159,8 @@ def create_room(live_id: int, user_data: SafeUser, select_difficulty: LiveDiffic
                 "name": user_data.name,
                 "leader_card_id": user_data.leader_card_id,
                 "select_difficulty": select_difficulty,
-                "is_host": True
-                },
+                "is_host": True,
+            },
         )
 
     return room_id
@@ -165,16 +171,14 @@ def get_room_list(live_id: int) -> list[RoomInfo]:
     room_list = None
     with engine.begin() as conn:
         if live_id == 0:
-            #live_idが0の場合は、どの曲の部屋も取得対象とする
+            # live_idが0の場合は、どの曲の部屋も取得対象とする
             result = conn.execute(
                 text(
                     "SELECT `room_id`, `live_id`, `joined_user_count` \
                     FROM room \
                     WHERE joined_user_count<:max_user_count"
                 ),
-                {
-                    "max_user_count": MAX_USER_COUNT
-                },
+                {"max_user_count": MAX_USER_COUNT},
             )
         else:
             result = conn.execute(
@@ -183,59 +187,53 @@ def get_room_list(live_id: int) -> list[RoomInfo]:
                     FROM room \
                     WHERE joined_user_count<:max_user_count AND live_id=:live_id"
                 ),
-                {
-                    "max_user_count": MAX_USER_COUNT,
-                    "live_id": live_id
-                },
+                {"max_user_count": MAX_USER_COUNT, "live_id": live_id},
             )
-        
+
         room_list = [
             RoomInfo(
                 room_id=row.room_id,
-                live_id=row.live_id, 
+                live_id=row.live_id,
                 joined_user_count=row.joined_user_count,
                 max_user_count=MAX_USER_COUNT,
             )
             for row in result.all()
-            ]
+        ]
     return room_list
 
 
-def join_room(room_id: int, user_data: SafeUser, select_difficulty: LiveDifficulty) -> JoinRoomResult:
+def join_room(
+    room_id: int, user_data: SafeUser, select_difficulty: LiveDifficulty
+) -> JoinRoomResult:
     with engine.begin() as conn:
         result = conn.execute(
-                    text(
-                        "SELECT `joined_user_count` FROM room \
+            text(
+                "SELECT `joined_user_count` FROM room \
                         WHERE room_id=:room_id"
-                    ),
-                    {
-                        "room_id": room_id
-                    },
-                )
+            ),
+            {"room_id": room_id},
+        )
 
-        #解散済みであった場合の処理
+        # 解散済みであった場合の処理
         try:
             joined_user_count = result.one().joined_user_count
         except NoResultFound:
             return JoinRoomResult.Disbanded
-        
-        #満員であった場合の処理
+
+        # 満員であった場合の処理
         if joined_user_count >= 4:
             return JoinRoomResult.RoomFull
 
-        #入場処理
+        # 入場処理
         result2 = conn.execute(
-                    text(
-                        "UPDATE `room` \
+            text(
+                "UPDATE `room` \
                         SET joined_user_count=:joined_user_count \
                         WHERE room_id=:room_id"
-                    ),
-                    {
-                        "joined_user_count": joined_user_count + 1,
-                        "room_id": room_id
-                    },
-                )
-        
+            ),
+            {"joined_user_count": joined_user_count + 1, "room_id": room_id},
+        )
+
         result3 = conn.execute(
             text(
                 "INSERT INTO `room_member` (room_id, user_id, name, leader_card_id, select_difficulty, is_host) \
@@ -247,38 +245,36 @@ def join_room(room_id: int, user_data: SafeUser, select_difficulty: LiveDifficul
                 "name": user_data.name,
                 "leader_card_id": user_data.leader_card_id,
                 "select_difficulty": select_difficulty,
-                "is_host": False
-                },
+                "is_host": False,
+            },
         )
     return JoinRoomResult.Ok
 
 
-def get_wait_room_status(room_id: int, request_user_id: int) -> Tuple[WaitRoomStatus, list[RoomUser]]:
+def get_wait_room_status(
+    room_id: int, request_user_id: int
+) -> Tuple[WaitRoomStatus, list[RoomUser]]:
     with engine.begin() as conn:
         result = conn.execute(
-                    text(
-                        "SELECT `status` FROM room \
+            text(
+                "SELECT `status` FROM room \
                         WHERE room_id=:room_id"
-                    ),
-                    {
-                        "room_id": room_id
-                    },
-                )
+            ),
+            {"room_id": room_id},
+        )
         try:
             status = result.one().status
         except NoResultFound:
             return WaitRoomStatus.Dissolution, []
 
         result2 = conn.execute(
-                    text(
-                        "SELECT `user_id`, `name`, `leader_card_id`, `select_difficulty`, `is_host`, \
+            text(
+                "SELECT `user_id`, `name`, `leader_card_id`, `select_difficulty`, `is_host`, \
                          FROM room \
                         WHERE room_id=:room_id"
-                    ),
-                    {
-                        "room_id": room_id
-                    },
-                )
+            ),
+            {"room_id": room_id},
+        )
         room_user_list = [
             RoomUser(
                 user_id=row.user_id,
@@ -286,8 +282,21 @@ def get_wait_room_status(room_id: int, request_user_id: int) -> Tuple[WaitRoomSt
                 leader_card_id=row.leader_card_id,
                 select_difficulty=row.select_difficulty,
                 is_me=(row.user_id == request_user_id),
-                is_host=row.is_host
+                is_host=row.is_host,
             )
             for row in result.all()
-            ]
+        ]
     return status, room_user_list
+
+
+def room_start_(room_id: int) -> None:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "UPDATE `room` \
+                SET status=:status \
+                WHERE room_id=:room_id"
+            ),
+            {"status": WaitRoomStatus.LiveStart, "room_id": room_id},
+        )
+    return

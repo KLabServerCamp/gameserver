@@ -164,3 +164,10 @@ def room_wait(req: RoomWaitRequest):
     user_data = user_me()
     status, room_user_list = model.get_wait_room_status(req.room_id, user_data.id)
     return RoomWaitResponse(status=status, room_user_list=room_user_list)
+
+
+#ルームのライブ開始
+@app.post("room/start", response_model=RoomStartResponse)
+def room_start(req: RoomStartRequest):
+    model.room_start_(req.room_id)
+    return RoomStartRequest()

@@ -483,3 +483,15 @@ def leave_room(room_id: int, user_id: int) -> None:
             ),
             dict(room_id=room_id, user_id=user_id),
         )
+
+
+def delete_room(room_id: int) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text("DELETE FROM room WHERE room_id = :room_id"),
+            dict(room_id=room_id),
+        )
+        conn.execute(
+            text("DELETE FROM room_member WHERE room_id = :room_id"),
+            dict(room_id=room_id),
+        )

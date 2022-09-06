@@ -291,4 +291,11 @@ def leave_room(req: RoomLeaveRequest, token: str = Depends(get_auth_token)) -> E
         raise InvalidToken()
 
     model.leave_room(req.room_id, me.id)
+
+    # もしそのユーザが最後のユーザだったらルームを削除する
+    users = model.get_room_user_list(req.room_id, me.id)
+
+    if len(users) == 0:
+        model.delete_room(req.room_id)
+
     return Empty()

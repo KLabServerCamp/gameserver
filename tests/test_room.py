@@ -26,6 +26,8 @@ def _auth_header(i=0):
 
 
 def test_room_1():
+
+    # === Create Room =========================================================
     response = client.post(
         "/room/create",
         headers=_auth_header(),
@@ -36,22 +38,35 @@ def test_room_1():
     room_id = response.json()["room_id"]
     print(f"room/create {room_id=}")
 
+    # === List up all rooms ===================================================
     response = client.post("/room/list", json={"live_id": 1001})
     assert response.status_code == 200
     print("room/list response:", response.json())
 
+    # === Join Room ===========================================================
+    response = client.post(
+        "/room/join",
+        headers=_auth_header(i=1),
+        json={"room_id": room_id, "select_difficulty": 2},
+    )
+    assert response.status_code == 200
+    print("room/join response:", response.json())
+
+    # === Wait room ===========================================================
     response = client.post(
         "/room/wait", headers=_auth_header(), json={"room_id": room_id}
     )
     assert response.status_code == 200
     print("room/wait response:", response.json())
 
+    # === Start Game ==========================================================
     response = client.post(
         "/room/start", headers=_auth_header(), json={"room_id": room_id}
     )
     assert response.status_code == 200
     print("room/wait response:", response.json())
 
+    # === End Game ============================================================
     response = client.post(
         "/room/end",
         headers=_auth_header(),
@@ -64,6 +79,7 @@ def test_room_1():
     assert response.status_code == 200
     print("room/end response:", response.json())
 
+    # === Result ==============================================================
     response = client.post(
         "/room/result",
         json={"room_id": room_id},
@@ -71,6 +87,7 @@ def test_room_1():
     assert response.status_code == 200
     print("room/end response:", response.json())
 
+    # === Leave Room ==========================================================
     response = client.post(
         "/room/leave",
         headers=_auth_header(),

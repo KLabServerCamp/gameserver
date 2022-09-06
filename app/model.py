@@ -208,7 +208,6 @@ def room_join(token: str, room_id: int, live_dif: LiveDifficulty) -> JoinRoomRes
         if user is None:
             raise InvalidToken("指定されたtokenが不正です")
         ret = _room_join(conn, user, room_id, live_dif)
-        conn.execute(text("COMMIT"))
         return ret
 
 
@@ -301,7 +300,6 @@ def room_end(token: str, room_id: int, judge_count_list: list[int], score: int) 
         if user is None:
             raise InvalidToken("指定されたtokenが不正です")
         _room_end(conn, user, room_id, judge_count_list, score)
-        conn.execute(text("COMMIT"))
         return
 
 
@@ -392,5 +390,4 @@ def room_leave(token: str, room_id: int) -> None:
         if user is None:
             raise InvalidToken("指定されたtokenが不正です")
         _room_leave(conn, user, room_id)
-        conn.execute(text("COMMIT"))
         return

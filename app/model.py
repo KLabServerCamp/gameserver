@@ -315,19 +315,19 @@ def result_room(room_id: int) -> list[ResultUser]:
         try:
             joined_user_count = result.one()[0]
             rows = result2.all()
-            cnt = len(rows)
         except NoResultFound:
             return None
         result_user_list = []
         for row in rows:
-            result_user_list.append(
-                ResultUser(
-                    user_id=row[0],
-                    judge_count_list=[row[i] for i in range(1, 6)],
-                    score=row[6],
+            if row[6] != None:
+                result_user_list.append(
+                    ResultUser(
+                        user_id=row[0],
+                        judge_count_list=[row[i] for i in range(1, 6)],
+                        score=row[6],
+                    )
                 )
-            )
-    if cnt == joined_user_count:
+    if len(result_user_list) == joined_user_count:
         return result_user_list
     else:
         return []

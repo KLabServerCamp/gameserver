@@ -38,14 +38,14 @@ def create_user(name: str, leader_card_id: int) -> str:
     token = str(uuid.uuid4())
     # NOTE: tokenが衝突したらリトライする必要がある.
     with engine.begin() as conn:
-        result = conn.execute(
+        _ = conn.execute(
             text(
                 "INSERT INTO `user` (name, token, leader_card_id)"
                 + " VALUES (:name, :token, :leader_card_id)"
             ),
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
-        print("lastrowid: ", result.lastrowid)
+        # print("lastrowid: ", result.lastrowid)
         # print(result)
     return token
 
@@ -100,15 +100,16 @@ def _update_user_by_token(
 ) -> Optional[SafeUser]:
     """update user data"""
     # TODO: 実装
-    result = conn.execute(
+    _ = conn.execute(
         text(
-            "UPDATE `user` SET `name`= :name,"
+            "UPDATE `user` SET"
+            + " `name`= :name,"
             + "`leader_card_id`= :leader_card_id"
             + " WHERE `token` = :token"
         ),
         {"name": name, "leader_card_id": leader_card_id, "token": token},
     )
-    print(result)
+    # print(result)
     return
 
 
@@ -126,8 +127,9 @@ def _create_room(
     result2 = conn.execute(
         text(
             "INSERT INTO `room`"
-            + " (live_id, host_user_id, status, joined_user_count,"
-            + " max_user_count) VALUES (:live_id, :host_user_id, :status,"
+            + " (live_id, host_user_id, status,"
+            + " joined_user_count, max_user_count)"
+            + " VALUES (:live_id, :host_user_id, :status,"
             + " :joined_user_count, :max_user_count)"
         ),
         {
@@ -153,8 +155,9 @@ def _list_room(
 ) -> dict:
     result = conn.execute(
         text(
-            "SELECT id, live_id, host_user_id, joined_user_count,"
-            + " max_user_count FROM `room`"
+            "SELECT id, live_id, host_user_id,"
+            + " joined_user_count, max_user_count"
+            + " FROM `room`"
             + " WHERE live_id = :live_id"
             + " AND joined_user_count < max_user_count"
             + " AND status = 1"
@@ -177,7 +180,6 @@ def _list_room(
 
 
 def list_room(token: str, live_id: int) -> dict:
-    """Create new room and returns its id"""
     with engine.begin() as conn:
         return _list_room(conn, token, live_id)
 
@@ -191,14 +193,14 @@ def _join_room(
     # そもそもその部屋あるのか
     result2 = conn.execute(
         text(
-            "SELECT joined_user_count, max_user_count, status FROM `room`"
-            + " WHERE `id` = :room_id"
+            "SELECT joined_user_count, max_user_count, status"
+            + " FROM `room` WHERE `id` = :room_id"
         ),
         {"room_id": room_id},
     )
     try:
         elements = result2.one()
-        print(elements)
+        # print(elements)
         status = elements.status
         joined_user_count = elements.joined_user_count
         max_user_count = elements.max_user_count
@@ -212,22 +214,23 @@ def _join_room(
     _ = conn.execute(
         text(
             "INSERT INTO `room_member` (room_id, user_id, score,"
-            + "judge_perfect, judge_great, judge_good, judge_bad,"
-            + " judge_miss, select_difficulty)"
+            + "judge_perfect, judge_great, judge_good,"
+            + " judge_bad, judge_miss, select_difficulty)"
             + " VALUES (:room_id, :user_id, :score,"
             + " :judge_perfect, :judge_great, :judge_good,"
             + " :judge_bad, :judge_miss, :select_difficulty)"
         ),
         {
-            "room_id": room_id, "user_id": user_id,
-            "score": 0, "judge_perfect": 0, "judge_great": 0,
-            "judge_good": 0, "judge_bad": 0, "judge_miss": 0,
+            "room_id": room_id, "user_id": user_id, "score": 0,
+            "judge_perfect": 0, "judge_great": 0, "judge_good": 0,
+            "judge_bad": 0, "judge_miss": 0,
             "select_difficulty": select_difficulty.value
         },
     )
     _ = conn.execute(
         text(
-            "UPDATE `room` SET `joined_user_count`= :joined_user_count"
+            "UPDATE `room` SET"
+            + " `joined_user_count`= :joined_user_count"
             + " WHERE `id` = :room_id"
         ),
         {"room_id": room_id, "joined_user_count": joined_user_count+1},
@@ -264,8 +267,8 @@ def _wait_room(conn, room_id: int, token: str) -> int:
             + " CASE WHEN user_id = :my_user_id THEN 1 ELSE 0 END AS is_me,"
             + " CASE WHEN user_id = :host_user_id THEN 1 ELSE 0 END AS is_host"
             + " FROM"
-            + " (SELECT id, name, leader_card_id"
-            + " FROM user) AS _user LEFT OUTER JOIN"
+            + " (SELECT id, name, leader_card_id FROM user) AS _user"
+            + " LEFT OUTER JOIN"
             + " (SELECT user_id, select_difficulty FROM room_member"
             + " WHERE room_id = :room_id) AS _room_member"
             + " ON _user.id = _room_member.user_id"
@@ -276,7 +279,7 @@ def _wait_room(conn, room_id: int, token: str) -> int:
             "room_id": room_id
         },
     )
-    print(result2)
+    # print(result2)
     return [status, result2.all()]
 
 
@@ -335,8 +338,8 @@ def _result_room(conn, room_id: int):
     result = conn.execute(
         text(
             "SELECT user_id, judge_perfect, judge_great, judge_good,"
-            + " judge_bad, judge_miss, score FROM room_member"
-            + " WHERE `room_id` = :room_id"
+            + " judge_bad, judge_miss, score"
+            + " FROM room_member WHERE `room_id` = :room_id"
         ),
         {
             "room_id": room_id

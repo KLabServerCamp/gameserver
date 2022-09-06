@@ -263,7 +263,7 @@ def room_result(req: RoomResultRequest):
                 score=row.score
             )
         )
-    print("出力：", output)
+    # print("出力：", output)
     return RoomResultResponse(result_user_list=output)
 
 

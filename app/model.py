@@ -60,6 +60,19 @@ def get_user_by_token(token: str) -> Optional[SafeUser]:
     with engine.begin() as conn:
         return _get_user_by_token(conn, token)
 
+def get_user_by_id(user_id: int) -> Optional[SafeUser]:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("SELECT `id`, `name`, `leader_card_id` FROM `user` WHERE `id`=:id"),
+            dict(id=user_id),
+        )
+
+    try:
+        row = result.one()
+    except NoResultFound:
+        return None
+
+    return SafeUser.from_orm(row)
 
 def _update_user(conn, token: str, name: str, leader_card_id: int) -> None:
     result = conn.execute(
@@ -302,12 +315,13 @@ def get_room_wait(room_id: int):
             ),
             {"room_id": room_id}
         )
-    if len(result) == 0:
-        return None
-    assert len(result) == 1
 
-    res = result[0]
-    return res["wait_room_status"], get_room_user_list(room_id)
+    try:
+        row = result.one()
+    except NoResultFound as e:
+        return  None
+
+    return row["wait_room_status"], get_room_user_list(room_id)
     # return RoomWaitResponse(
     #     wait_room_status=res["wait_room_status"],
     #     room_member_list = get_room_user_list(room_id)

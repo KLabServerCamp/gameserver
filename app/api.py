@@ -166,7 +166,7 @@ def room_result(req: RoomID):
 
 # leave
 @app.post("/room/leave", response_model=Empty)
-def leave_room(req: RoomID):
+def leave_room(req: RoomID, token: str = Depends(get_auth_token)):
     user_id = user_me(token)
     model.leave_room(req.room_id, user_id)
     return {}

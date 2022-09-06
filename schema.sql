@@ -31,7 +31,7 @@ CREATE TABLE `room_member` (
 );
 
 -- testデータ
-INSERT INTO `user` SET `name`='a', `token`='2f4f9beb-1d8b', `leader_card_id`=4;
-INSERT INTO `room` SET `live_id`=1001, `joined_user_count`=1, `max_user_count`=4;
-INSERT INTO `room` SET `live_id`=1002, `joined_user_count`=0, `max_user_count`=4; 
-INSERT INTO `room_member` SET `room_id`=1, `user_id`=1, `select_difficulty`=1,`is_host`=1
+-- INSERT INTO `user` SET `name`='a', `token`='2f4f9beb-1d8b', `leader_card_id`=4;
+-- INSERT INTO `room` SET `live_id`=1001, `joined_user_count`=1, `max_user_count`=4;
+-- INSERT INTO `room` SET `live_id`=1002, `joined_user_count`=0, `max_user_count`=4; 
+-- INSERT INTO `room_member` SET `room_id`=1, `user_id`=1, `select_difficulty`=1,`is_host`=1

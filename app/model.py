@@ -279,7 +279,24 @@ def create_room(live_id: int, select_difficulty: int, user_id: int) -> int:
     return room_id
 
 
-def get_rooms_by_live_id(live_id: int) -> list[RoomInfo]:
+def _get_room_status(room_id: int) -> WaitRoomStatus:
+    """Get Room status which corresponds WaitRoomStatus"""
+    with engine.begin() as conn:
+        status = conn.execute(
+            text(
+                "SELECT"
+                "  status "
+                "FROM"
+                "  room "
+                "WHERE"
+                "  room_id = :room_id"
+            ),
+            {"room_id": room_id},
+        )
+    return WaitRoomStatus(status.scalar_one())
+
+
+def get_available_rooms_by_live_id(live_id: int) -> list[RoomInfo]:
     with engine.begin() as conn:
         result = conn.execute(
             text(
@@ -288,8 +305,10 @@ def get_rooms_by_live_id(live_id: int) -> list[RoomInfo]:
                 "FROM"
                 "  room "
                 "WHERE"
-                "  live_id = :live_id"
-            ), {"live_id": live_id}
+                "  live_id = :live_id "
+                "AND joined_user_count < 4 "
+                "AND status = :status"
+            ), {"live_id": live_id, "status": int(WaitRoomStatus.Waiting)}
         )
     rooms = []
     for row in result:
@@ -299,8 +318,12 @@ def get_rooms_by_live_id(live_id: int) -> list[RoomInfo]:
 
 def join_room(room_id: int, select_difficulty: int, user_id: int) -> JoinRoomResult:
     with engine.begin() as conn:
-        # update joined user count if it is less than 4.
-        # TODO: identify if room is full or disbanded.
+        # identify if room is or disbanded.
+        status = _get_room_status(room_id)
+        if status != WaitRoomStatus.Waiting:
+            return JoinRoomResult.OtherError
+
+        # update joined user count if room is not full.
         try:
             conn.execute(
                 text(
@@ -345,18 +368,10 @@ def join_room(room_id: int, select_difficulty: int, user_id: int) -> JoinRoomRes
 
 def wait_room(room_id: int, user_id: int) -> tuple[WaitRoomStatus, list[RoomUser]]:
     with engine.begin() as conn:
-        rooms = conn.execute(
-            text(
-                "SELECT"
-                "  status "
-                "FROM"
-                "  room "
-                "WHERE"
-                "  room_id = :room_id"
-            ),
-            {"room_id": room_id},
-        )
-        status = rooms.scalar_one()
+        # get room status
+        status = _get_room_status(room_id)
+
+        # get users in the room
         user_rows = conn.execute(
             text(
                 "SELECT"
@@ -387,7 +402,7 @@ def wait_room(room_id: int, user_id: int) -> tuple[WaitRoomStatus, list[RoomUser
                 is_host=row[4],
             )
         )
-    return (WaitRoomStatus(status), users)
+    return (status, users)
 
 
 def start_room(room_id: int) -> None:
@@ -409,18 +424,6 @@ def end_room(
     room_id: int, judge_count_list: list[int], score: int, user_id: int
 ) -> None:
     with engine.begin() as conn:
-        # change room status
-        conn.execute(
-            text(
-                "UPDATE"
-                "  room "
-                "SET"
-                "  status = :status "
-                "WHERE"
-                "  room_id = :room_id"
-            ),
-            {"status": int(WaitRoomStatus.Dissolution), "room_id": room_id},
-        )
         # store room_member's score
         conn.execute(
             text(
@@ -490,6 +493,7 @@ def all_user_results(room_id: int) -> list[ResultUser]:
 
 def leave_room(room_id: int, user_id: int) -> None:
     with engine.begin() as conn:
+        # reduce joined user count
         conn.execute(
             text(
                 "UPDATE"
@@ -500,11 +504,42 @@ def leave_room(room_id: int, user_id: int) -> None:
                 "  END "
                 "WHERE"
                 "  room_id = :room_id;"
-                "DELETE"
+            ),
+            {"room_id": room_id},
+        )
+        # change room status if host leaves
+        res = conn.execute(
+            text(
+                "SELECT"
+                "  is_host "
+                "FROM"
+                "  room_member "
+                "WHERE"
+                "  user_id = :user_id "
+                "AND room_id = :room_id"
+            ),
+            {"user_id": user_id, "room_id": room_id},
+        )
+        if res.scalar_one():
+            conn.execute(
+                text(
+                    "UPDATE"
+                    "  room "
+                    "SET"
+                    "  status = :status "
+                    "WHERE"
+                    "  room_id = :room_id"
+                ),
+                {"room_id": room_id, "status": int(WaitRoomStatus.Dissolution)},
+            )
+        # delete record from room_member
+        conn.execute(
+            text(
+                "DELETE "
                 "FROM"
                 "  room_member "
                 "WHERE"
                 "  user_id = :user_id"
             ),
-            {"room_id": room_id, "user_id": user_id},
+            {"user_id": user_id},
         )

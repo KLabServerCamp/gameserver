@@ -391,7 +391,7 @@ def start_room(token: str, room_id: int) -> None:
                     query_str: str = "\
                         UPDATE `room` SET \
                             `status` = :status, \
-                            `initial_member` = :count \
+                            `live_member` = :count \
                         WHERE `id`=:room_id \
                     "
 
@@ -468,7 +468,7 @@ def get_room_result(room_id: int) -> list[ResultUser]:
                     `created_at`, \
                     CURRENT_TIMESTAMP \
                 ) AS timespan, \
-                `initial_member` \
+                `live_member` \
             FROM `room` \
             WHERE `id` = :room_id \
         "
@@ -479,7 +479,7 @@ def get_room_result(room_id: int) -> list[ResultUser]:
         logger.debug(creation_data)
 
         is_timeout = 60 * config.RESULT_TIMEOUT_MIN < creation_data["timespan"]
-        if not is_timeout and (len(ret) < creation_data["initial_member"]):
+        if not is_timeout and (len(ret) < creation_data["live_member"]):
             logging.debug(result)
             return list[ResultUser]()
         _set_room_status(conn, room_id, WaitRoomStatus.DISSOLUTION)

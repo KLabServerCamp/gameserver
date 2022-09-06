@@ -151,19 +151,32 @@ def create_room(
 
 
 def _list_room(
-    conn, token: str, live_id: str
+    conn, token: str, live_id: int
 ) -> dict:
-    result = conn.execute(
-        text(
-            "SELECT id, live_id, host_user_id,"
-            + " joined_user_count, max_user_count"
-            + " FROM `room`"
-            + " WHERE live_id = :live_id"
-            + " AND joined_user_count < max_user_count"
-            + " AND status = 1"
-        ),
-        {"live_id": live_id},
-    )
+    if live_id != 0:
+        result = conn.execute(
+            text(
+                "SELECT id, live_id, host_user_id,"
+                + " joined_user_count, max_user_count"
+                + " FROM `room`"
+                + " WHERE live_id = :live_id"
+                + " AND joined_user_count < max_user_count"
+                + " AND status = 1"
+            ),
+            {"live_id": live_id},
+        )
+    else:
+        # live_id == 0 はワイルドカード
+        result = conn.execute(
+            text(
+                "SELECT id, live_id, host_user_id,"
+                + " joined_user_count, max_user_count"
+                + " FROM `room`"
+                + " WHERE joined_user_count < max_user_count"
+                + " AND status = 1"
+            ),
+            {"live_id": live_id},
+        )
     output = []
     for row in result:
         output.append(
@@ -258,7 +271,7 @@ def _wait_room(conn, room_id: int, token: str) -> int:
     host_user_id = element.host_user_id
     status = element.status
     joined_user_count = element.joined_user_count
-
+    print("参加者人数",joined_user_count)
     result = _get_user_by_token(conn, token)
     my_user_id = result.id
 

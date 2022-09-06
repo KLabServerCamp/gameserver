@@ -80,8 +80,8 @@ class RoomCreateRequest(BaseModel):
 
 @app.post("/room/create", response_model=RoomID)
 def create_room(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
-    user_id = user_me(token)
-    room_id = model.create_room(req.live_id, req.select_difficulty, user_id)
+    user_id = user_me(token).id
+    room_id = model.create_room(req.live_id, int(req.select_difficulty), user_id)
     return RoomID(room_id=room_id)
 
 
@@ -112,8 +112,8 @@ class RoomJoinResponse(BaseModel):
 
 @app.post("/room/join", response_model=RoomJoinResponse)
 def join_room(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
-    user_id = user_me(token)
-    room_result = model.join_room(req.room_id, req.select_difficulty, user_id)
+    user_id = user_me(token).id
+    room_result = model.join_room(req.room_id, int(req.select_difficulty), user_id)
     return RoomJoinResponse(join_room_result=room_result)
 
 
@@ -125,7 +125,7 @@ class RoomWaitResponse(BaseModel):
 
 @app.post("/room/wait", response_model=RoomWaitResponse)
 def wait_room(req: RoomID, token: str = Depends(get_auth_token)):
-    user_id = user_me(token)
+    user_id = user_me(token).id
     status, room_user_list = model.wait_room(req.room_id, user_id)
     return RoomWaitResponse(status=status, room_user_list=room_user_list)
 
@@ -144,11 +144,9 @@ class RoomEndRequest(BaseModel):
     score: int  # スコア
 
 
-app.post("/room/end", response_model=Empty)
-
-
+@app.post("/room/end", response_model=Empty)
 def end_room(req: RoomEndRequest, token: str = Depends(get_auth_token)):
-    user_id = user_me(token)
+    user_id = user_me(token).id
     model.end_room(req.room_id, req.judge_count_list, req.score, user_id)
     return {}
 
@@ -167,6 +165,6 @@ def room_result(req: RoomID):
 # leave
 @app.post("/room/leave", response_model=Empty)
 def leave_room(req: RoomID, token: str = Depends(get_auth_token)):
-    user_id = user_me(token)
+    user_id = user_me(token).id
     model.leave_room(req.room_id, user_id)
     return {}

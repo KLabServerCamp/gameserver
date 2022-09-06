@@ -238,9 +238,9 @@ class ResultUser(BaseModel):
 # === room sql execution ======================================================
 def create_room(live_id: int, select_difficulty: int, user_id: int) -> int:
     with engine.begin() as conn:
-        # create new room
         res = conn.execute(
             text(
+                # Create Room record
                 "INSERT INTO room("
                 "  live_id,"
                 "  joined_user_count"
@@ -249,13 +249,14 @@ def create_room(live_id: int, select_difficulty: int, user_id: int) -> int:
                 "  :live_id,"
                 "  1"
                 ");"
+                # Extract room_id
                 "SELECT"
                 "  LAST_INSERT_ID()"
             ),
             {"live_id": live_id},
         )
         # created room id
-        room_id = res.lastrawid
+        room_id = res.lastrowid
 
         # create new room_member
         conn.execute(
@@ -400,7 +401,7 @@ def start_room(room_id: int) -> None:
                 "WHERE"
                 "  room_id = :room_id"
             ),
-            {"status": WaitRoomStatus.LiveStart, "room_id": room_id},
+            {"status": int(WaitRoomStatus.LiveStart), "room_id": room_id},
         )
 
 
@@ -418,7 +419,7 @@ def end_room(
                 "WHERE"
                 "  room_id = :room_id"
             ),
-            {"status": WaitRoomStatus.Dissolution, "room_id": room_id},
+            {"status": int(WaitRoomStatus.Dissolution), "room_id": room_id},
         )
         # store room_member's score
         conn.execute(
@@ -429,7 +430,8 @@ def end_room(
                 "  score = :score,"
                 "  judge = :judge "
                 "WHERE"
-                "  room_id = :room_id && user_id = :user_id"
+                "  room_id = :room_id "
+                "AND user_id = :user_id"
             ),
             {
                 "score": score,
@@ -442,11 +444,27 @@ def end_room(
 
 def all_user_results(room_id: int) -> list[ResultUser]:
     with engine.begin() as conn:
+        # if room status is Waiting
+        status = conn.execute(
+            text(
+                "SELECT"
+                "  status "
+                "FROM"
+                "  room "
+                "WHERE"
+                "  room_id = :room_id"
+            ),
+            {"room_id": room_id},
+        )
+        if status.scalar_one() == WaitRoomStatus.Waiting:
+            return []
+
+        # if room status is LiveStart
         res = conn.execute(
             text(
                 "SELECT"
                 "  user_id,"
-                "  judge_count_list,"
+                "  judge,"
                 "  score "
                 "FROM"
                 "  room_member "
@@ -457,9 +475,13 @@ def all_user_results(room_id: int) -> list[ResultUser]:
         )
     results = []
     for row in res:
+        if row[1] is not None:
+            judge = json.loads(row[1])
+        else:
+            continue
         results.append(
             ResultUser(
-                user_id=row[0], judge_count_list=json.loads(row[1]), score=row[2]
+                user_id=row[0], judge_count_list=judge, score=row[2]
             )
         )
 

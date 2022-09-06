@@ -1,72 +1,10 @@
-from fastapi import Depends, FastAPI, HTTPException
-from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from . import model
+from .. import model
+from .user import get_auth_token
 
-app = FastAPI()
-
-# Sample APIs
-
-
-@app.get("/")
-async def root() -> dict[str, str]:
-    return {"message": "Hello World"}
-
-
-# User APIs
-
-
-class UserCreateRequest(BaseModel):
-    user_name: str
-    leader_card_id: int
-
-
-class UserCreateResponse(BaseModel):
-    user_token: str
-
-
-@app.post("/user/create", response_model=UserCreateResponse)
-def user_create(req: UserCreateRequest):
-    """新規ユーザー作成"""
-    token = model.create_user(req.user_name, req.leader_card_id)
-    return UserCreateResponse(user_token=token)
-
-
-bearer = HTTPBearer()
-
-
-def get_auth_token(
-    cred: HTTPAuthorizationCredentials = Depends(bearer),
-) -> str:
-    assert cred is not None
-    if not cred.credentials:
-        raise HTTPException(status_code=401, detail="invalid credential")
-    return cred.credentials
-
-
-@app.get("/user/me", response_model=model.SafeUser)
-def user_me(token: str = Depends(get_auth_token)):
-    user = model.get_user_by_token(token)
-    if user is None:
-        raise HTTPException(status_code=404)
-    # print(f"user_me({token=}, {user=})")
-    return user
-
-
-class Empty(BaseModel):
-    pass
-
-
-@app.post("/user/update", response_model=Empty)
-def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
-    """Update user attributes"""
-    # print(req)
-    model.update_user(token, req.user_name, req.leader_card_id)
-    return dict[str, object]()
-
-
-# Room APIs
+router = APIRouter()
 
 
 class RoomCreateRequest(BaseModel):
@@ -78,8 +16,8 @@ class RoomCreateResponse(BaseModel):
     room_id: int  # 発行されたルームのID（以後の通信はこのiDを添える）
 
 
-@app.post("/room/create", response_model=RoomCreateResponse)
-def room_create(
+@router.post("/create", response_model=RoomCreateResponse)
+def create(
     req: RoomCreateRequest, token: str = Depends(get_auth_token)
 ) -> RoomCreateResponse:
     """ルームを作成する"""
@@ -96,8 +34,8 @@ class RoomListResponse(BaseModel):
     room_info_list: list[model.RoomInfo]  # 入場可能なルームのリスト
 
 
-@app.post("/room/list", response_model=RoomListResponse)
-def room_list(req: RoomListRequest) -> RoomListResponse:
+@router.post("/list", response_model=RoomListResponse)
+def rooms(req: RoomListRequest) -> RoomListResponse:
     """ルーム一覧を表示する"""
     # print(req)
     room_info_list = model.get_waiting_room_list(req.live_id)
@@ -113,8 +51,8 @@ class RoomJoinResponse(BaseModel):
     join_room_result: model.JoinRoomResult  # 入場結果
 
 
-@app.post("/room/join", response_model=RoomJoinResponse)
-def room_join(
+@router.post("/join", response_model=RoomJoinResponse)
+def join(
     req: RoomJoinRequest, token: str = Depends(get_auth_token)
 ) -> RoomJoinResponse:
     """ルームに参加する"""
@@ -132,8 +70,8 @@ class RoomWaitResponse(BaseModel):
     room_user_list: list[model.RoomUser]  # ルーム内のユーザー一覧
 
 
-@app.post("/room/wait", response_model=RoomWaitResponse)
-def room_wait(
+@router.post("/wait", response_model=RoomWaitResponse)
+def wait(
     req: RoomWaitRequest, token: str = Depends(get_auth_token)
 ) -> RoomWaitResponse:
     """ルーム待機する"""
@@ -142,12 +80,16 @@ def room_wait(
     return RoomWaitResponse(status=status, room_user_list=room_user_list)
 
 
-class RoomStartRequest(BaseModel):
+class LiveStartRequest(BaseModel):
     room_id: int  # 入場するルームのID
 
 
-@app.post("/room/start", response_model=Empty)
-def live_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
+class LiveStartResponse(BaseModel):
+    pass
+
+
+@router.post("/start", response_model=LiveStartResponse)
+def start(req: LiveStartRequest, token: str = Depends(get_auth_token)):
     """ルーム開始する"""
     # print(req)
     model.start_live(token, req.room_id)
@@ -164,8 +106,8 @@ class RoomEndResponse(BaseModel):
     pass
 
 
-@app.post("/room/end", response_model=RoomEndResponse)
-def live_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
+@router.post("/end", response_model=RoomEndResponse)
+def end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
     """ルーム終了する"""
     # print(req)
     judge: str = ",".join(map(str, req.judge_count_list))
@@ -181,8 +123,8 @@ class RoomResultResponse(BaseModel):
     result_user_list: list[model.ResultUser]  # ルームの結果
 
 
-@app.post("/room/result", response_model=RoomResultResponse)
-def room_result(req: RoomResultRequest) -> RoomResultResponse:
+@router.post("/result", response_model=RoomResultResponse)
+def result(req: RoomResultRequest) -> RoomResultResponse:
     """ルーム結果を表示する"""
     # print(req)
     result = model.get_room_result(req.room_id)
@@ -197,8 +139,8 @@ class RoomLeaveResponse(BaseModel):
     pass
 
 
-@app.post("/room/leave", response_model=RoomLeaveResponse)
-def room_leave(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
+@router.post("/leave", response_model=RoomLeaveResponse)
+def leave(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
     """ルームを退出する"""
     # print(req)
     model.leave_room(token, req.room_id)

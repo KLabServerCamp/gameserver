@@ -317,3 +317,44 @@ def end_room(
             ),
         )
         print(result)
+
+
+def get_room_result(room_id: int) -> Optional[list[ResultUser]]:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("SELECT `joined_user_count` FROM `room` WHERE `room_id`=:room_id"),
+            dict(room_id=room_id),
+        )
+    joined_user_count = result.one().joined_user_count
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("SELECT COUNT(score) FROM `room_member` WHERE `room_id`=:room_id"),
+            dict(room_id=room_id),
+        )
+    score_count = result.scalar()
+    print(joined_user_count)
+    print(score_count)
+    if joined_user_count == score_count:
+        with engine.begin() as conn:
+            result = conn.execute(
+                text(
+                    "SELECT `user_id`, `judge_count_list`, `score` FROM `room_member` \
+                        WHERE `room_id`=:room_id"
+                ),
+                dict(room_id=room_id),
+            )
+        try:
+            result_user_list = []
+            for result_user in result:
+                result_user_list.append(
+                    ResultUser(
+                        user_id=result_user.user_id,
+                        judge_count_list=json.loads(result_user.judge_count_list),
+                        score=result_user.score,
+                    )
+                )
+        except NoResultFound:
+            return None
+        return result_user_list
+    else:
+        return []

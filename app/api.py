@@ -189,8 +189,8 @@ def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
 
 
 @app.post("/room/result", response_model=RoomResultResponse)
-def room_list(req: RoomResultRequest):
-    room_info_list = model.get_room_list(req.live_id)
-    if room_info_list is None:
+def room_result(req: RoomResultRequest):
+    result_user_list = model.get_room_result(req.room_id)
+    if result_user_list is None:
         raise HTTPException(status_code=404)
-    return RoomResultResponse(room_info_list=room_info_list)
+    return RoomResultResponse(result_user_list=result_user_list)

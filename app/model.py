@@ -272,18 +272,20 @@ def get_room_user_list(token: str, room_id: int) -> Optional[list[RoomUser]]:
     return room_user_list
 
 
-def _is_host(room_id: int) -> bool:
+def _is_host(room_id: int, user_id: int) -> bool:
     with engine.begin() as conn:
         result = conn.execute(
-            text("SELECT `is_host` FROM `room_member` WHERE `room_id`=:room_id"),
-            dict(room_id=room_id),
+            text(
+                "SELECT `is_host` FROM `room_member` WHERE `room_id`=:room_id AND `user_id`=:user_id"
+            ),
+            dict(room_id=room_id, user_id=user_id),
         )
     return result.one().is_host
 
 
 def start_room(token: str, room_id: int) -> None:
-    _user_judge(token)
-    if not _is_host(room_id):
+    user_id = _user_judge(token)
+    if not _is_host(room_id, user_id):
         raise InvalidUser
     with engine.begin() as conn:
         result = conn.execute(

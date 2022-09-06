@@ -1,9 +1,9 @@
 DROP TABLE IF EXISTS `user`;
 CREATE TABLE `user` (
   `id` bigint NOT NULL AUTO_INCREMENT,
-  `name` varchar(255) DEFAULT NOT NULL,
-  `token` varchar(255) DEFAULT NOT NULL,
-  `leader_card_id` int DEFAULT NOT NULL,
+  `name` varchar(255) NOT NULL,
+  `token` varchar(255) NOT NULL,
+  `leader_card_id` int NOT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `token` (`token`)
 );
@@ -11,13 +11,13 @@ CREATE TABLE `user` (
 DROP TABLE IF EXISTS `room`;
 CREATE TABLE `room` (
   `room_id` bigint NOT NULL AUTO_INCREMENT,
-  `live_id` int DEFAULT NOT NULL,
+  `live_id` int  NOT NULL,
   `owner` bigint NOT NULL,
-  `joined_user_count` int DEFAULT NOT NULL,
-  `max_user_count` int DEFAULT NOT NULL,
-  `wait_room_status` int DEFAULT NOT NULL,
+  `joined_user_count` int  NOT NULL,
+  `max_user_count` int  NOT NULL,
+  `wait_room_status` int NOT NULL,
   
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`room_id`)
 );
 
 DROP TABLE IF EXISTS `room_member`;

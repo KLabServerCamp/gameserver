@@ -493,6 +493,22 @@ def leave_room(room_id: int, user_id: int) -> None:
         )
 
 
+def move_owner_to(room_id: int, user_id: int) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                UPDATE
+                    room_member
+                SET
+                    is_owner = true
+                WHERE room_id = :room_id AND user_id = :user_id
+            """
+            ),
+            dict(room_id=room_id, user_id=user_id),
+        )
+
+
 def delete_room(room_id: int) -> None:
     with engine.begin() as conn:
         conn.execute(

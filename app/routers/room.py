@@ -290,11 +290,23 @@ def leave_room(req: RoomLeaveRequest, token: str = Depends(get_auth_token)) -> E
     if me is None:
         raise InvalidToken()
 
+    users = model.get_room_user_list(req.room_id, me.id)
+
+    for user in users:
+        if user.user_id == me.id:
+            is_host = user.is_host
+            break
+
+    # オーナーが退出する場合、次のユーザーをオーナーにする
+    if is_host and len(users) >= 2:
+        for user in users:
+            if user.user_id != me.id:
+                model.move_owner_to(req.room_id, user.user_id)
+                break
+
     model.leave_room(req.room_id, me.id)
 
     # もしそのユーザが最後のユーザだったらルームを削除する
-    users = model.get_room_user_list(req.room_id, me.id)
-
     if len(users) == 0:
         model.delete_room(req.room_id)
 

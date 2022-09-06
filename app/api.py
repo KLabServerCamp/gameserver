@@ -187,3 +187,19 @@ def result_room(req: RoomResultRequest) -> RoomResultResponse:
     # print(req)
     result = model.get_room_result(req.room_id)
     return RoomResultResponse(room_result=result)
+
+
+class RoomLeaveRequest(BaseModel):
+    room_id: int  # ルームのID
+
+
+class RoomLeaveResponse(BaseModel):
+    pass
+
+
+@app.post("/room/leave", response_model=RoomLeaveResponse)
+def leave_room(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
+    """ルームを退出する"""
+    # print(req)
+    model.leave_room(token, req.room_id)
+    return dict[str, object]()

@@ -116,14 +116,13 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
 # Room
 def create_room(live_id: int, select_difficulty: LiveDifficulty, user: SafeUser) -> int:
     with engine.begin() as conn:
-        conn.execute(
+        result = conn.execute(
             text(
                 "INSERT INTO `room` (live_id, joined_user_count, max_user_count, join_status, wait_status) VALUES (:live_id, 1, :max_user_count, 1, 1)"
             ),
             {"live_id": live_id, "max_user_count": 4},
         )
-        result = conn.execute(text("SELECT LAST_INSERT_ID()"))
-        room_id = result.one()[0]
+        room_id = result.lastrowid 
         conn.execute(
             text(
                 "INSERT INTO `room_member` (room_id, user_id, name, leader_card_id, select_difficulty, is_host) VALUES (:room_id, :user_id, :name, :leader_card_id, :select_difficulty, :is_host)"
@@ -209,10 +208,10 @@ def join_room(
                     {"room_id": room_id},
                 )
 
-            conn.execute(text("COMMIT"))
+            conn.commit()
         else:
-            conn.execute(text("ROLLBACK"))
             ans = 2
+            conn.rollback()
 
     return ans
 
@@ -220,7 +219,7 @@ def join_room(
 def wait_room(room_id: int, user: SafeUser) -> dict:
     with engine.begin() as conn:
         result = conn.execute(
-            text("SELECT `join_status` FROM `room` WHERE `room_id`=:room_id"),
+            text("SELECT `wait_status` FROM `room` WHERE `room_id`=:room_id"),
             {"room_id": room_id},
         )
         result2 = conn.execute(
@@ -378,4 +377,5 @@ def leave_room(room_id: int, user: SafeUser) -> None:
                     {"room_id": room_id, "user_id": next_user_id},
                 )
 
-        conn.execute(text("COMMIT"))
+        conn.commit()
+

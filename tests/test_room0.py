@@ -27,6 +27,13 @@ def _auth_header1(i=1):
     token = user_tokens[i]
     return {"Authorization": f"bearer {token}"}
 
+def _auth_header2(i=2):
+    token = user_tokens[i]
+    return {"Authorization": f"bearer {token}"}
+
+def _auth_header3(i=3):
+    token = user_tokens[i]
+    return {"Authorization": f"bearer {token}"}
 
 def test_room_1():
     response = client.post(
@@ -50,6 +57,30 @@ def test_room_1():
     )
     assert response.status_code == 200
     print("room/join response:", response.json())
+
+    response = client.post("/room/list", json={"live_id": 1001})
+    assert response.status_code == 200
+    print("room/list response:", response.json())
+
+    response = client.post(
+        "/room/join",
+        headers=_auth_header2(),
+        json={"room_id": room_id, "select_difficulty": 1},
+    )
+    assert response.status_code == 200
+    print("room/join response:", response.json())
+    response = client.post("/room/list", json={"live_id": 1001})
+    assert response.status_code == 200
+    print("room/list response:", response.json())
+
+    response = client.post(
+        "/room/join",
+        headers=_auth_header3(),
+        json={"room_id": room_id, "select_difficulty": 1},
+    )
+    assert response.status_code == 200
+    print("room/join response:", response.json())
+
 
     response = client.post(
         "/room/wait", headers=_auth_header(), json={"room_id": room_id}

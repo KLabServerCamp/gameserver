@@ -369,7 +369,7 @@ def leave_room(room_id: int, user: SafeUser) -> None:
                     text("SELECT `user_id` FROM room_member WHERE `room_id`=:room_id"),
                     {"room_id": room_id},
                 )
-                next_user_id = result3.one()[0]
+                next_user_id = result3.all()[0][0]
                 conn.execute(
                     text(
                         "UPDATE `room_member` SET is_host=1 WHERE `room_id`=:room_id AND `user_id`=:user_id"

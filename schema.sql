@@ -28,7 +28,6 @@ CREATE TABLE `room_member` (
   `name` varchar(255) DEFAULT NULL,
   `leader_card_id` int DEFAULT NULL,
   `select_difficulty` int DEFAULT NULL,
-  `is_me` int DEFAULT NULL,
   `is_host` int DEFAULT NULL,
   `judge1` int DEFAULT NULL,
   `judge2` int DEFAULT NULL,

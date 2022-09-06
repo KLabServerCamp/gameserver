@@ -43,7 +43,15 @@
 	],
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	"forwardPorts": [2222],
+	"forwardPorts": [8000],
+
+	"portsAttributes": {
+		"8000": {
+			// NOTE: https://github.com/orgs/community/discussions/4068
+			"label": "Application",
+			"protocol": "http"
+		}
+	},
 
 	// Use 'postCreateCommand' to run commands after the container is created.
 	// "postCreateCommand": "pip3 install --user -r requirements.txt",

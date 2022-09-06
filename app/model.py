@@ -53,7 +53,9 @@ def create_user(name: str, leader_card_id: int) -> str:
 
 
 def _get_user_by_token(conn: Connection, token: str) -> Optional[SafeUser]:
-    result = conn.execute(text("SELECT * FROM user WHERE token = :token"), {"token": token})
+    result = conn.execute(
+        text("SELECT * FROM user WHERE token = :token"), {"token": token}
+    )
     try:
         row = result.one()
     except NoResultFound:
@@ -334,7 +336,9 @@ def start_room(room_id: int) -> None:
         )
 
 
-def end_room(room_id: int, judge_count_list: list[int], score: int, user_id: int) -> None:
+def end_room(
+    room_id: int, judge_count_list: list[int], score: int, user_id: int
+) -> None:
     with engine.begin() as conn:
         # change room status
         conn.execute(
@@ -384,4 +388,4 @@ def all_user_results(room_id: int) -> list[ResultUser]:
 
 
 def leave_room(room_id: int, user_id: int) -> None:
-    
+    pass

@@ -11,7 +11,7 @@ from sqlalchemy.engine import Connection
 from . import config
 from .db import engine
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("app.model")
 
 
 class InvalidToken(Exception):
@@ -37,9 +37,9 @@ def create_user(name: str, leader_card_id: int) -> str:
         conn: Connection
         query_str: str = "\
             INSERT INTO `user` SET \
-            `name` = :name, \
-            `leader_card_id` = :leader_id, \
-            `token` = :token \
+                `name` = :name, \
+                `leader_card_id` = :leader_id, \
+                `token` = :token \
             "
 
         result = conn.execute(
@@ -83,6 +83,8 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
                 text(query_str),
                 {"name": name, "leader_id": leader_card_id, "token": token},
             )
+
+            return
         raise InvalidToken()
 
 
@@ -180,29 +182,6 @@ class ResultUser(BaseModel):
     score: int  # 獲得スコア
 
 
-def _create_empty_room(conn: Connection, live_id: int, host_id: int) -> int:
-    query_str: str = "\
-        INSERT INTO `room` SET  \
-            `live_id` = :live_id, \
-            `host_id` = :host_id, \
-            `status` = :status, \
-            `max_user` = :max_user \
-        "
-
-    result = conn.execute(
-        text(query_str),
-        {
-            "live_id": live_id,
-            "host_id": host_id,
-            "status": WaitRoomStatus.WAITING.value,
-            "max_user": config.MAX_ROOM_USER_COUNT,
-        },
-    )
-
-    room_id: int = result.lastrowid
-    return room_id
-
-
 def _get_room_info(conn: Connection, room_id: int) -> Optional[RoomInfo]:
     query_str: str = " \
         SELECT \
@@ -223,19 +202,6 @@ def _get_room_info(conn: Connection, room_id: int) -> Optional[RoomInfo]:
     return None
 
 
-def _get_room_status(conn: Connection, room_id: int) -> WaitRoomStatus:
-    query_str: str = "\
-        SELECT `status` \
-        FROM `room` \
-        WHERE `id`=:room_id \
-        FOR UPDATE"
-
-    result = conn.execute(text(query_str), {"room_id": room_id})
-    if row := result.one_or_none():
-        return WaitRoomStatus(row[0])
-    raise HTTPException(status_code=404, detail="Room not found")
-
-
 def _set_room_status(
     conn: Connection,
     room_id: int,
@@ -246,28 +212,6 @@ def _set_room_status(
         SET `status`=:status \
         WHERE `id`=:room_id"
     conn.execute(text(query_str), {"status": status.value, "room_id": room_id})
-
-
-def _get_waiting_room_list(conn: Connection, live_id: int) -> list[RoomInfo]:
-
-    query_str: str
-    query_args: dict[str, Union[str, int]]
-
-    query_str = "\
-        SELECT `id` FROM `room` \
-        WHERE `status`=:status \
-        FOR UPDATE"
-    query_args = {"status": WaitRoomStatus.WAITING.value}
-
-    if live_id != 0:
-        query_str = "\
-            SELECT `id` FROM `room` \
-            WHERE `live_id`=:live_id AND `status`=:status \
-            FOR UPDATE"
-        query_args.update({"live_id": live_id})
-
-    result = conn.execute(text(query_str), query_args)
-    return [x for x in [_get_room_info(conn, row["id"]) for row in result] if x]
 
 
 def _get_host_id(conn: Connection, room_id: int) -> int:
@@ -340,16 +284,51 @@ def create_room(token: str, live_id: int, duffuculty: LiveDifficulty) -> int:
     with engine.begin() as conn:
         conn: Connection
         if user := _get_user_by_token(conn, token):
-            room_id: int = _create_empty_room(conn, live_id, user.id)
+            query_str: str = "\
+                INSERT INTO `room` SET  \
+                    `live_id` = :live_id, \
+                    `host_id` = :host_id, \
+                    `status` = :status, \
+                    `max_user` = :max_user \
+                "
+
+            result = conn.execute(
+                text(query_str),
+                {
+                    "live_id": live_id,
+                    "host_id": user.id,
+                    "status": WaitRoomStatus.WAITING.value,
+                    "max_user": config.MAX_ROOM_USER_COUNT,
+                },
+            )
+
+            room_id: int = result.lastrowid
             _add_room_user(conn, room_id, user.id, duffuculty)
             return room_id
         raise InvalidToken
 
 
-def get_room_list(live_id: int) -> list[RoomInfo]:
+def get_waiting_room_list(live_id: int) -> list[RoomInfo]:
     with engine.begin() as conn:
         conn: Connection
-        return _get_waiting_room_list(conn, live_id)
+        query_str: str
+        query_args: dict[str, Union[str, int]]
+
+        query_str = "\
+            SELECT `id` FROM `room` \
+            WHERE `status`=:status \
+            FOR UPDATE"
+        query_args = {"status": WaitRoomStatus.WAITING.value}
+
+        if live_id != 0:
+            query_str = "\
+                SELECT `id` FROM `room` \
+                WHERE `live_id`=:live_id AND `status`=:status \
+                FOR UPDATE"
+            query_args.update({"live_id": live_id})
+
+        result = conn.execute(text(query_str), query_args)
+        return [x for x in [_get_room_info(conn, row["id"]) for row in result] if x]
 
 
 def join_room(
@@ -376,12 +355,21 @@ def wait_room(
                 _set_room_status(conn, room_id, WaitRoomStatus.DISSOLUTION)
                 return (WaitRoomStatus.DISSOLUTION, user_list)
 
-            status = _get_room_status(conn, room_id)
-            return (status, user_list)
+            query_str: str = "\
+                SELECT `status` \
+                FROM `room` \
+                WHERE `id`=:room_id \
+                FOR UPDATE"
+
+            result = conn.execute(text(query_str), {"room_id": room_id})
+            if row := result.one_or_none():
+                return (WaitRoomStatus(row[0]), user_list)
+
+            raise HTTPException(status_code=404, detail="Room not found")
         raise InvalidToken
 
 
-def start_room(token: str, room_id: int) -> None:
+def start_live(token: str, room_id: int) -> None:
     with engine.begin() as conn:
         conn: Connection
         if user := _get_user_by_token(conn, token):
@@ -407,7 +395,7 @@ def start_room(token: str, room_id: int) -> None:
         raise InvalidToken
 
 
-def end_room(token: str, room_id: int, judge: str, score: int) -> None:
+def end_live(token: str, room_id: int, judge: str, score: int) -> None:
     with engine.begin() as conn:
         conn: Connection
         if user := _get_user_by_token(conn, token):

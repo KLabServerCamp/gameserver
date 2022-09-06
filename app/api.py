@@ -79,7 +79,7 @@ class RoomCreateResponse(BaseModel):
 
 
 @app.post("/room/create", response_model=RoomCreateResponse)
-def create_room(
+def room_create(
     req: RoomCreateRequest, token: str = Depends(get_auth_token)
 ) -> RoomCreateResponse:
     """ルームを作成する"""
@@ -97,10 +97,10 @@ class RoomListResponse(BaseModel):
 
 
 @app.post("/room/list", response_model=RoomListResponse)
-def list_room(req: RoomListRequest) -> RoomListResponse:
+def room_list(req: RoomListRequest) -> RoomListResponse:
     """ルーム一覧を表示する"""
     # print(req)
-    room_info_list = model.get_room_list(req.live_id)
+    room_info_list = model.get_waiting_room_list(req.live_id)
     return RoomListResponse(room_info_list=room_info_list)
 
 
@@ -114,7 +114,7 @@ class RoomJoinResponse(BaseModel):
 
 
 @app.post("/room/join", response_model=RoomJoinResponse)
-def join_room(
+def room_join(
     req: RoomJoinRequest, token: str = Depends(get_auth_token)
 ) -> RoomJoinResponse:
     """ルームに参加する"""
@@ -133,7 +133,7 @@ class RoomWaitResponse(BaseModel):
 
 
 @app.post("/room/wait", response_model=RoomWaitResponse)
-def wait_room(
+def room_wait(
     req: RoomWaitRequest, token: str = Depends(get_auth_token)
 ) -> RoomWaitResponse:
     """ルーム待機する"""
@@ -147,10 +147,10 @@ class RoomStartRequest(BaseModel):
 
 
 @app.post("/room/start", response_model=Empty)
-def start_room(req: RoomStartRequest, token: str = Depends(get_auth_token)):
+def live_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
     """ルーム開始する"""
     # print(req)
-    model.start_room(token, req.room_id)
+    model.start_live(token, req.room_id)
     return dict[str, object]()
 
 
@@ -165,11 +165,11 @@ class RoomEndResponse(BaseModel):
 
 
 @app.post("/room/end", response_model=RoomEndResponse)
-def end_room(req: RoomEndRequest, token: str = Depends(get_auth_token)):
+def live_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
     """ルーム終了する"""
     # print(req)
     judge: str = ",".join(map(str, req.judge_count_list))
-    model.end_room(token, req.room_id, judge, req.score)
+    model.end_live(token, req.room_id, judge, req.score)
     return dict[str, object]()
 
 
@@ -182,7 +182,7 @@ class RoomResultResponse(BaseModel):
 
 
 @app.post("/room/result", response_model=RoomResultResponse)
-def result_room(req: RoomResultRequest) -> RoomResultResponse:
+def room_result(req: RoomResultRequest) -> RoomResultResponse:
     """ルーム結果を表示する"""
     # print(req)
     result = model.get_room_result(req.room_id)
@@ -198,7 +198,7 @@ class RoomLeaveResponse(BaseModel):
 
 
 @app.post("/room/leave", response_model=RoomLeaveResponse)
-def leave_room(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
+def room_leave(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
     """ルームを退出する"""
     # print(req)
     model.leave_room(token, req.room_id)

@@ -4,7 +4,6 @@ from enum import IntEnum
 from typing import Optional
 
 import sqlalchemy.engine.base
-from fastapi import HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound

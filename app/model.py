@@ -302,16 +302,21 @@ def room_start_(room_id: int) -> None:
         )
     return
 
+
 def list_to_str(list_data: list[int]) -> str:
     result = ""
     for data in list_data:
         result = result + str(data) + ","
     return result[:-1]
 
+
 def str_to_list(str_data: str) -> list[int]:
     return [int(data) for data in str_data.split(",")]
 
-def room_end_(request_user_id: int, room_id: int, score: int, judge_count_list: list[int]) -> None:
+
+def room_end_(
+    request_user_id: int, room_id: int, score: int, judge_count_list: list[int]
+) -> None:
     with engine.begin() as conn:
         result = conn.execute(
             text(
@@ -323,7 +328,32 @@ def room_end_(request_user_id: int, room_id: int, score: int, judge_count_list: 
                 "score": score,
                 "judge": list_to_str(judge_count_list),
                 "room_id": room_id,
-                "user_id": request_user_id
+                "user_id": request_user_id,
             },
         )
     return
+
+
+def get_room_result(room_id: int) -> list[ResultUser]:
+    room_result = []
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT `user_id`, `score`, 'judge' \
+                FROM room_member \
+                WHERE room_id=:room_id"
+            ),
+            {"room_id": room_id},
+        )
+        for row in result.all():
+            # 全員分揃っていない場合は空リストを返す
+            if row.score == None:
+                return []
+            room_result.append(
+                ResultUser(
+                    user_id=row.user_id,
+                    judge_count_list=str_to_list(row.judge),
+                    score=row.score,
+                )
+            )
+    return room_result

@@ -170,7 +170,7 @@ def room_wait(req: RoomWaitRequest):
 @app.post("room/start", response_model=RoomStartResponse)
 def room_start(req: RoomStartRequest):
     model.room_start_(req.room_id)
-    return RoomStartRequest()
+    return RoomStartResponse()
 
 
 #ルームのライブ終了時リクエスト
@@ -178,4 +178,11 @@ def room_start(req: RoomStartRequest):
 def room_end(req: RoomEndRequest):
     user_data = user_me()
     model.room_end_(user_data.id, req.room_id, req.score, req.judge_count_list)
-    return RoomEndRequest()
+    return RoomEndResponse()
+
+
+#ルームのライブ終了後
+@app.post("room/result", response_model=RoomResultResponse)
+def room_result(req: RoomResultRequest):
+    result_user_list = model.get_room_result(req.room_id)
+    return RoomResultResponse(result_user_list=result_user_list)

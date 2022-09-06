@@ -245,10 +245,15 @@ def _get_room_list_all() -> list[RoomInfo]:
                     room
                     JOIN room_member
                         ON room.room_id = room_member.room_id
+                WHERE
+                    room.status = :status
                 GROUP BY
                     room.room_id
+                HAVING
+                    joined_user_count < max_user_count
             """
-            )
+            ),
+            dict(status=int(WaitRoomStatus.WAITING)),
         )
     res = res.fetchall()
     if len(res) == 0:
@@ -272,11 +277,14 @@ def _get_room_list_by_live_id(live_id: int) -> list[RoomInfo]:
                         ON room.room_id = room_member.room_id
                 WHERE
                     room.live_id = :live_id
+                    AND room.status = :status
                 GROUP BY
                     room.room_id
+                HAVING
+                    joined_user_count < max_user_count
             """
             ),
-            dict(live_id=live_id),
+            dict(live_id=live_id, status=int(WaitRoomStatus.WAITING)),
         )
 
     res = res.fetchall()

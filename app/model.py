@@ -304,10 +304,7 @@ def room_start_(room_id: int) -> None:
 
 
 def list_to_str(list_data: list[int]) -> str:
-    result = ""
-    for data in list_data:
-        result = result + str(data) + ","
-    return result[:-1]
+    return ",".join(str(data) for data in list_data)
 
 
 def str_to_list(str_data: str) -> list[int]:

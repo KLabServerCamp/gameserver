@@ -229,14 +229,12 @@ def _join_room(
             "INSERT INTO `room_member` (room_id, user_id, score,"
             + "judge_perfect, judge_great, judge_good,"
             + " judge_bad, judge_miss, select_difficulty)"
-            + " VALUES (:room_id, :user_id, :score,"
-            + " :judge_perfect, :judge_great, :judge_good,"
-            + " :judge_bad, :judge_miss, :select_difficulty)"
+            + " VALUES (:room_id, :user_id, NULL,"
+            + " NULL, NULL, NULL,"
+            + " NULL, NULL, :select_difficulty)"
         ),
         {
-            "room_id": room_id, "user_id": user_id, "score": 0,
-            "judge_perfect": 0, "judge_great": 0, "judge_good": 0,
-            "judge_bad": 0, "judge_miss": 0,
+            "room_id": room_id, "user_id": user_id,
             "select_difficulty": select_difficulty.value
         },
     )
@@ -350,9 +348,9 @@ def _end_room(
     return
 
 
-def end_room(room_id: int, judge_count_list: list[int], score: int):
+def end_room(room_id: int, judge_count_list: list[int], score: int, token: str):
     with engine.begin() as conn:
-        return _end_room(conn, room_id, judge_count_list, score)
+        return _end_room(conn, room_id, judge_count_list, score, token)
 
 
 def _result_room(conn, room_id: int):
@@ -378,9 +376,10 @@ def _result_room(conn, room_id: int):
     elements = result2.one()
     joined_user_count = elements.joined_user_count
 
+    # 終了人数の確認、部屋状態の更新
     finish = 0
     for row in rows:
-        if row.judge_perfect + row.judge_great + row.judge_good + row.judge_bad + row.judge_miss > 0:
+        if row.score is not None:
             finish += 1
     if finish == joined_user_count:
         _ = conn.execute(
@@ -394,7 +393,9 @@ def _result_room(conn, room_id: int):
                 "room_id": room_id
             },
         )
-    return rows
+        return rows
+    else:
+        return []
 
 
 def result_room(room_id: int):
@@ -455,10 +456,12 @@ def _leave_room(conn, room_id: int, token: str):
                 text(
                     "UPDATE `room`"
                     + " SET `host_user_id`= :post_host_user_id,"
+                    + " `status` = :status"
                     + " WHERE `room_id` = :room_id"
                 ),
                 {
                     "post_host_user_id": post_host_user_id,
+                    "status": 1,
                     "room_id": room_id
                 },
             )

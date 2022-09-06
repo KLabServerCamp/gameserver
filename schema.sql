@@ -25,12 +25,12 @@ DROP TABLE IF EXISTS `room_member`;
 CREATE TABLE `room_member` (
   `room_id` bigint NOT NULL,
   `user_id` bigint NOT NULL,
-  `score` bigint NOT NULL,
-  `judge_perfect` int NOT NULL,
-  `judge_great` int NOT NULL,
-  `judge_good` int NOT NULL,
-  `judge_bad` int NOT NULL,
-  `judge_miss` int NOT NULL,
+  `score` bigint DEFAULT NULL,
+  `judge_perfect` int DEFAULT NULL,
+  `judge_great` int DEFAULT NULL,
+  `judge_good` int DEFAULT NULL,
+  `judge_bad` int DEFAULT NULL,
+  `judge_miss` int DEFAULT NULL,
   `select_difficulty` int NOT NULL,
   PRIMARY KEY (`room_id`, `user_id`)
 );

@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
-from sqlalchemy.exc import NoResultFound
+from sqlalchemy.exc import NoResultFound, IntegrityError
 
 from .db import engine
 
@@ -20,9 +20,6 @@ class InvalidUser(Exception):
     """オーナー以外がオーナー権が必要な操作をしたときに投げる"""
 
 
-# user = SafeUser(id=1, name="matac", leader_card_id=42)
-# user.dict()
-# user.json(ensure_ascii=False)
 class SafeUser(BaseModel):
     """token を含まないUser"""
 
@@ -34,8 +31,7 @@ class SafeUser(BaseModel):
         orm_mode = True
 
 
-# Room
-# Enum
+# Room Enums
 class LiveDifficulty(Enum):
     normal = 1
     hard = 2
@@ -54,7 +50,7 @@ class WaitRoomStatus(Enum):
     Dissolution = 3
 
 
-# Model
+# Room Models
 class RoomInfo(BaseModel):
     room_id: int
     live_id: int
@@ -85,18 +81,25 @@ def _user_judge(token: str) -> Optional[int]:
     return user.id
 
 
-def create_user(name: str, leader_card_id: int) -> str:
+def create_user(name: str, leader_card_id: int) -> Optional[str]:
     """Create new user and returns their token"""
-    token = str(uuid.uuid4())
-    # NOTE: tokenが衝突したらリトライする必要がある.
+    MAX_RETRY = 3
+
     with engine.begin() as conn:
-        result = conn.execute(
-            text(
-                "INSERT INTO `user` (name, token, leader_card_id) VALUES (:name, :token, :leader_card_id)"
-            ),
-            {"name": name, "token": token, "leader_card_id": leader_card_id},
-        )
-        print(result)
+        for _ in range(MAX_RETRY + 1):
+            token = str(uuid.uuid4())
+            try:
+                conn.execute(
+                    text(
+                        "INSERT INTO `user` (name, token, leader_card_id) VALUES (:name, :token, :leader_card_id)"
+                    ),
+                    dict(name=name, token=token, leader_card_id=leader_card_id),
+                )
+                break
+            except IntegrityError:
+                continue
+        else:
+            raise IntegrityError
     return token
 
 
@@ -149,17 +152,19 @@ def _create_room_member(
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "INSERT INTO `room_member` (room_id, user_id, name, leader_card_id, select_difficulty, is_host) \
-                VALUES (:room_id, :user_id, :name, :leader_card_id, :select_difficulty, :is_host)"
+                "INSERT INTO `room_member` \
+                    (room_id, user_id, name, leader_card_id, select_difficulty, is_host) \
+                        VALUES \
+                            (:room_id, :user_id, :name, :leader_card_id, :select_difficulty, :is_host)"
             ),
-            {
-                "room_id": room_id,
-                "user_id": user.id,
-                "name": user.name,
-                "leader_card_id": user.leader_card_id,
-                "select_difficulty": select_difficulty.value,
-                "is_host": is_host,
-            },
+            dict(
+                room_id=room_id,
+                user_id=user.id,
+                name=user.name,
+                leader_card_id=user.leader_card_id,
+                select_difficulty=select_difficulty.value,
+                is_host=is_host,
+            ),
         )
     print(result)
 
@@ -211,7 +216,8 @@ def _update_room_joined_user_count(token: str, room_id: int, inc_dec_num: int) -
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "UPDATE `room` SET joined_user_count=joined_user_count + :inc_dec_num WHERE room_id=:room_id"
+                "UPDATE `room` SET joined_user_count=joined_user_count + :inc_dec_num \
+                    WHERE room_id=:room_id"
             ),
             dict(inc_dec_num=inc_dec_num, token=token, room_id=room_id),
         )
@@ -225,7 +231,7 @@ def join_room(
         result = conn.execute(
             text(
                 "SELECT `joined_user_count`, `max_user_count`, `wait_room_status` FROM `room` \
-            WHERE `room_id`=:room_id"
+                    WHERE `room_id`=:room_id"
             ),
             dict(room_id=room_id),
         )
@@ -287,7 +293,8 @@ def _is_host(room_id: int, user_id: int) -> bool:
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "SELECT `is_host` FROM `room_member` WHERE `room_id`=:room_id AND `user_id`=:user_id"
+                "SELECT `is_host` FROM `room_member` \
+                    WHERE `room_id`=:room_id AND `user_id`=:user_id"
             ),
             dict(room_id=room_id, user_id=user_id),
         )
@@ -345,8 +352,6 @@ def get_room_result(room_id: int) -> Optional[list[ResultUser]]:
             dict(room_id=room_id),
         )
     score_count = result.scalar()
-    print(joined_user_count)
-    print(score_count)
     if joined_user_count == score_count:
         with engine.begin() as conn:
             result = conn.execute(
@@ -391,7 +396,8 @@ def _delete_room_member(token: str, room_id: int) -> None:
             with engine.begin() as conn:
                 result = conn.execute(
                     text(
-                        "UPDATE `room` SET wait_room_status=:wait_room_status WHERE room_id=:room_id"
+                        "UPDATE `room` SET wait_room_status=:wait_room_status \
+                            WHERE room_id=:room_id"
                     ),
                     dict(
                         wait_room_status=WaitRoomStatus.Dissolution.value,
@@ -399,7 +405,7 @@ def _delete_room_member(token: str, room_id: int) -> None:
                     ),
                 )
             return
-        # ホストでないユーザーをホストに昇格する
+        # ホストでないユーザー1人をホストに昇格する
         with engine.begin() as conn:
             result = conn.execute(
                 text(

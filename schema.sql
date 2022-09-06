@@ -27,7 +27,6 @@ CREATE TABLE `room_member` (
   `user_id` bigint NOT NULL,
   `score` bigint NOT NULL,
   `judge` varchar(255),
-  `token` varchar(255) DEFAULT NULL,
   `select_difficulty` int NOT NULL,
   PRIMARY KEY (`room_id`, `user_id`)
 );

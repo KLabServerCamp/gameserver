@@ -192,9 +192,22 @@ class RoomWaitResponse(BaseModel):
 @app.post("/room/wait", response_model=RoomWaitResponse)
 def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
     result = model.wait_room(req.room_id, token)
-    return RoomJoinResponse(
-        status=result.status, room_user_list=result.user_list
-    )
+    print("結果[0]", result[0])
+    print("結果[1]", result[1])
+    output = []
+    for row in result[1]:
+        output.append(
+            dict(
+                user_id=row.user_id,
+                name=row.name,
+                leader_card_id=row.leader_card_id,
+                select_difficulty=row.select_difficulty,
+                is_me=row.is_me,
+                is_host=row.is_host
+            )
+        )
+    print(output)
+    return RoomWaitResponse(status=result[0], room_user_list=output)
 
 
 class RoomStartRequest(BaseModel):

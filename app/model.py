@@ -127,7 +127,7 @@ def _create_room(
         text(
             "INSERT INTO `room`"
             + " (live_id, host_user_id, status, joined_user_count,"
-            + " max_user_count) VALUES (:live_id, :token, :status,"
+            + " max_user_count) VALUES (:live_id, :host_user_id, :status,"
             + " :joined_user_count, :max_user_count)"
         ),
         {
@@ -153,10 +153,11 @@ def _list_room(
 ) -> dict:
     result = conn.execute(
         text(
-            "SELECT id, live_id, owner_token, joined_user_count,"
+            "SELECT id, live_id, host_user_id, joined_user_count,"
             + " max_user_count FROM `room`"
-            + " WHERE live_id = :live_id AND joined_user_count"
-            + " < max_user_count"
+            + " WHERE live_id = :live_id"
+            + " AND joined_user_count < max_user_count"
+            + " AND status = 1"
         ),
         {"live_id": live_id},
     )
@@ -166,7 +167,7 @@ def _list_room(
             dict(
                 room_id=row.id,
                 live_id=row.live_id,
-                owner_token=row.owner_token,
+                host_user_id=row.host_user_id,
                 joined_user_count=row.joined_user_count,
                 max_user_count=row.max_user_count
             )
@@ -197,6 +198,7 @@ def _join_room(
     )
     try:
         elements = result2.one()
+        print(elements)
         status = elements.status
         joined_user_count = elements.joined_user_count
         max_user_count = elements.max_user_count
@@ -210,13 +212,13 @@ def _join_room(
     _ = conn.execute(
         text(
             "INSERT INTO `room_member` (room_id, user_id, score,"
-            + "judge, token, select_difficulty)"
+            + "judge, select_difficulty)"
             + " VALUES (:room_id, :user_id, :score,"
-            + " :judge, :token, :select_difficulty)"
+            + " :judge, :select_difficulty)"
         ),
         {
             "room_id": room_id, "user_id": user_id,
-            "score": 0, "judge": 0, "token": token,
+            "score": 0, "judge": 0,
             "select_difficulty": select_difficulty.value
         },
     )
@@ -241,30 +243,34 @@ def join_room(
 def _wait_room(conn, room_id: int, token: str) -> int:
     result = conn.execute(
         text(
-            "SELECT host_user_id FROM room"
-            + " WHERE room_id = :room_id"
+            "SELECT host_user_id, status FROM room"
+            + " WHERE id = :room_id"
         ),
         {"room_id": room_id},
     )
-    _host_user_id = result.one()
-    host_user_id = _host_user_id.host_user_id
+    element = result.one()
+    host_user_id = element.host_user_id
+    status = element.status
+
+    result = _get_user_by_token(conn, token)
+    my_user_id = result.id
 
     result2 = conn.execute(
         text(
             "SELECT user_id, name, leader_card_id, select_difficulty,"
-            + " CASE WHEN token==*token* THEN 1 ELSE 0 END AS is_me,"
-            + " CASE WHEN user_id== :host_user_id THEN 1 ELSE 0 END AS is_host"
+            + " CASE WHEN user_id = :my_user_id THEN 1 ELSE 0 END AS is_me,"
+            + " CASE WHEN user_id = :host_user_id THEN 1 ELSE 0 END AS is_host"
             + " FROM"
-            + " (SELECT id AS user_id, name, leader_card_id"
+            + " (SELECT id, name, leader_card_id"
             + " FROM user) AS _user LEFT OUTER JOIN"
             + " (SELECT user_id, select_difficulty FROM room_member"
             + " WHERE room_id = :room_id) AS _room_member"
-            + " ON _user.id = _room_members.user_id"
+            + " ON _user.id = _room_member.user_id"
         ),
-        {"host_user_id": host_user_id, "room_id": room_id},
+        {"my_user_id": my_user_id, "host_user_id": host_user_id, "room_id": room_id},
     )
     print(result2)
-    return result2.all()
+    return [status,result2.all()]
 
 
 def wait_room(room_id: int, token: str) -> int:

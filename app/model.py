@@ -202,6 +202,10 @@ def join_room(
                     "is_host": False,
                 },
             )
+            conn.execute(
+                text("UPDATE `room` SET joined_user_count=:joined_user_count WHERE room_id=:room_id"),
+                {"joined_user_count": cnt+1, "room_id": room_id},
+            )
             if cnt == max_user_count - 1:
                 conn.execute(
                     text("UPDATE `room` SET join_status=2 WHERE room_id=:room_id"),
@@ -218,15 +222,21 @@ def join_room(
 
 def wait_room(room_id: int) -> dict:
     with engine.begin() as conn:
-        status = 1
-        result = conn.execute(
+        result1 = conn.execute(
+            text(
+                "SELECT `join_status` FROM `room` WHERE `room_id`=:room_id"
+            ),
+            {"room_id": room_id},
+        )
+        result2 = conn.execute(
             text(
                 "SELECT `user_id`, `name`, `leader_card_id`, `select_difficulty`, `is_me`, `is_host` FROM `room_member` WHERE `room_id`=:room_id"
             ),
             {"room_id": room_id},
         )
         try:
-            rows = result.all()
+            status = result1.one()[0]
+            rows = result2.all()
         except NoResultFound:
             return None
 
@@ -306,9 +316,22 @@ def result_room(room_id: int) -> list[ResultUser]:
 def leave_room(room_id: int, user: SafeUser) -> None:
     with engine.begin() as conn:
         conn.execute(
+            text("SELECT * FROM room WHERE `room_id`=:room_id FOR UPDATE"),
+            {"room_id": room_id},
+        )
+        result = conn.execute(
+            text("SELECT COUNT(1) FROM room_member WHERE `room_id`=:room_id"),
+            {"room_id": room_id},
+        )
+        cnt = result.one()[0]
+        conn.execute(
             text(
                 "DELETE FROM `room_member` WHERE `room_id`=:room_id AND `user_id`=:user_id"
             ),
             {"room_id": room_id, "user_id": user.id},
         )
-        
+        conn.execute(
+            text("UPDATE `room` SET joined_user_count=:joined_user_count WHERE room_id=:room_id"),
+            {"joined_user_count": cnt-1, "room_id": room_id},
+        )
+        conn.execute(text("COMMIT"))

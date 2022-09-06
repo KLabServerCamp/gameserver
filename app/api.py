@@ -120,7 +120,7 @@ class RoomCreateResponse(BaseModel):
 def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
     user = model.get_user_by_token(token)
     room_id = model.create_room(req.live_id, user)
-    model.join_room(room_id, req.select_difficulty, user)
+    # model.join_room(room_id, req.select_difficulty, user)
     return RoomCreateResponse(room_id=room_id)
 
 

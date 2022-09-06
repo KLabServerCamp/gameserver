@@ -119,29 +119,32 @@ class ResultUser(BaseModel):
     user_id: int
     judge_count_list: list[int]
     score: int
+
 ## /room/create
 
 # TODO: どうにかする
 MAX_USER_COUNT = 4
-def create_room(live_id: int, owner: SafeUser) -> int:
+def create_room(live_id: int, user: SafeUser) -> int:
     """Create new user and returns their token"""
     joined_user_count = 1
     max_user_count = MAX_USER_COUNT
-    
+    print(type(user))
     with engine.begin() as conn:
         result = conn.execute(
             text(
                 "INSERT INTO `room` SET \
-                    live_id=:live_id, \
-                    owner=:owener, \
-                    joined_user_count=:joined_user_count, \
-                    max_user_count=:max_user_count"
+                    `live_id`=:live_id, \
+                    `owner_id`=:owner_id, \
+                    `joined_user_count`=:joined_user_count, \
+                    `max_user_count`=:max_user_count, \
+                    `wait_room_status`=:wait_room_status"
             ),
             {
                 "live_id": live_id, 
-                "owner": owner,
+                "owner_id": user.id,
                 "joined_user_count": joined_user_count, 
-                "max_user_count": max_user_count
+                "max_user_count": max_user_count,
+                "wait_room_status": WaitRoomStatus.Wating.value
             },
         )
     room_id = result.lastrowid

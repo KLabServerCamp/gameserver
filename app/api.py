@@ -148,7 +148,10 @@ class RoomWaitResponse(BaseModel):
 @app.get("/room/wait", response_model=RoomWaitResponse)
 def wait_room(room_id: int):
     res = model.get_room_wait(room_id)
-    return res
+    return RoomWaitResponse(
+        wait_room_status=res[0],
+        room_member_list=res[1]
+    )
 
 
 @app.post("/room/start")

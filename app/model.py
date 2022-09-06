@@ -223,16 +223,18 @@ def get_room_user_list(room_id: int) -> list[RoomUser]:
             ),
             {"room_id": room_id}
         )
-    room_user_list = list[RoomUser]
+    room_user_list = []
     for row in result:
+        user = get_user_by_id(row["user_id"])
         room_user_list.append(
             RoomUser(
                 user_id=row["user_id"],
-                name=row["name"],
-                leader_card_id=row["leader_card_id"],
-                select_difficulty=row["select_diffculty"],
-                is_me=row["is_me"],
-                is_host=row["is_host"]
+                name=user.name,
+                leader_card_id=user.leader_card_id,
+                select_difficulty=row["select_difficulty"],
+                # TODO: 値調整
+                is_me=False,
+                is_host=False
             )
         )
     return room_user_list

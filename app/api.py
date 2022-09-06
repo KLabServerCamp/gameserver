@@ -1,5 +1,3 @@
-from enum import Enum
-
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
@@ -38,7 +36,9 @@ def user_create(req: UserCreateRequest):
 bearer = HTTPBearer()
 
 
-def get_auth_token(cred: HTTPAuthorizationCredentials = Depends(bearer)) -> str:
+def get_auth_token(
+    cred: HTTPAuthorizationCredentials = Depends(bearer),
+) -> str:
     assert cred is not None
     if not cred.credentials:
         raise HTTPException(status_code=401, detail="invalid credential")
@@ -63,7 +63,7 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
     """Update user attributes"""
     # print(req)
     model.update_user(token, req.user_name, req.leader_card_id)
-    return {}
+    return dict[str, object]()
 
 
 # Room APIs
@@ -146,11 +146,9 @@ class RoomStartRequest(BaseModel):
     room_id: int  # 入場するルームのID
 
 
-@app.post("/room/start")
-def start_room(
-    req: RoomStartRequest,
-    token: str = Depends(get_auth_token),
-) -> None:
+@app.post("/room/start", response_model=Empty)
+def start_room(req: RoomStartRequest, token: str = Depends(get_auth_token)):
     """ルーム開始する"""
     # print(req)
     model.start_room(token, req.room_id)
+    return dict[str, object]()

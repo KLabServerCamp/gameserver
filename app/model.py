@@ -1,4 +1,5 @@
 import uuid
+import json
 from enum import IntEnum
 from sqlite3 import OperationalError
 
@@ -53,9 +54,7 @@ def create_user(name: str, leader_card_id: int) -> str:
 
 
 def _get_user_by_token(conn: Connection, token: str) -> Optional[SafeUser]:
-    result = conn.execute(
-        text("SELECT * FROM user WHERE token = :token"), {"token": token}
-    )
+    result = conn.execute(text("SELECT * FROM user WHERE token = :token"), {"token": token})
     try:
         row = result.one()
     except NoResultFound:
@@ -205,9 +204,6 @@ class RoomUser(BaseModel):
     is_me: bool  # リクエスト投げたユーザーと同じか
     is_host: bool  # 部屋を立てた人か
 
-    class Config:
-        orm_mode = True
-
 
 class ResultUser(BaseModel):
     user_id: int  # ユーザー識別子
@@ -224,9 +220,16 @@ def create_room(live_id: int, select_difficulty: int, user_id: int) -> int:
         # create new room
         res = conn.execute(
             text(
-                "INSERT INTO room (live_id, joined_user_count) "
-                "VALUES (:live_id, 1);"
-                "SELECT LAST_INSERT_ID();"
+                "INSERT INTO room("
+                "  live_id,"
+                "  joined_user_count"
+                ")"
+                "VALUES("
+                "  :live_id,"
+                "  1"
+                ");"
+                "SELECT"
+                "  LAST_INSERT_ID()"
             ),
             {"live_id": live_id},
         )
@@ -236,8 +239,12 @@ def create_room(live_id: int, select_difficulty: int, user_id: int) -> int:
         # create new room_member
         conn.execute(
             text(
-                "INSERT INTO room_member (room_id, user_id, select_difficulty, is_host) "
-                "VALUE (:room_id, :user_id, :select_difficulty, :is_host)"
+                "INSERT INTO room_member("
+                "  room_id,"
+                "  user_id,"
+                "  select_difficulty,"
+                "  is_host"
+                ") VALUE(:room_id, :user_id, :select_difficulty, :is_host)"
             ),
             {
                 "room_id": room_id,
@@ -253,7 +260,14 @@ def create_room(live_id: int, select_difficulty: int, user_id: int) -> int:
 def get_rooms_by_live_id(live_id: int) -> list[RoomInfo]:
     with engine.begin() as conn:
         result = conn.execute(
-            text("SELECT * FROM room WHERE live_id = :live_id"), {"live_id": live_id}
+            text(
+                "SELECT"
+                "  * "
+                "FROM"
+                "  room "
+                "WHERE"
+                "  live_id = :live_id"
+            ), {"live_id": live_id}
         )
     rooms = []
     for row in result:
@@ -268,11 +282,14 @@ def join_room(room_id: int, select_difficulty: int, user_id: int) -> JoinRoomRes
         try:
             conn.execute(
                 text(
-                    "UPDATE room "
-                    "SET joined_user_count = "
-                    "CASE WHEN joined_user_count < 4 THEN joined_user_count + 1 "
-                    "END "
-                    "WHERE room_id = :room_id"
+                    "UPDATE"
+                    "  room "
+                    "SET"
+                    "  joined_user_count = CASE"
+                    "    WHEN joined_user_count < 4 THEN joined_user_count + 1"
+                    "  END "
+                    "WHERE"
+                    "  room_id = :room_id"
                 ),
                 {"room_id": room_id},
             )
@@ -282,8 +299,17 @@ def join_room(room_id: int, select_difficulty: int, user_id: int) -> JoinRoomRes
         # create new room_member
         conn.execute(
             text(
-                "INSERT INTO room_member (room_id, user_id, select_difficulty, is_host) "
-                "VALUE (:room_id, :user_id, :select_difficulty, :is_host)"
+                "INSERT INTO room_member("
+                "  room_id,"
+                "  user_id,"
+                "  select_difficulty,"
+                "  is_host"
+                ")  VALUE("
+                "  :room_id,"
+                "  :user_id,"
+                "  :select_difficulty,"
+                "  :is_host"
+                ")"
             ),
             {
                 "room_id": room_id,
@@ -298,7 +324,14 @@ def join_room(room_id: int, select_difficulty: int, user_id: int) -> JoinRoomRes
 def wait_room(room_id: int, user_id: int) -> tuple[WaitRoomStatus, list[RoomUser]]:
     with engine.begin() as conn:
         rooms = conn.execute(
-            text("SELECT status FROM room WHERE room_id = :room_id"),
+            text(
+                "SELECT"
+                "  status "
+                "FROM"
+                "  room "
+                "WHERE"
+                "  room_id = :room_id"
+            ),
             {"room_id": room_id},
         )
         status = rooms.scalar_one()
@@ -309,11 +342,12 @@ def wait_room(room_id: int, user_id: int) -> tuple[WaitRoomStatus, list[RoomUser
                 "  u.name,"
                 "  u.leader_card_id,"
                 "  rm.select_difficulty,"
-                "  rm.is_host"
+                "  rm.is_host "
                 "FROM"
                 "  room_member AS rm"
-                "  JOIN user AS u"
-                "    ON rm.user_id = u.id "
+                "  JOIN"
+                "    user AS u"
+                "  ON  rm.user_id = u.id "
                 "WHERE"
                 "  rm.room_id = :room_id"
             ),
@@ -321,9 +355,15 @@ def wait_room(room_id: int, user_id: int) -> tuple[WaitRoomStatus, list[RoomUser
         )
     users = []
     for row in user_rows:
-        room_user = RoomUser.from_orm(row)
-        room_user.is_me = user_id == row[0]
-        users.append(room_user)
+        user = RoomUser(
+            user_id=row[0],
+            name=row[1],
+            leader_card_id=row[2],
+            select_difficulty=row[3],
+            is_me=user_id == row[0],
+            is_host=row[4]
+        )
+        users.append(user)
 
     return (WaitRoomStatus(status), users)
 
@@ -331,34 +371,46 @@ def wait_room(room_id: int, user_id: int) -> tuple[WaitRoomStatus, list[RoomUser
 def start_room(room_id: int) -> None:
     with engine.begin() as conn:
         conn.execute(
-            text("UPDATE room SET status = :status WHERE room_id = :room_id"),
+            text(
+                "UPDATE"
+                "  room "
+                "SET"
+                "  status = :status "
+                "WHERE"
+                "  room_id = :room_id"
+            ),
             {"status": WaitRoomStatus.LiveStart, "room_id": room_id},
         )
 
 
-def end_room(
-    room_id: int, judge_count_list: list[int], score: int, user_id: int
-) -> None:
+def end_room(room_id: int, judge_count_list: list[int], score: int, user_id: int) -> None:
     with engine.begin() as conn:
         # change room status
         conn.execute(
-            text("UPDATE room SET status = :status WHERE room_id = :room_id"),
+            text(
+                "UPDATE"
+                "  room "
+                "SET"
+                "  status = :status "
+                "WHERE"
+                "  room_id = :room_id"
+            ),
             {"status": WaitRoomStatus.Dissolution, "room_id": room_id},
         )
         # store room_member's score
         conn.execute(
             text(
                 "UPDATE"
-                "  room_member"
+                "  room_member "
                 "SET"
                 "  score = :score,"
-                "  judge = :judge"
+                "  judge = :judge "
                 "WHERE"
                 "  room_id = :room_id && user_id = :user_id"
             ),
             {
                 "score": score,
-                "judge": judge_count_list,
+                "judge": json.dumps(judge_count_list),
                 "room_id": room_id,
                 "user_id": user_id,
             },
@@ -372,9 +424,9 @@ def all_user_results(room_id: int) -> list[ResultUser]:
                 "SELECT"
                 "  user_id,"
                 "  judge_count_list,"
-                "  score"
+                "  score "
                 "FROM"
-                "  room_member"
+                "  room_member "
                 "WHERE"
                 "  room_id = :room_id"
             ),
@@ -382,7 +434,7 @@ def all_user_results(room_id: int) -> list[ResultUser]:
         )
     results = []
     for row in res:
-        results.append(ResultUser.from_orm(row))
+        pass
 
     return results
 

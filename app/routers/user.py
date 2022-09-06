@@ -41,8 +41,8 @@ def user_me(token: str = Depends(get_auth_token)) -> SafeUser:
 
 
 @router.post("/update", response_model=Empty)
-def update(req: UserCreateRequest, token: str = Depends(get_auth_token)) -> dict:
+def update(req: UserCreateRequest, token: str = Depends(get_auth_token)) -> Empty:
     """Update user attributes"""
     # print(req)
     model.update_user(token, req.user_name, req.leader_card_id)
-    return {}
+    return Empty()

@@ -232,6 +232,12 @@ class RoomEndResponse(BaseModel):
     pass
 
 
+@app.post("/room/end", response_model=RoomEndResponse)
+def room_end(req: RoomEndRequest):
+    model.end_room(req.room_id, req.judge_count_list, req.score)
+    return RoomEndResponse()
+
+
 class RoomResultRequest(BaseModel):
     room_id: int
 

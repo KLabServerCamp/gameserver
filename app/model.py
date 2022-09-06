@@ -296,3 +296,24 @@ def _start_room(conn, room_id: int):
 def start_room(room_id: int):
     with engine.begin() as conn:
         return _start_room(conn, room_id)
+
+
+def _end_room(conn, room_id: int, judge_count_list: list[int], score: int):
+    _ = conn.execute(
+        text(
+            "UPDATE `room_member` SET `judge`= :judge_count_list,"
+            + " `score`= :score"
+            + " WHERE `room_id` = :room_id"
+        ),
+        {
+            "judge_count_list": judge_count_list,
+            "score": score,
+            "room_id": room_id
+        },
+    )
+    return
+
+
+def end_room(room_id: int, judge_count_list: list[int], score: int):
+    with engine.begin() as conn:
+        return _end_room(conn, room_id, judge_count_list, score)

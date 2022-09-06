@@ -186,3 +186,11 @@ def room_end(req: RoomEndRequest):
 def room_result(req: RoomResultRequest):
     result_user_list = model.get_room_result(req.room_id)
     return RoomResultResponse(result_user_list=result_user_list)
+
+
+#ルーム退出リクエスト
+@app.post("room/leave", response_model=RoomLeaveResponse)
+def room_leave(req: RoomLeaveRequest):
+    user_data = user_me()
+    model.room_leave_(req.room_id, user_data.id):
+    return RoomLeaveResponse()

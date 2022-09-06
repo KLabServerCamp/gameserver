@@ -357,3 +357,50 @@ def get_room_result(room_id: int) -> list[ResultUser]:
                 )
             )
     return room_result
+
+
+def room_leave_(room_id: int, request_user_id: int) -> None:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "DELETE FROM room_member \
+                WHERE room_id=:room_id"
+            ),
+            {"room_id": room_id},
+        )
+
+        result2 = conn.execute(
+            text(
+                "SELECT joined_user_count \
+                FROM room \
+                WHERE room_id=:room_id"
+            ),
+            {"room_id": room_id},
+        )
+        try:
+            joined_user_count = result2.one().joined_user_count
+        except NoResultFound:
+            return
+
+        #最後の1人の場合は部屋を削除
+        if joined_user_count <= 1:
+            result3 = conn.execute(
+                text(
+                    "DELETE FROM room \
+                    WHERE room_id=:room_id"
+                ),
+                {"room_id": room_id},
+            )
+        else:
+            result3 = conn.execute(
+                text(
+                    "UPDATE `room` \
+                    SET joined_user_count=:joined_user_count \
+                    WHERE room_id=:room_id"
+                ),
+                {
+                    "joined_user_count": joined_user_count - 1,
+                    "room_id": room_id
+                },
+            )
+    return

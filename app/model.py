@@ -133,7 +133,7 @@ def create_user(name: str, leader_card_id: int) -> str:
     token = str(uuid.uuid4())
     # NOTE: tokenが衝突したらリトライする必要がある.
     with engine.begin() as conn:
-        result = conn.execute(
+        _ = conn.execute(
             text(
                 "INSERT INTO `user` (name, token, leader_card_id) VALUES (:name, :token, :leader_card_id)"
             ),

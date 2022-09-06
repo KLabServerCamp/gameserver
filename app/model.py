@@ -382,9 +382,12 @@ def _room_leave(conn, user: SafeUser, room_id: int) -> None:
     conn.execute(
         text(
             "UPDATE rooms SET j_usr_cnt = :j_usr_cnt, users = :users, "
-            "r_res_cnt = :r_res_cnt WHERE room_id = :room_id"
+            "hst_id = :hst_id, r_res_cnt = :r_res_cnt WHERE room_id = :room_id"
         ),
-        {"j_usr_cnt": j_usr_cnt, "users": users_json, "r_res_cnt": r_res_cnt, "room_id": room_id},
+        {
+            "j_usr_cnt": j_usr_cnt, "users": users_json, "hst_id": hst_id,
+            "r_res_cnt": r_res_cnt, "room_id": room_id
+        }
     )
     return
 

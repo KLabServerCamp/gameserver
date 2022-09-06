@@ -136,11 +136,11 @@ class RoomStartRequest(BaseModel):
     room_id: int
 
 
-@app.post("/room/start")
+@app.post("/room/start", response_model=Empty)
 def room_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
     """ライブ開始"""
     model.room_start(token, req.room_id)
-    return
+    return {}
 
 
 class RoomEndRequest(BaseModel):
@@ -149,11 +149,11 @@ class RoomEndRequest(BaseModel):
     score: int
 
 
-@app.post("/room/end")
+@app.post("/room/end", response_model=Empty)
 def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
     """ライブ終了"""
     model.room_end(token, req.room_id, req.judge_count_list, req.score)
-    return
+    return {}
 
 
 class RoomResultRequest(BaseModel):
@@ -174,8 +174,8 @@ class RoomLeaveRequest(BaseModel):
     room_id: int
 
 
-@app.post("/room/leave")
+@app.post("/room/leave", response_model=Empty)
 def room_leave(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
     """ルーム退出"""
     model.room_leave(token, req.room_id)
-    return
+    return {}

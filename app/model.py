@@ -3,7 +3,7 @@
 import json
 import uuid
 from enum import Enum, IntEnum
-from typing import Optional
+from typing import Optional, Tuple
 
 from fastapi import HTTPException
 from pydantic import BaseModel
@@ -253,3 +253,41 @@ def join_room(room_id: int, user_data: SafeUser, select_difficulty: LiveDifficul
     return JoinRoomResult.Ok
 
 
+def get_wait_room_status(room_id: int, request_user_id: int) -> Tuple[WaitRoomStatus, list[RoomUser]]:
+    with engine.begin() as conn:
+        result = conn.execute(
+                    text(
+                        "SELECT `status` FROM room \
+                        WHERE room_id=:room_id"
+                    ),
+                    {
+                        "room_id": room_id
+                    },
+                )
+        try:
+            status = result.one().status
+        except NoResultFound:
+            return WaitRoomStatus.Dissolution, []
+
+        result2 = conn.execute(
+                    text(
+                        "SELECT `user_id`, `name`, `leader_card_id`, `select_difficulty`, `is_host`, \
+                         FROM room \
+                        WHERE room_id=:room_id"
+                    ),
+                    {
+                        "room_id": room_id
+                    },
+                )
+        room_user_list = [
+            RoomUser(
+                user_id=row.user_id,
+                name=row.name,
+                leader_card_id=row.leader_card_id,
+                select_difficulty=row.select_difficulty,
+                is_me=(row.user_id == request_user_id),
+                is_host=row.is_host
+            )
+            for row in result.all()
+            ]
+    return status, room_user_list

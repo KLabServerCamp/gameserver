@@ -156,3 +156,11 @@ def room_join(req: RoomJoinRequest):
     user_data = user_me()
     join_room_result = model.join_room(req.room_id, user_data, req.select_difficulty)
     return RoomJoinResponse(join_room_result=join_room_result)
+
+
+#ルーム待機中
+@app.post("room/wait", response_model=RoomWaitResponse)
+def room_wait(req: RoomWaitRequest):
+    user_data = user_me()
+    status, room_user_list = model.get_wait_room_status(req.room_id, user_data.id)
+    return RoomWaitResponse(status=status, room_user_list=room_user_list)

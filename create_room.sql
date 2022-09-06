@@ -5,6 +5,5 @@ CREATE TABLE `room` (
   `owner` bigint NOT NULL,
   `status` int NOT NULL,
   `joined_user_count` int NOT NULL,
-  PRIMARY KEY (`room_id`),
-  UNIQUE KEY `owner` (`owner`)
+  PRIMARY KEY (`room_id`)
 );

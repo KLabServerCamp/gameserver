@@ -383,7 +383,22 @@ def start_room(token: str, room_id: int) -> None:
         if user := _get_user_by_token(conn, token):
             if host := _get_host_id(conn, room_id):
                 if user.id == host:
-                    _set_room_status(conn, room_id, WaitRoomStatus.STARTED)
+                    count: int = len(_get_room_users(conn, room_id, user.id))
+                    query_str: str = "\
+                        UPDATE `room` SET \
+                            `status` = :status, \
+                            `initial_member` = :count \
+                        WHERE `id`=:room_id \
+                    "
+
+                    conn.execute(
+                        text(query_str),
+                        {
+                            "status": WaitRoomStatus.STARTED.value,
+                            "count": count,
+                            "room_id": room_id,
+                        },
+                    )
             return
         raise InvalidToken
 
@@ -392,7 +407,6 @@ def end_room(token: str, room_id: int, judge: str, score: int) -> None:
     with engine.begin() as conn:
         conn: Connection
         if user := _get_user_by_token(conn, token):
-
             query_str: str = "\
                 UPDATE `room_user` SET \
                     `judge`=:judge, \
@@ -417,14 +431,16 @@ def end_room(token: str, room_id: int, judge: str, score: int) -> None:
 def get_room_result(room_id: int) -> list[ResultUser]:
     with engine.begin() as conn:
         conn: Connection
+        query_str: str
 
-        query_str: str = "\
+        query_str = "\
             SELECT \
-                `user_id`, \
-                `judge` AS judge_count_list, \
-                `score` \
+                `user`.`id`, \
+                `room_user`.`judge` AS judge_count_list, \
+                `room_user`.`score` \
             FROM `room_user` \
-            WHERE `room_id`=:room_id \
+            INNER JOIN `user` ON `room_user`.`user_id` = `user`.`id` \
+            WHERE `room_user`.`room_id` = :room_id \
         "
 
         result = conn.execute(
@@ -432,7 +448,7 @@ def get_room_result(room_id: int) -> list[ResultUser]:
             {"room_id": room_id},
         ).all()
 
-        return [
+        ret = [
             ResultUser(
                 user_id=row[0],
                 judge_count_list=[int(x) for x in row[1].split(",")],
@@ -441,6 +457,21 @@ def get_room_result(room_id: int) -> list[ResultUser]:
             for row in result
             if row["judge_count_list"] and row["score"]
         ]
+
+        query_str = "\
+            SELECT `room`.`initial_member` \
+            FROM `room` \
+            WHERE `room`.`id` = :room_id \
+        "
+        init_member: int = conn.execute(
+            text(query_str),
+            {"room_id": room_id},
+        ).one()[0]
+
+        logging.warning(len(ret))
+        if len(ret) < init_member:
+            return list[ResultUser]()
+        return ret
 
 
 def leave_room(token: str, room_id: int) -> None:

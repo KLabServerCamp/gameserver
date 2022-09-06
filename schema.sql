@@ -16,7 +16,8 @@ CREATE TABLE `room` (
   `live_id` int NOT NULL,
   `host_id` bigint NOT NULL,
   `status` tinyint NOT NULL,
-  `max_user` int NOT NULL,
+  `initial_member` tinyint NOT NULL DEFAULT 0,
+  `max_user` tinyint NOT NULL,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`host_id`) REFERENCES `user` (`id`)
 );

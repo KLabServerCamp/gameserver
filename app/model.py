@@ -420,6 +420,29 @@ def end_room(user_id: int, room_id: int, judge_count_list: list[int], score: int
 
 ## /room/leave
 
+def _delete_room(conn, room_id: int):
+    conn.execute(
+        text(
+            "DELETE FROM `room` WHERE `room_id`=:room_id"
+        ),
+        {
+            "room_id": room_id
+        }
+    )
+
+def _decline_room_member(conn, room_id: int, joined_user_count: int):
+        conn.execute(
+            text(
+                "UPDATE `room` SET \
+                    `joined_user_count`=:joined_user_count \
+                    WHERE `room_id`=:room_id"
+            ),
+            {
+                "room_id": room_id,
+                "joined_user_count": joined_user_count
+            }
+        )
+
 def leave_room(room_id: int, user: SafeUser):
     # update_room_user
     #   - room_userを削除
@@ -428,7 +451,7 @@ def leave_room(room_id: int, user: SafeUser):
 
     # room_memberからuserを削除
     with engine.begin() as conn:
-        result = conn.execute(
+        conn.execute(
             text(
                 "DELETE FROM `room_member` \
                     WHERE `room_id`=:room_id AND `user_id`=:user_id"
@@ -439,17 +462,9 @@ def leave_room(room_id: int, user: SafeUser):
             }
         )
 
-    room_info = get_room_by_id(room_id)
-    # 部屋の人数を一人減らす
-    with engine.begin() as conn:
-        reslut = conn.execute(
-            text(
-                "UPDATE `room` SET \
-                    `joined_user_connect`=:joined_user_connect \
-                    WHERE `room_id`=:room_id"
-            ),
-            {
-                "joined_user_connect": room_info.joined_user_connect - 1,
-                "room_id": room_id,
-            }
-        )
+        room_info = get_room_by_id(room_id)
+
+        if room_info.owner_id == user.id:
+            _delete_room(conn, room_id)
+        else:
+            _decline_room_member(conn, room_id, room_info.joined_user_count)

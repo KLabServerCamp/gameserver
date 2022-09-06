@@ -7,3 +7,11 @@ format:
 
 test:
 	pytest -sv tests
+
+show_db:
+	mysql webapp \
+		" \
+		select * from user; \
+		select * from room; \
+		select * from room_member; \
+		"

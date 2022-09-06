@@ -459,8 +459,6 @@ def get_room_result(room_id: int) -> list[ResultUser]:
 
 
 def leave_room(room_id: int, user_id: int) -> None:
-    # TODO:
-    # ホストが抜けた場合に、新しいホストを選ぶようにする
     with engine.begin() as conn:
         conn.execute(
             text(

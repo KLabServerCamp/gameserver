@@ -1,4 +1,3 @@
-from enum import Enum
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
@@ -6,7 +5,10 @@ from pydantic import BaseModel
 
 from . import model
 from .model import SafeUser
-from .model import RoomInfo, RoomUser, JoinRoomResult, LiveDifficulty, ResultUser, RoomInfo, WaitRoomStatus
+from .model import (
+    RoomInfo, RoomUser, JoinRoomResult, 
+    LiveDifficulty, ResultUser, RoomInfo, WaitRoomStatus
+)
 
 app = FastAPI()
 
@@ -40,7 +42,9 @@ def user_create(req: UserCreateRequest):
 bearer = HTTPBearer()
 
 
-def get_auth_token(cred: HTTPAuthorizationCredentials = Depends(bearer)) -> str:
+def get_auth_token(
+    cred: HTTPAuthorizationCredentials = Depends(bearer)
+    ) -> str:
     assert cred is not None
     if not cred.credentials:
         raise HTTPException(status_code=401, detail="invalid credential")
@@ -71,44 +75,6 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
 # Room APIs
 
 
-# class LiveDifficulty(Enum):
-#     normal = 1
-#     hard = 2
-
-# class JoinRoomResult(Enum):
-#     Ok = 1
-#     RoomFull = 2
-#     Disbanded = 3
-#     OtherError = 4
-
-
-# class WaitRoomStatus(Enum):
-#     Wating = 1
-#     LiveStart = 2
-#     Dissolution = 3
-
-# class RoomInfo(BaseModel):
-#     room_id: int
-#     live_id: int
-#     owner: int
-#     joined_user_count: int
-#     max_user_count: int
-    
-# class RoomUser(BaseModel):
-#     user_id: int
-#     name: str
-#     leader_card_id: int
-#     select_difficulty: LiveDifficulty
-#     is_me: bool
-#     is_host: bool
-    
-# class ResultUser(BaseModel):
-#     user_id: int
-#     judge_count_list: list[int]
-#     score: int
-    
-
-
 class RoomCreateRequest(BaseModel):
     live_id: int
     select_difficulty: LiveDifficulty
@@ -123,12 +89,16 @@ def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
     model.join_room(room_id, req.select_difficulty, user)
     return RoomCreateResponse(room_id=room_id)
 
+class RoomListRequest(BaseModel):
+    live_id: int
 
-@app.get("/room/list", response_model=list[RoomInfo])
-def room_list(live_id: int):
-    room_list = model.get_room_list(live_id)
-    return room_list
+class RoomListResponse(BaseModel):
+    room_list: list[RoomInfo]
 
+@app.post("/room/list", response_model=RoomListResponse)
+def room_list(req: RoomListRequest):
+    room_list = model.get_room_list(req.live_id)
+    return RoomListResponse(room_list=room_list)
 
 class RoomJoinRequest(BaseModel):
     room_id: int
@@ -137,29 +107,32 @@ class RoomJoinRequest(BaseModel):
 @app.post("/room/join", response_model=JoinRoomResult)
 def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
     user = model.get_user_by_token(token)
-    join_room_result = model.join_room(req.room_id, req.select_difficulty, user)
+    join_room_result = \
+        model.join_room(req.room_id, req.select_difficulty, user)
     return join_room_result
     
+class RoomWaitRequest(BaseModel):
+    room_id: int
 
 class RoomWaitResponse(BaseModel):
     wait_room_status: WaitRoomStatus
     room_member_list: list[RoomUser]
 
-@app.get("/room/wait", response_model=RoomWaitResponse)
-def wait_room(room_id: int):
-    res = model.get_room_wait(room_id)
+@app.post("/room/wait", response_model=RoomWaitResponse)
+def wait_room(req: RoomWaitRequest):
+    res = model.get_room_wait(req.room_id)
     return RoomWaitResponse(
         wait_room_status=res[0],
         room_member_list=res[1]
     )
 
+class RoomStartRequest(BaseModel):
+    room_id: int
 
 @app.post("/room/start")
-def room_start(room_id: int, token: str = Depends(get_auth_token)):
+def room_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
     user = model.get_user_by_token(token)
-    model.start_room(room_id, user)
-    # model.update_wait_room_status(room_id, WaitRoomStatus.LiveStart)
-
+    model.start_room(req.room_id, user)
 
 class RoomEndRequest(BaseModel):
     room_id: int
@@ -167,18 +140,23 @@ class RoomEndRequest(BaseModel):
     judge_count_list: list[int]
 
 @app.post("/room/end")
-def room_end(req: RoomEndRequest):
-    model.end_room()
-
-
-@app.get("/room/result", response_model=list[ResultUser])
-def room_result(room_id: int, token: str = Depends(get_auth_token)):
+def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
     user = model.get_user_by_token(token)
-    res = model.get_result_user_list(room_id, user)
+    model.end_room(user.id, req.room_id, req.judge_count_list, req.score)
+
+class RoomResultRequest(BaseModel):
+    room_id: int
+
+@app.post("/room/result", response_model=list[ResultUser])
+def room_result(req: RoomResultRequest, token: str = Depends(get_auth_token)):
+    user = model.get_user_by_token(token)
+    res = model.get_result_user_list(req.room_id, user)
     return res
 
+class RoomLeaveRequest(BaseModel):
+    room_id: int
 
 @app.post("/room/leave")
-def room_leave(room_id: int, token: str = Depends(get_auth_token)):
+def room_leave(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
     user = model.get_user_by_token(token)
-    model.leave_room(room_id, user)
+    model.leave_room(req.room_id, user)

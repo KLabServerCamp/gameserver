@@ -72,6 +72,9 @@ def test_user_update():
     )
     assert response.status_code == 200
     
+    response = client.get("/user/me", headers={"Authorization": f"bearer {token}"})
+    assert response.status_code == 200
+
     response_data = response.json()
     assert response_data.keys() == {"id", "name", "leader_card_id"}
     assert response_data["name"] == "test2"

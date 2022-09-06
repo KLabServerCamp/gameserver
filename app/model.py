@@ -1,5 +1,4 @@
 # from asyncio.windows_events import NULL
-import json
 import uuid
 from enum import Enum, IntEnum
 from typing import Optional
@@ -86,8 +85,12 @@ def _update_user(conn, token: str, name: str, leader_card_id: int) -> None:
 def update_user(token: str, name: str, leader_card_id: int) -> None:
     # このコードを実装してもらう
     with engine.begin() as conn:
-        # TODO: 実装
-        return _update_user(conn, token, name, leader_card_id)
+        result = conn.execute(
+            text(
+                "UPDATE `user` SET name=:name, leader_card_id=:leader_card_id WHERE token=:token"
+            ),
+            dict(name=name, token=token, leader_card_id=leader_card_id),
+        )
 
 
 
@@ -241,23 +244,33 @@ def get_room_user_list(room_id: int) -> list[RoomUser]:
 
 
 def get_room_user(room_id: int, user: SafeUser) -> RoomUser:
-    with engine.begin() as conn:
-        result = conn.execute(
-            text("SELECT `room_member` * WHERE user_id=:user_id AND room_id=:room_id"),
-            {"user_id": user.id, "room_id": room_id}
-        )
+    # with engine.begin() as conn:
+    #     result = conn.execute(
+    #         text("SELECT * FROM `room_member` WHERE user_id=:user_id AND room_id=:room_id"),
+    #         {"user_id": user.id, "room_id": room_id}
+    #     )
+
+    # try:
+    #     room_user = result.one()
+    # except NoResultFound as e:
+    #     print(e)
+    #     return None
 
     room_info = get_room_by_id(room_id)
-    room_user = result[0]
+    room_user_list = get_room_user_list(room_id)
 
-    return RoomUser(
-        user_id=room_id,
-        name=user.name,
-        leader_card_id=user.leader_card_id,
-        select_difficulty=room_user["select_difficulty"],
-        is_me=True,
-        is_host=bool(room_info.owner_id == user.id),
-    )
+    for room_user in room_user_list:
+        if room_user.user_id == user.id:
+            return RoomUser(
+                user_id=room_id,
+                name=user.name,
+                leader_card_id=user.leader_card_id,
+                select_difficulty=room_user.select_difficulty,
+                is_me=True,
+                is_host=bool(room_info.owner_id == user.id),
+            )
+
+    return None
 
 
     
@@ -335,15 +348,9 @@ def update_wait_room_status(room_id: int, wait_room_status: WaitRoomStatus):
             text(
                 "UPDATE `room` SET wait_room_status=:wait_room_status WHERE room_id=:room_id"
             ),
-            {"wait_room_status": wait_room_status, "room_id": room_id}
+            # {"wait_room_status": wait_room_status.value, "room_id": room_id}
+            {"wait_room_status": 2, "room_id": room_id}
         )
-
-
-
-def is_host(room_id: int, user: SafeUser) -> bool:
-   room_user = get_room_user(room.id, user) 
-   return room_user.is_host
-
 
 
 ## /room/start
@@ -400,7 +407,8 @@ def get_result_user_list(room_id: int) -> list[ResultUser]:
 ## /room/end
 
 def end_room(user_id: int, room_id: int, judge_count_list: list[int], score: int): 
-    update_result(room_id, 
+    update_result(
+        room_id, 
         ResultUser(
             user_id=user_id, 
             judge_count_list=judge_count_list, 

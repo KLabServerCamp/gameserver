@@ -197,8 +197,8 @@ def get_room_by_id(room_id: int) -> RoomInfo:
         room_id=row["room_id"],
         live_id=row["live_id"],
         owner_id=row["owner_id"],
-        joined_user_count=row["join_user_count"],
-        max_user_count=row["max_user_count"]   
+        joined_user_count=row["joined_user_count"],
+        max_user_count=row["max_user_count"]
     )
 
 # TODO: おかしいので直す
@@ -277,6 +277,8 @@ def _join_room(room_id: int, select_difficulty: LiveDifficulty, user: SafeUser) 
 def join_room(room_id: int, select_difficulty: LiveDifficulty, user: SafeUser) -> JoinRoomResult:
     # TODO: 部屋ロック
     
+    tmp = get_room_by_id(room_id)
+    print(tmp)
     try:
         room_info = get_room_by_id(room_id)
     except:

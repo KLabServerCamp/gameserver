@@ -3,6 +3,7 @@ from pydantic import BaseModel
 
 from .. import model
 from ..dependencies import get_auth_token
+from ..exceptions import InvalidToken
 from ..model import (
     JoinRoomResult,
     LiveDifficulty,
@@ -208,7 +209,7 @@ def create_room(
     room_id = model.create_room(token, req.live_id)
     me = model.get_user_by_token(token)
     if me is None:
-        raise Exception("user not found")
+        raise InvalidToken()
     else:
         model.insert_room_member(room_id, me.id, req.select_difficulty, is_owner=True)
     return RoomCreateResponse(room_id=room_id)
@@ -227,7 +228,7 @@ def join_room(
     """Roomに参加する"""
     me = model.get_user_by_token(token)
     if me is None:
-        raise Exception("user not found")
+        raise InvalidToken()
     else:
         join_room_result = model.join_room(req.room_id, me.id, req.select_difficulty)
     return RoomJoinResponse(join_room_result=join_room_result)
@@ -241,7 +242,7 @@ def wait_room(
     status = model.get_room_status(req.room_id)
     me = model.get_user_by_token(token)
     if me is None:
-        raise Exception("user not found")
+        raise InvalidToken()
     else:
         room_user_list = model.get_room_user_list(req.room_id, me.id)
     return RoomWaitResponse(status=status, room_user_list=room_user_list)
@@ -263,7 +264,7 @@ def end_room(req: RoomEndRequest, token: str = Depends(get_auth_token)) -> Empty
         raise Exception("Length of judge_count_list must be 5.")
     me = model.get_user_by_token(token)
     if me is None:
-        raise Exception("user not found")
+        raise InvalidToken()
     else:
         model.store_score(req.room_id, me.id, req.judge_count_list, req.score)
     return Empty()
@@ -281,7 +282,7 @@ def leave_room(req: RoomLeaveRequest, token: str = Depends(get_auth_token)) -> E
     """Roomから退出する"""
     me = model.get_user_by_token(token)
     if me is None:
-        raise Exception("user not found")
+        raise InvalidToken()
     else:
         model.leave_room(req.room_id, me.id)
     return Empty()

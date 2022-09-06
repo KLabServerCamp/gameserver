@@ -123,13 +123,12 @@ def join_room(
         try:
             conn.execute(
                 text(
-                    "INSERT INTO `room_member` (`room_id`, `user_id`, `select_difficulty`, `is_host`) VALUES (:room_id, :user_id, :select_difficulty, :is_host)"
+                    "INSERT INTO `room_member` (`room_id`, `user_id`, `select_difficulty`, `is_host`) VALUES (:room_id, :user_id, :select_difficulty, false)"
                 ),
                 dict(
                     room_id=room_id,
                     user_id=usr.id,
                     select_difficulty=int(select_difficulty),
-                    is_host=False,
                 ),
             )
 
@@ -232,7 +231,6 @@ def get_results(room_id: int) -> list[ResultUser]:
 
 def leave_room(token: str, room_id: int):
     usr = validUser(token)
-    # TODO: ホスト委譲も追加する
     with engine.begin() as conn:
         result = conn.execute(
             text(
@@ -242,6 +240,17 @@ def leave_room(token: str, room_id: int):
         )
         try:
             user_count = result.one().joined_user_count
+        except:
+            raise HTTPException(status_code=404)
+
+        result = conn.execute(
+            text(
+                "SELECT `is_host` FROM `room_member` WHERE `room_id`=:room_id AND `user_id`=:user_id FOR UPDATE"
+            ),
+            dict(room_id=room_id, user_id=usr.id),
+        )
+        try:
+            is_host = result.one().is_host
         except:
             raise HTTPException(status_code=404)
 
@@ -269,15 +278,18 @@ def leave_room(token: str, room_id: int):
                 dict(count=user_count - 1, room_id=room_id),
             )
 
-            result = conn.execute(
-                text("SELECT `user_id` FROM `room_member` WHERE `room_id`=:room_id"),
-                dict(room_id=room_id),
-            )
-            next_host = result.first()
+            if is_host:
+                result = conn.execute(
+                    text(
+                        "SELECT `user_id` FROM `room_member` WHERE `room_id`=:room_id"
+                    ),
+                    dict(room_id=room_id),
+                )
+                next_host = result.first()
 
-            conn.execute(
-                text(
-                    "UPDATE `room_member` SET `is_host`=true WHERE `room_id`=:room_id AND `user_id`=:user_id"
-                ),
-                dict(room_id=room_id, user_id=next_host.user_id),
-            )
+                conn.execute(
+                    text(
+                        "UPDATE `room_member` SET `is_host`=true WHERE `room_id`=:room_id AND `user_id`=:user_id"
+                    ),
+                    dict(room_id=room_id, user_id=next_host.user_id),
+                )

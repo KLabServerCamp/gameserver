@@ -103,7 +103,7 @@ class WaitRoomStatus(Enum):
 class RoomInfo(BaseModel):
     room_id: int
     live_id: int
-    owner: int
+    owner_id: int
     joined_user_count: int
     max_user_count: int
     
@@ -160,12 +160,13 @@ def get_room_list(live_id: int) -> list[RoomInfo]:
             ),
             {"live_id": live_id}
         )
-    room_list = list[RoomInfo]
+    room_list = []
     for row in result:
         room_list.append(
             RoomInfo(
                 room_id=row.room_id,
                 live_id=row.live_id,
+                owner_id=row.owner_id,
                 joined_user_count=row.joined_user_count,
                 max_user_count=row.max_user_count
             )

@@ -1,8 +1,3 @@
-import json
-import uuid
-from enum import Enum, IntEnum
-from typing import Dict, List, Optional, Tuple
-
 from fastapi import HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
@@ -17,24 +12,27 @@ MAX_USER = 4
 # Models for room
 def get_rooms(live_id: int = 0):
     with engine.begin() as conn:
-        if live_id == 0:
-            result = conn.execute(
-                text(
-                    "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `status`=1 AND `joined_user_count`<`max_user_count`"
-                )
+        result = conn.execute(
+            text(
+                "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `live_id`=:live_id AND `status`=1 AND `joined_user_count`<`max_user_count`"
+            ),
+            dict(live_id=live_id),
+        )
+        return result
+
+
+def get_all_rooms():
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `status`=1 AND `joined_user_count`<`max_user_count`"
             )
-        else:
-            result = conn.execute(
-                text(
-                    "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `live_id`=:live_id AND `status`=1 AND `joined_user_count`<`max_user_count`"
-                ),
-                dict(live_id=live_id),
-            )
+        )
         return result
 
 
 def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty) -> int:
-    validUser(token)
+    usr = validUser(token)
     with engine.begin() as conn:
         result = conn.execute(
             text(
@@ -47,33 +45,23 @@ def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty) -> 
         except:
             raise HTTPException(status_code=500)
 
-        # この部屋を作成したユーザを特定
-        result = conn.execute(
-            text("SELECT `id` FROM `user` WHERE `token`=:token"), dict(token=token)
-        )
-        try:
-            owner_id = result.one().id
-        except:
-            raise HTTPException(status_code=500)
-
         # room_memberにオーナーを登録
         result = conn.execute(
             text(
-                "INSERT INTO `room_member` (`room_id`, `user_id`, `select_difficulty`, `is_host`) VALUES (:room_id, :user_id, :select_difficulty, :is_host)"
+                "INSERT INTO `room_member` (`room_id`, `user_id`, `select_difficulty`, `is_host`) VALUES (:room_id, :user_id, :select_difficulty, true)"
             ),
             dict(
                 room_id=room_id,
-                user_id=owner_id,
+                user_id=usr.id,
                 select_difficulty=int(select_difficulty),
-                is_host=True,
             ),
         )
 
         return room_id
 
 
-def get_room_users(token: str, room_id: int) -> Tuple[WaitRoomStatus, list[RoomUser]]:
-    validUser(token)
+def get_room_users(token: str, room_id: int) -> tuple[WaitRoomStatus, list[RoomUser]]:
+    usr = validUser(token)
     with engine.begin() as conn:
         result = conn.execute(
             text("SELECT `status` FROM `room` WHERE `room_id`=:room_id"),
@@ -91,9 +79,6 @@ def get_room_users(token: str, room_id: int) -> Tuple[WaitRoomStatus, list[RoomU
             dict(room_id=room_id),
         )
 
-        # このAPIをコールしているユーザを特定
-        usr = _get_user_by_token(conn, token)
-
         # 結果を詰める
         res = []
         for m in result.all():
@@ -102,7 +87,7 @@ def get_room_users(token: str, room_id: int) -> Tuple[WaitRoomStatus, list[RoomU
                 name=m.name,
                 leader_card_id=m.leader_card_id,
                 select_difficulty=LiveDifficulty(m.select_difficulty),
-                is_me=True if m.user_id == usr.id else False,
+                is_me=(m.user_id == usr.id),
                 is_host=m.is_host,
             )
             res.append(tmp)
@@ -184,7 +169,7 @@ def start_room(token: str, room_id: int) -> None:
         )
 
 
-def end_room(token: str, room_id: int, score: int, judge_count_list: List[int]) -> None:
+def end_room(token: str, room_id: int, score: int, judge_count_list: list[int]) -> None:
     usr = validUser(token)
     with engine.begin() as conn:
         # TODO: 終わったはずのroomにscoreを登録しようとしたら弾く
@@ -204,7 +189,7 @@ def end_room(token: str, room_id: int, score: int, judge_count_list: List[int]) 
         )
 
 
-def get_results(room_id: int) -> List[ResultUser]:
+def get_results(room_id: int) -> list[ResultUser]:
     with engine.begin() as conn:
         result = conn.execute(
             text(

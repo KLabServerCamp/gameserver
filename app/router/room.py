@@ -54,7 +54,7 @@ class RoomListResponse(BaseModel):
 def room_list(req: RoomListRequest):
     print(req.live_id)
     if req.live_id == 0:
-        rooms = room_models.get_rooms()
+        rooms = room_models.get_all_rooms()
     else:
         rooms = room_models.get_rooms(req.live_id)
     tmp = []

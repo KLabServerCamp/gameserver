@@ -1,7 +1,6 @@
-import json
 import logging
 import uuid
-from enum import Enum, IntEnum, auto
+from enum import IntEnum, auto
 from typing import Optional, Union
 
 from fastapi import HTTPException
@@ -134,6 +133,9 @@ class RoomInfo(BaseModel):
     joined_user_count: int
     max_user_count: int
 
+    class Config:
+        orm_mode = True
+
 
 class RoomUser(BaseModel):
     """部屋に参加しているユーザーの情報
@@ -170,9 +172,13 @@ class ResultUser(BaseModel):
 
 
 def _create_empty_room(conn: Connection, live_id: int, host_id: int) -> int:
-    query_str: str = "INSERT INTO `room` \
-        (`live_id`, `host_id`, `status`) \
-        VALUES (:live_id, :host_id, :status)"
+    query_str: str = "\
+        INSERT INTO `room` SET  \
+            `live_id` = :live_id, \
+            `host_id` = :host_id, \
+            `status` = :status, \
+            `max_user` = :max_user \
+        "
 
     result = conn.execute(
         text(query_str),
@@ -180,6 +186,7 @@ def _create_empty_room(conn: Connection, live_id: int, host_id: int) -> int:
             "live_id": live_id,
             "host_id": host_id,
             "status": WaitRoomStatus.WAITING.value,
+            "max_user": config.MAX_ROOM_USER_COUNT,
         },
     )
 
@@ -187,37 +194,34 @@ def _create_empty_room(conn: Connection, live_id: int, host_id: int) -> int:
     return room_id
 
 
-def _get_joined_user_count(conn: Connection, room_id: int) -> int:
-    query_str: str = "SELECT COUNT(1) FROM `room_user` \
-        WHERE `room_id`=:room_id \
-        FOR UPDATE"
-    return conn.execute(text(query_str), {"room_id": room_id}).one()[0]
-
-
 def _get_room_info(conn: Connection, room_id: int) -> Optional[RoomInfo]:
-    query_str: str = "SELECT `live_id` \
+    query_str: str = " \
+        SELECT \
+            `room`.`id` AS `room_id`, \
+            `room`.`live_id`, \
+            COUNT(`room_user`.`user_id`) AS `joined_user_count`, \
+            `room`.`max_user` AS `max_user_count` \
         FROM `room` \
-        WHERE `id`=:room_id \
+        LEFT JOIN `room_user` \
+            ON `room`.`id` = `room_user`.`room_id` \
+        WHERE `room`.`id` = :room_id \
+        GROUP BY `room`.`id` \
         FOR UPDATE"
 
     if row := conn.execute(text(query_str), {"room_id": room_id}).one():
-        return RoomInfo(
-            room_id=room_id,
-            live_id=row["live_id"],
-            joined_user_count=_get_joined_user_count(conn, room_id),
-            max_user_count=config.MAX_ROOM_USER_COUNT,
-        )
+        return RoomInfo.from_orm(row)
     return None
 
 
 def _get_room_status(conn: Connection, room_id: int) -> WaitRoomStatus:
-    query_str: str = "SELECT `status` \
+    query_str: str = "\
+        SELECT `status` \
         FROM `room` \
         WHERE `id`=:room_id \
         FOR UPDATE"
     if row := conn.execute(text(query_str), {"room_id": room_id}).one():
         return WaitRoomStatus(row[0])
-    return WaitRoomStatus.DISBANDED
+    raise HTTPException(status_code=404, detail="Room not found")
 
 
 def _set_room_status(
@@ -225,7 +229,8 @@ def _set_room_status(
     room_id: int,
     status: WaitRoomStatus,
 ) -> None:
-    query_str: str = "UPDATE `room` \
+    query_str: str = "\
+        UPDATE `room` \
         SET `status`=:status \
         WHERE `id`=:room_id"
     conn.execute(text(query_str), {"status": status.value, "room_id": room_id})
@@ -236,13 +241,15 @@ def _get_waiting_room_list(conn: Connection, live_id: int) -> list[RoomInfo]:
     query_str: str
     query_args: dict[str, Union[str, int]]
 
-    query_str = "SELECT `id` FROM `room` \
-            WHERE `status`=:status \
-            FOR UPDATE"
+    query_str = "\
+        SELECT `id` FROM `room` \
+        WHERE `status`=:status \
+        FOR UPDATE"
     query_args = {"status": WaitRoomStatus.WAITING.value}
 
     if live_id != 0:
-        query_str = "SELECT `id` FROM `room` \
+        query_str = "\
+            SELECT `id` FROM `room` \
             WHERE `live_id`=:live_id AND `status`=:status \
             FOR UPDATE"
         query_args.update({"live_id": live_id})
@@ -253,7 +260,9 @@ def _get_waiting_room_list(conn: Connection, live_id: int) -> list[RoomInfo]:
 
 def _get_host_id(conn: Connection, room_id: int) -> int:
     query_str: str = "SELECT `host_id` FROM `room` WHERE `id`=:room_id"
-    return conn.execute(text(query_str), {"room_id": room_id}).one()[0]
+    if host := conn.execute(text(query_str), {"room_id": room_id}).one():
+        return host[0]
+    raise HTTPException(status_code=404, detail="Room not found")
 
 
 def _get_room_users(
@@ -294,13 +303,20 @@ def _add_room_user(
         if room.joined_user_count == (room.max_user_count - 1):
             _set_room_status(conn, room_id, WaitRoomStatus.ROOM_FULL)
 
-        query_str: str = "INSERT INTO `room_user` \
-            (`room_id`, `user_id`, `difficulty`) \
-            VALUES (:room_id, :user_id, :difficulty)"
+        query_str: str = "\
+            INSERT INTO `room_user` SET \
+                `room_id` = :room_id, \
+                `user_id` = :user_id, \
+                `difficulty` = :difficulty \
+            "
 
         conn.execute(
             text(query_str),
-            {"room_id": room_id, "user_id": uid, "difficulty": difficulty.value},
+            {
+                "room_id": room_id,
+                "user_id": uid,
+                "difficulty": difficulty.value,
+            },
         )
 
         return JoinRoomResult.OK
@@ -335,12 +351,19 @@ def join_room(
         raise InvalidToken
 
 
-def wait_room(token: str, room_id: int) -> tuple[WaitRoomStatus, list[RoomUser]]:
+def wait_room(
+    token: str,
+    room_id: int,
+) -> tuple[WaitRoomStatus, list[RoomUser]]:
     with engine.begin() as conn:
         conn: Connection
         if user := _get_user_by_token(conn, token):
+            user_list = _get_room_users(conn, room_id, user.id)
+            if len(user_list) < 1:
+                _set_room_status(conn, room_id, WaitRoomStatus.DISSOLUTION)
+
             status = _get_room_status(conn, room_id)
-            return (status, _get_room_users(conn, room_id, user.id))
+            return (status, user_list)
         raise InvalidToken
 
 
@@ -348,15 +371,75 @@ def start_room(token: str, room_id: int) -> None:
     with engine.begin() as conn:
         conn: Connection
         if user := _get_user_by_token(conn, token):
-            if user.id == _get_host_id(conn, room_id):
-                _set_room_status(conn, room_id, WaitRoomStatus.STARTED)
-                return
+            if host := _get_host_id(conn, room_id):
+                if user.id == host:
+                    _set_room_status(conn, room_id, WaitRoomStatus.STARTED)
+            return
         raise InvalidToken
 
 
+def end_room(token: str, room_id: int, judge: str, score: int) -> None:
+    with engine.begin() as conn:
+        conn: Connection
+        if user := _get_user_by_token(conn, token):
+
+            query_str: str = "UPDATE `room_user` \
+                SET `judge`=:judge, `score`=:score \
+                WHERE `room_id`=:room_id AND `user_id`=:user_id"
+            logging.warning(judge)
+
+            conn.execute(
+                text(query_str),
+                {
+                    "judge": judge,
+                    "score": score,
+                    "room_id": room_id,
+                    "user_id": user.id,
+                },
+            )
+
+            return
+        raise InvalidToken
+
+
+def get_room_result(room_id: int) -> list[ResultUser]:
+    with engine.begin() as conn:
+        conn: Connection
+
+        query_str: str = "SELECT \
+            `user_id`, \
+            `judge` AS judge_count_list, \
+            `score` \
+            FROM `room_user` \
+            WHERE `room_id`=:room_id "
+
+        result = conn.execute(
+            text(query_str),
+            {"room_id": room_id},
+        ).all()
+
+        return [
+            ResultUser(
+                user_id=row[0],
+                judge_count_list=[int(x) for x in row[1].split(",")],
+                score=row[2],
+            )
+            for row in result
+            if row["judge_count_list"] and row["score"]
+        ]
+
+
 def leave_room(token: str, room_id: int) -> None:
-    raise NotImplementedError
+    with engine.begin() as conn:
+        conn: Connection
+        if user := _get_user_by_token(conn, token):
+            query_str: str = "DELETE FROM `room_user` \
+                WHERE `room_id`=:room_id AND `user_id`=:user_id"
 
+            conn.execute(
+                text(query_str),
+                {"room_id": room_id, "user_id": user.id},
+            )
 
-def get_room_result(token: str, room_id: int) -> list[ResultUser]:
-    raise NotImplementedError
+            return
+        raise InvalidToken

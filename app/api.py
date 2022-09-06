@@ -152,3 +152,38 @@ def start_room(req: RoomStartRequest, token: str = Depends(get_auth_token)):
     # print(req)
     model.start_room(token, req.room_id)
     return dict[str, object]()
+
+
+class RoomEndRequest(BaseModel):
+    room_id: int  # 入場するルームのID
+    judge_count_list: list[int]  # ユーザーの判定数
+    score: int  # ユーザーのスコア
+
+
+class RoomEndResponse(BaseModel):
+    pass
+
+
+@app.post("/room/end", response_model=RoomEndResponse)
+def end_room(req: RoomEndRequest, token: str = Depends(get_auth_token)):
+    """ルーム終了する"""
+    # print(req)
+    judge: str = ",".join(map(str, req.judge_count_list))
+    model.end_room(token, req.room_id, judge, req.score)
+    return dict[str, object]()
+
+
+class RoomResultRequest(BaseModel):
+    room_id: int  # 入場するルームのID
+
+
+class RoomResultResponse(BaseModel):
+    room_result: list[model.ResultUser]  # ルームの結果
+
+
+@app.post("/room/result", response_model=RoomResultResponse)
+def result_room(req: RoomResultRequest) -> RoomResultResponse:
+    """ルーム結果を表示する"""
+    # print(req)
+    result = model.get_room_result(req.room_id)
+    return RoomResultResponse(room_result=result)

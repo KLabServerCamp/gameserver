@@ -2,7 +2,6 @@
 import json
 import uuid
 from enum import Enum, IntEnum
-from operator import le
 from typing import Optional
 
 from fastapi import HTTPException
@@ -10,7 +9,6 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
-# from app.api import JoinRoomResult, LiveDifficulty, ResultUser, RoomInfo, RoomWaitResponse, WaitRoomStatus
 
 from .db import engine
 
@@ -183,17 +181,22 @@ def get_room_by_id(room_id: int) -> RoomInfo:
             {"room_id": room_id}
         )
     # 部屋存在するか
-    if len(result) == 0:
-        return NULL
-    elif len(result) == 1:
+    # if len(result) == 0:
+    #     return None
+    # elif len(result) == 1:
+    #     row = result.one()
+    # else: 
+    #     assert(len(result) > 1)
+
+    try:
         row = result.one()
-    else: 
-        assert(len(result) > 1)
+    except NoResultFound():
+        return None
 
     return RoomInfo(
         room_id=row["room_id"],
         live_id=row["live_id"],
-        owner=row["owner"],
+        owner_id=row["owner_id"],
         joined_user_count=row["join_user_count"],
         max_user_count=row["max_user_count"]   
     )
@@ -238,7 +241,7 @@ def get_room_user(room_id: int, user: SafeUser) -> RoomUser:
         leader_card_id=user.leader_card_id,
         select_difficulty=room_user["select_difficulty"],
         is_me=True,
-        is_host=bool(room_info.owner == user.id),
+        is_host=bool(room_info.owner_id == user.id),
     )
 
 
@@ -255,8 +258,7 @@ def _join_room(room_id: int, select_difficulty: LiveDifficulty, user: SafeUser) 
                         `user_id`=:user_id \
                         `name`=:name \
                         `leader_card_id`=:leader_card_id \
-                        `select_difficulty`=:select_difficulty \
-                    " 
+                        `select_difficulty`=:select_difficulty" 
                 ),
                 {
                     "room_id": room_id,
@@ -275,11 +277,12 @@ def _join_room(room_id: int, select_difficulty: LiveDifficulty, user: SafeUser) 
 def join_room(room_id: int, select_difficulty: LiveDifficulty, user: SafeUser) -> JoinRoomResult:
     # TODO: 部屋ロック
     
-    
-    room_info = get_room_by_id(room_id)
-    # 部屋存在確認
-    if room_info == NULL:
+    try:
+        room_info = get_room_by_id(room_id)
+    except:
+        # 部屋存在確認
         return JoinRoomResult.Disbanded
+
     # 部屋の人数確認
     if room_info.joined_user_count >= room_info.max_user_count:
         return JoinRoomResult.RoomFull
@@ -303,11 +306,12 @@ def get_room_wait(room_id: int):
             ),
             {"room_id": room_id}
         )
-    if len(reslut) == 0:
-        return null
+    if len(result) == 0:
+        return None
     assert len(result) == 1
 
-    res = result.one
+    res = result[0]
+    return res["wait_room_status"], get_room_user_list(room_id)
     # return RoomWaitResponse(
     #     wait_room_status=res["wait_room_status"],
     #     room_member_list = get_room_user_list(room_id)

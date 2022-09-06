@@ -222,7 +222,7 @@ def _get_host_id(conn: Connection, room_id: int) -> int:
     raise HTTPException(status_code=404, detail="Room not found")
 
 
-def _get_room_users(
+def _get_room_user_list(
     conn: Connection,
     room_id: int,
     uid: int,
@@ -350,7 +350,7 @@ def wait_room(
     with engine.begin() as conn:
         conn: Connection
         if user := _get_user_by_token(conn, token):
-            user_list = _get_room_users(conn, room_id, user.id)
+            user_list = _get_room_user_list(conn, room_id, user.id)
             if len(user_list) < 1:
                 _set_room_status(conn, room_id, WaitRoomStatus.DISSOLUTION)
                 return (WaitRoomStatus.DISSOLUTION, user_list)
@@ -373,24 +373,25 @@ def start_live(token: str, room_id: int) -> None:
     with engine.begin() as conn:
         conn: Connection
         if user := _get_user_by_token(conn, token):
-            if host := _get_host_id(conn, room_id):
-                if user.id == host:
-                    count: int = len(_get_room_users(conn, room_id, user.id))
-                    query_str: str = "\
-                        UPDATE `room` SET \
-                            `status` = :status, \
-                            `live_member` = :count \
-                        WHERE `id`=:room_id \
-                    "
+            host = _get_host_id(conn, room_id)
+            if user.id == host:
+                count: int = len(_get_room_user_list(conn, room_id, user.id))
+                query_str: str = "\
+                    UPDATE `room` SET \
+                        `status` = :status, \
+                        `live_member` = :count \
+                    WHERE `id`=:room_id \
+                "
 
-                    conn.execute(
-                        text(query_str),
-                        {
-                            "status": WaitRoomStatus.STARTED.value,
-                            "count": count,
-                            "room_id": room_id,
-                        },
-                    )
+                conn.execute(
+                    text(query_str),
+                    {
+                        "status": WaitRoomStatus.STARTED.value,
+                        "count": count,
+                        "room_id": room_id,
+                    },
+                )
+            logger.warning("User %s is not host", user.id)
             return
         raise InvalidToken
 
@@ -468,7 +469,7 @@ def get_room_result(room_id: int) -> list[ResultUser]:
 
         is_timeout = 60 * config.RESULT_TIMEOUT_MIN < creation_data["timespan"]
         if not is_timeout and (len(ret) < creation_data["live_member"]):
-            logging.debug(result)
+            logger.debug(result)
             return list[ResultUser]()
         _set_room_status(conn, room_id, WaitRoomStatus.DISSOLUTION)
         return ret
@@ -478,12 +479,38 @@ def leave_room(token: str, room_id: int) -> None:
     with engine.begin() as conn:
         conn: Connection
         if user := _get_user_by_token(conn, token):
+            query_str: str
 
-            if len(_get_room_users(conn, room_id, user.id)) < 2:
+            user_list = _get_room_user_list(conn, room_id, user.id)
+
+            if len(user_list) < 2:
                 # 自分が一人だったら部屋を解散状態にする
                 _set_room_status(conn, room_id, WaitRoomStatus.DISSOLUTION)
 
-            query_str: str = "\
+            else:
+                host = _get_host_id(conn, room_id)
+                if user.id == host:
+                    # 自分が部屋のホストだったらホストを変更する
+                    query_str = "\
+                        UPDATE `room` SET \
+                            `host_id` = :host_id \
+                        WHERE `id`=:room_id \
+                    "
+
+                    room_user: RoomUser
+                    while room_user := user_list.pop():
+                        if room_user.user_id != user.id:
+                            break
+
+                    conn.execute(
+                        text(query_str),
+                        {
+                            "host_id": room_user.user_id,
+                            "room_id": room_id,
+                        },
+                    )
+
+            query_str = "\
                 DELETE FROM `room_user` \
                 WHERE `room_id`=:room_id AND `user_id`=:user_id \
             "

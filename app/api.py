@@ -192,8 +192,6 @@ class RoomWaitResponse(BaseModel):
 @app.post("/room/wait", response_model=RoomWaitResponse)
 def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
     result = model.wait_room(req.room_id, token)
-    print("結果[0]", result[0])
-    print("結果[1]", result[1])
     output = []
     for row in result[1]:
         output.append(
@@ -216,6 +214,12 @@ class RoomStartRequest(BaseModel):
 
 class RoomStartResponse(BaseModel):
     pass
+
+
+@app.post("/room/start", response_model=RoomStartResponse)
+def room_start(req: RoomStartRequest):
+    model.start_room(req.room_id)
+    return RoomStartResponse()
 
 
 class RoomEndRequest(BaseModel):

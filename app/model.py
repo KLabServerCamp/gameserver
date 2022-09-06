@@ -267,12 +267,32 @@ def _wait_room(conn, room_id: int, token: str) -> int:
             + " WHERE room_id = :room_id) AS _room_member"
             + " ON _user.id = _room_member.user_id"
         ),
-        {"my_user_id": my_user_id, "host_user_id": host_user_id, "room_id": room_id},
+        {
+            "my_user_id": my_user_id,
+            "host_user_id": host_user_id,
+            "room_id": room_id
+        },
     )
     print(result2)
-    return [status,result2.all()]
+    return [status, result2.all()]
 
 
 def wait_room(room_id: int, token: str) -> int:
     with engine.begin() as conn:
         return _wait_room(conn, room_id, token)
+
+
+def _start_room(conn, room_id: int):
+    _ = conn.execute(
+        text(
+            "UPDATE `room` SET `status`= :status"
+            + " WHERE `id` = :room_id"
+        ),
+        {"room_id": room_id, "status": 2},
+    )
+    return
+
+
+def start_room(room_id: int):
+    with engine.begin() as conn:
+        return _start_room(conn, room_id)

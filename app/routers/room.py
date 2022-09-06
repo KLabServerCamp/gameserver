@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 from .. import model
 from ..dependencies import get_auth_token
-from ..exceptions import InvalidToken
+from ..exceptions import InvalidJudgeResult, InvalidToken
 from ..model import (
     JoinRoomResult,
     LiveDifficulty,
@@ -261,7 +261,7 @@ def start_room(req: RoomStartRequest, token: str = Depends(get_auth_token)) -> E
 def end_room(req: RoomEndRequest, token: str = Depends(get_auth_token)) -> Empty:
     """結果をサーバーに送信する"""
     if len(req.judge_count_list) != 5:
-        raise Exception("Length of judge_count_list must be 5.")
+        raise InvalidJudgeResult()
     me = model.get_user_by_token(token)
     if me is None:
         raise InvalidToken()

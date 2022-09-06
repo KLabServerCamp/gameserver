@@ -229,8 +229,8 @@ def join_room(
     me = model.get_user_by_token(token)
     if me is None:
         raise InvalidToken()
-    else:
-        join_room_result = model.join_room(req.room_id, me.id, req.select_difficulty)
+
+    join_room_result = model.join_room(req.room_id, me.id, req.select_difficulty)
     return RoomJoinResponse(join_room_result=join_room_result)
 
 
@@ -243,8 +243,8 @@ def wait_room(
     me = model.get_user_by_token(token)
     if me is None:
         raise InvalidToken()
-    else:
-        room_user_list = model.get_room_user_list(req.room_id, me.id)
+
+    room_user_list = model.get_room_user_list(req.room_id, me.id)
     return RoomWaitResponse(status=status, room_user_list=room_user_list)
 
 
@@ -265,8 +265,8 @@ def end_room(req: RoomEndRequest, token: str = Depends(get_auth_token)) -> Empty
     me = model.get_user_by_token(token)
     if me is None:
         raise InvalidToken()
-    else:
-        model.store_score(req.room_id, me.id, req.judge_count_list, req.score)
+
+    model.store_score(req.room_id, me.id, req.judge_count_list, req.score)
     return Empty()
 
 
@@ -289,6 +289,6 @@ def leave_room(req: RoomLeaveRequest, token: str = Depends(get_auth_token)) -> E
     me = model.get_user_by_token(token)
     if me is None:
         raise InvalidToken()
-    else:
-        model.leave_room(req.room_id, me.id)
+
+    model.leave_room(req.room_id, me.id)
     return Empty()

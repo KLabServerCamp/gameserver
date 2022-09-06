@@ -1,11 +1,11 @@
-import json
 import uuid
 from enum import IntEnum
 from sqlite3 import OperationalError
-from tkinter.messagebox import NO
+
+# from tkinter.messagebox import NO
 from typing import Optional
 
-from fastapi import HTTPException
+# from fastapi import HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
@@ -324,3 +324,64 @@ def wait_room(room_id: int, user_id: int) -> tuple[WaitRoomStatus, list[RoomUser
         users.append(room_user)
 
     return (WaitRoomStatus(status), users)
+
+
+def start_room(room_id: int) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE room SET status = :status WHERE room_id = :room_id"),
+            {"status": WaitRoomStatus.LiveStart, "room_id": room_id},
+        )
+
+
+def end_room(room_id: int, judge_count_list: list[int], score: int, user_id: int) -> None:
+    with engine.begin() as conn:
+        # change room status
+        conn.execute(
+            text("UPDATE room SET status = :status WHERE room_id = :room_id"),
+            {"status": WaitRoomStatus.Dissolution, "room_id": room_id},
+        )
+        # store room_member's score
+        conn.execute(
+            text(
+                "UPDATE"
+                "  room_member"
+                "SET"
+                "  score = :score,"
+                "  judge = :judge"
+                "WHERE"
+                "  room_id = :room_id && user_id = :user_id"
+            ),
+            {
+                "score": score,
+                "judge": judge_count_list,
+                "room_id": room_id,
+                "user_id": user_id,
+            },
+        )
+
+
+def all_user_results(room_id: int) -> list[ResultUser]:
+    with engine.begin() as conn:
+        res = conn.execute(
+            text(
+                "SELECT"
+                "  user_id,"
+                "  judge_count_list,"
+                "  score"
+                "FROM"
+                "  room_member"
+                "WHERE"
+                "  room_id = :room_id"
+            ),
+            {"room_id": room_id},
+        )
+    results = []
+    for row in res:
+        results.append(ResultUser.from_orm(row))
+
+    return results
+
+
+def leave_room(room_id: int, user_id: int) -> None:
+    

@@ -133,6 +133,7 @@ def wait_room(req: RoomID, token: str = Depends(get_auth_token)):
 # start
 @app.post("/room/start", response_model=Empty)
 def start_room(req: RoomID):
+    model.start_room(req.room_id)
     return {}
 
 
@@ -146,7 +147,9 @@ class RoomEndRequest(BaseModel):
 app.post("/room/end", response_model=Empty)
 
 
-def end_room(req: RoomEndRequest):
+def end_room(req: RoomEndRequest, token: str = Depends(get_auth_token)):
+    user_id = user_me(token)
+    model.end_room(req.room_id, req.judge_count_list, req.score, user_id)
     return {}
 
 
@@ -157,10 +160,13 @@ class RoomResultResponse(BaseModel):
 
 @app.post("/room/result", response_model=RoomResultResponse)
 def room_result(req: RoomID):
-    pass
+    results = model.all_user_results(req.room_id)
+    return RoomResultResponse(result_user_list=results)
 
 
 # leave
 @app.post("/room/leave", response_model=Empty)
 def leave_room(req: RoomID):
+    user_id = user_me(token)
+    model.leave_room(req.room_id, user_id)
     return {}

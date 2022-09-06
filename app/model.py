@@ -53,9 +53,7 @@ def create_user(name: str, leader_card_id: int) -> str:
 
 
 def _get_user_by_token(conn: Connection, token: str) -> Optional[SafeUser]:
-    result = conn.execute(
-        text("SELECT * FROM user WHERE token = :token"), {"token": token}
-    )
+    result = conn.execute(text("SELECT * FROM user WHERE token = :token"), {"token": token})
     try:
         row = result.one()
     except NoResultFound:
@@ -301,25 +299,28 @@ def wait_room(room_id: int, user_id: int) -> tuple[WaitRoomStatus, list[RoomUser
             text("SELECT status FROM room WHERE room_id = :room_id"),
             {"room_id": room_id},
         )
-        status = rooms.scaler_one()
+        status = rooms.scalar_one()
         user_rows = conn.execute(
             text(
                 "SELECT"
-                "  RM.user_id,"
-                "  user.name,"
-                "  user.leader_card_id,"
-                "  user.select_difficulty,"
-                "  RM.is_host"
+                "  rm.user_id,"
+                "  u.name,"
+                "  u.leader_card_id,"
+                "  rm.select_difficulty,"
+                "  rm.is_host"
                 "FROM"
-                "  room_member AS RM"
-                "  JOIN user ON RM.user_id = user.id "
+                "  room_member AS rm"
+                "  JOIN user AS u"
+                "    ON rm.user_id = u.id "
                 "WHERE"
-                "  RM.room_id = :room_id"
+                "  rm.room_id = :room_id"
             ),
             {"room_id": room_id},
         )
     users = []
     for row in user_rows:
-        users.append(RoomUser.from_orm(row))
+        room_user = RoomUser.from_orm(row)
+        room_user.is_me = user_id == row[0]
+        users.append(room_user)
 
     return (WaitRoomStatus(status), users)

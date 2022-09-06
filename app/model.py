@@ -194,7 +194,7 @@ def _join_room(
     result2 = conn.execute(
         text(
             "SELECT joined_user_count, max_user_count, status"
-            + " FROM `room` WHERE `id` = :room_id"
+            + " FROM `room` WHERE `id` = :room_id FOR UPDATE"
         ),
         {"room_id": room_id},
     )
@@ -231,7 +231,7 @@ def _join_room(
         text(
             "UPDATE `room` SET"
             + " `joined_user_count`= :joined_user_count"
-            + " WHERE `id` = :room_id"
+            + " WHERE `id` = :room_id; COMMIT"
         ),
         {"room_id": room_id, "joined_user_count": joined_user_count+1},
     )
@@ -347,7 +347,7 @@ def _result_room(conn, room_id: int):
             "room_id": room_id
         },
     )
-    # 4人結果が出たら
+    # TODO 本当は全員の結果が出たら以下の処理を行いたい
     _ = conn.execute(
         text(
             "UPDATE `room`"
@@ -397,16 +397,14 @@ def _leave_room(conn, room_id: int, token: str):
     _ = conn.execute(
         text(
             "UPDATE `room`"
-            + " SET `joined_user_count`= :joined_user_count-1,"
-            + " WHERE `room_id` = :room_id"
+            + " SET `joined_user_count` = `joined_user_count`-1"
+            + " WHERE `id` = :room_id"
         ),
         {
             "room_id": room_id
         },
     )
     if my_user_id == host_user_id:
-        # TODO ホスト移行処理
-        print("ホスト移行したい")
         result3 = conn.execute(
             text(
                 "SELECT user_id"
@@ -415,23 +413,33 @@ def _leave_room(conn, room_id: int, token: str):
             {"room_id": room_id},
         )
         try:
+            # ホスト移行処理
             _post_host_user_id = result3.one()
             post_host_user_id = _post_host_user_id.user_id
+            _ = conn.execute(
+                text(
+                    "UPDATE `room`"
+                    + " SET `host_user_id`= :post_host_user_id,"
+                    + " WHERE `room_id` = :room_id"
+                ),
+                {
+                    "post_host_user_id": post_host_user_id,
+                    "room_id": room_id
+                },
+            )
+        except NoResultFound:
+            # 部屋解散処理
+            _ = conn.execute(
+                text(
+                    "UPDATE `room`"
+                    + " SET `status` = :status"
+                    + " WHERE `id` = :room_id"
+                ),
+                {"status": 3, "room_id": room_id},
+            )
         except Exception as e:
-            # 1人の部屋から抜けるとこちらに入るはず
             print("エラー文", e)
             return
-        _ = conn.execute(
-            text(
-                "UPDATE `room`"
-                + " SET `host_user_id`= :post_host_user_id,"
-                + " WHERE `room_id` = :room_id"
-            ),
-            {
-                "post_host_user_id": post_host_user_id,
-                "room_id": room_id
-            },
-        )
     return
 
 

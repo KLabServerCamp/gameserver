@@ -373,8 +373,8 @@ def _room_result(conn, room_id: int) -> list[ResultUser]:
     res = [
         ResultUser(
             user_id=User["id"],
-            judge_count_list=User["judge_count_list"],
-            score=User["score"],
+            judge_count_list=(User["judge_count_list"] if "judge_count_list" in User.keys() else [-1, -1, -1, -1, -1]),
+            score=(User["score"] if "score" in User.keys() else -1),
         )
         for User in users
     ]

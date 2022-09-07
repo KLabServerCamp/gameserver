@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .. import model
 from ..dependencies import get_auth_token
@@ -13,15 +13,21 @@ router = APIRouter(
 
 
 class UserCreateRequest(BaseModel):
-    user_name: str
-    leader_card_id: int
+    """ユーザー作成時のリクエスト"""
+
+    user_name: str = Field(description="ユーザー名")
+    leader_card_id: int = Field(description="設定アバター")
 
 
 class UserCreateResponse(BaseModel):
-    user_token: str
+    """ユーザー作成時のレスポンス"""
+
+    user_token: str = Field(description="発行されたユーザートークン（以後の通信はこのトークンを添える）")
 
 
 class Empty(BaseModel):
+    """空のレスポンス"""
+
     pass
 
 

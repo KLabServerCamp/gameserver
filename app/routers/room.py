@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .. import model
 from ..dependencies import get_auth_token
@@ -20,182 +20,97 @@ router = APIRouter(
 
 
 class Empty(BaseModel):
+    """空のレスポンス"""
+
     pass
 
 
 class RoomCreateRequest(BaseModel):
-    """Room作成時のリクエスト
+    """Room作成時のリクエスト"""
 
-    Attributes
-    ----------
-    live_id: int
-        ルームで遊ぶ楽曲のID
-    select_difficulty: LiveDifficulty
-        選択難易度
-    """
-
-    live_id: int
-    select_difficulty: LiveDifficulty
+    live_id: int = Field(description="ルームで遊ぶ楽曲のID")
+    select_difficulty: LiveDifficulty = Field(description="選択難易度")
 
 
 class RoomCreateResponse(BaseModel):
-    """Room作成時のレスポンス
+    """Room作成時のレスポンス"""
 
-    Attributes
-    ----------
-    room_id: int
-        発行されたルームのID（以後の通信はこのiDを添える）
-    """
-
-    room_id: int
+    room_id: int = Field(description="発行されたルームのID（以後の通信はこのiDを添える）")
 
 
 class RoomListRequest(BaseModel):
-    """Room一覧取得時のリクエスト
+    """Room一覧取得時のリクエスト"""
 
-    Attributes
-    ----------
-    live_id: int
-        ルームで遊ぶ楽曲のID（※0はワイルドカード。全てのルームを対象とする）
-    """
-
-    live_id: int
+    live_id: int = Field(description="ルームで遊ぶ楽曲のID（※0はワイルドカード。全てのルームを対象とする）")
 
 
 class RoomListResponse(BaseModel):
-    """Room一覧取得時のレスポンス
+    """Room一覧取得時のレスポンス"""
 
-    Attributes
-    ----------
-    room_info_list: list[RoomInfo]
-        ルーム一覧
-    """
-
-    room_info_list: list[RoomInfo]
+    room_info_list: list[RoomInfo] = Field(description="ルーム一覧")
 
 
 class RoomJoinRequest(BaseModel):
-    """Room参加時のリクエスト
+    """Room参加時のリクエスト"""
 
-    Attributes
-    ----------
-    room_id: int
-        入るルーム
-    select_difficulty: LiveDifficulty
-        選択難易度
-    """
-
-    room_id: int
-    select_difficulty: LiveDifficulty
+    room_id: int = Field(description="入るルーム")
+    select_difficulty: LiveDifficulty = Field(description="選択難易度")
 
 
 class RoomJoinResponse(BaseModel):
-    """Room参加時のレスポンス
+    """Room参加時のレスポンス"""
 
-    Attributes
-    ----------
-    join_room_result: JoinRoomResult
-        ルーム入場結果
-    """
-
-    join_room_result: JoinRoomResult
+    join_room_result: JoinRoomResult = Field(description="ルーム入場結果")
 
 
 class RoomWaitRequest(BaseModel):
-    """ルーム待機時のリクエスト
+    """ルーム待機時のリクエスト"""
 
-    Attributes
-    ----------
-    room_id: int
-        対象ルーム
-    """
-
-    room_id: int
+    room_id: int = Field(description="対象ルーム")
 
 
 class RoomWaitResponse(BaseModel):
-    """ルーム待機時のレスポンス
+    """ルーム待機時のレスポンス"""
 
-    Attributes
-    ----------
-    status: WaitRoomStatus
-        結果
-    room_user_list: list[RoomUser]
-        ルームにいるプレイヤー一覧
-    """
-
-    status: WaitRoomStatus
-    room_user_list: list[RoomUser]
+    status: WaitRoomStatus = Field(description="参加しているルームの状態")
+    room_user_list: list[RoomUser] = Field(description="ルームにいるプレイヤー一覧")
 
 
 class RoomStartRequest(BaseModel):
-    """ルーム開始時のリクエスト
+    """ルーム開始時のリクエスト"""
 
-    Attributes
-    ----------
-    room_id: int
-        対象ルーム
-    """
-
-    room_id: int
+    room_id: int = Field(description="対象ルーム")
 
 
 class RoomEndRequest(BaseModel):
-    """ルームのライブ終了時リクエスト
+    """ルームのライブ終了時リクエスト"""
 
-    ゲーム終わったら各人が叩く。
-
-    Attributes
-    ----------
-    room_id: int
-        対象ルーム
-    judge_count_list: list[int]
-        各判定数
-    score: int
-        スコア
-    """
-
-    room_id: int
-    judge_count_list: list[int]
-    score: int
+    room_id: int = Field(description="対象ルーム")
+    judge_count_list: list[int] = Field(description="各判定数")
+    score: int = Field(description="スコア")
 
 
 class RoomResultRequest(BaseModel):
     """ルームの結果取得時のリクエスト
 
-    end 叩いたあとにこれをポーリングする。 クライアントはn秒間隔で投げる想定。
-
-    Attributes
-    ----------
-    room_id: int
-        対象ルーム
+    /room/end 叩いたあとにこれをポーリングする。 クライアントはn秒間隔で投げる想定。
     """
 
-    room_id: int
+    room_id: int = Field(description="対象ルーム")
 
 
 class RoomResultResponse(BaseModel):
-    """ルームの結果取得時のレスポンス
+    """ルームの結果取得時のレスポンス"""
 
-    Attributes
-    ----------
-    result_user_list: list[ResultUser]
-        自身を含む各ユーザーの結果。※全員揃っていない待機中は[]が返却される想定
-    """
-
-    result_user_list: list[ResultUser]
+    result_user_list: list[ResultUser] = Field(
+        description="自身を含む各ユーザーの結果※全員揃っていない待機中は[]が返却される想定"
+    )
 
 
 class RoomLeaveRequest(BaseModel):
-    """ルームの退出時のリクエスト
+    """ルームの退出時のリクエスト"""
 
-    Attributes
-    ----------
-    room_id: int
-        対象ルーム
-    """
-
-    room_id: int
+    room_id: int = Field(description="対象ルーム")
 
 
 # Room APIs

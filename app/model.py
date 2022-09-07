@@ -4,7 +4,7 @@ from enum import IntEnum
 from typing import Optional
 
 import sqlalchemy.engine.base
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
@@ -50,84 +50,46 @@ class WaitRoomStatus(IntEnum):
 class SafeUser(BaseModel):
     """token を含まないUser"""
 
-    id: int
-    name: str
-    leader_card_id: int
+    id: int = Field(description="ユーザー識別子")
+    name: str = Field(description="ユーザー名")
+    leader_card_id: int = Field(description="設定アバター")
 
     class Config:
         orm_mode = True
 
 
 class RoomUser(BaseModel):
-    """ルームに参加しているユーザー
+    """ルームに参加しているユーザー"""
 
-    Attributes
-    ----------
-    user_id: int
-        ユーザー識別子
-    name: str
-        ユーザ名
-    leader_card_id: int
-        設定アバター
-    select_difficulty: LiveDifficulty
-        選択難易度
-    is_me: bool
-        リクエストを投げたユーザと同じか
-    is_host: bool
-        部屋を立てた人か
-    """
-
-    user_id: int
-    name: str
-    leader_card_id: int
-    select_difficulty: LiveDifficulty
-    is_me: bool
-    is_host: bool
+    user_id: int = Field(description="ユーザー識別子")
+    name: str = Field(description="ユーザ名")
+    leader_card_id: int = Field(description="設定アバター")
+    select_difficulty: LiveDifficulty = Field(description="選択難易度")
+    is_me: bool = Field(description="リクエストを投げたユーザと同じか")
+    is_host: bool = Field(description="部屋を立てた人か")
 
     class Config:
         orm_mode = True
 
 
 class ResultUser(BaseModel):
-    """ユーザのスコア情報
+    """ユーザのスコア情報"""
 
-    Attributes
-    ----------
-    user_id: int
-        ユーザー識別子
-    judge_count_list: list[int]
-        各判定数（良い判定から昇順）
-    score: int
-        スコア
-    """
-
-    user_id: int
-    judge_count_list: list[int]
-    score: int
+    user_id: int = Field(description="ユーザー識別子")
+    judge_count_list: list[int] = Field(description="各判定数（良い判定から昇順）")
+    score: int = Field(description="スコア")
 
     class Config:
         orm_mode = True
 
 
 class RoomInfo(BaseModel):
-    """ルーム情報
+    """ルーム情報"""
 
-    Attributes
-    ----------
-    room_id: int
-        部屋識別子
-    live_id: int
-       プレイ対象の楽曲識別子
-    joined_user_count: int
-        部屋に入っている人数
-    max_user_count: int
-        部屋の最大人数
-    """
-
-    room_id: int
-    live_id: int
-    joined_user_count: int
-    max_user_count: int
+    room_id: int = Field(description="部屋識別子")
+    live_id: int = Field(description="プレイ対象の楽曲識別子")
+    joined_user_count: int = Field(description="部屋に入っている人数")
+    max_user_count: int = Field(description="部屋の最大人数")
 
     class Config:
         orm_mode = True

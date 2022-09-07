@@ -1,9 +1,8 @@
 import json
 import uuid
-from enum import Enum, IntEnum
+from enum import Enum
 from typing import Optional
 
-from fastapi import HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError, NoResultFound
@@ -246,9 +245,15 @@ def join_room(
         except NoResultFound:
             return JoinRoomResult.OtherError
 
+        conn.execute(
+            text("SELECT * FROM `room` WHERE `room_id`=:room_id FOR UPDATE"),
+            dict(room_id=room_id),
+        )
         _create_room_member(conn, token, room_id, select_difficulty, is_host=False)
         _update_room_joined_user_count(conn, token, room_id, inc_dec_num=1)
-
+        conn.execute(
+            text("COMMIT"),
+        )
     return JoinRoomResult.Ok
 
 

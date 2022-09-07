@@ -168,6 +168,31 @@ def start_room(token: str, room_id: int) -> None:
         )
 
 
+from .valid_scores import valid_scores
+
+
+def isValidScore(
+    live_id: int, difficulty: LiveDifficulty, score: int, judges: list[int]
+) -> bool:
+    valid_score = valid_scores.get(live_id)
+    if valid_score is None:
+        return False
+
+    # 理論値が不明なので "一瞬モード*1.2" で制限
+    isValid = False
+    if difficulty == LiveDifficulty.normal:
+        isValid = score <= valid_score.normal_max * 1.2
+        norts_total = sum(judges)
+        isValid = isValid and (norts_total == valid_score.max_notes_normal)
+
+    elif difficulty == LiveDifficulty.hard:
+        isValid = score <= valid_score.hard_max * 1.2
+        norts_total = sum(judges)
+        isValid = isValid and (norts_total == valid_score.max_notes_hard)
+
+    return isValid
+
+
 def end_room(token: str, room_id: int, score: int, judge_count_list: list[int]) -> None:
     usr = validUser(token)
     with engine.begin() as conn:
@@ -175,16 +200,38 @@ def end_room(token: str, room_id: int, score: int, judge_count_list: list[int]) 
         # TODO: 存在しないレコードに対してUpdateをかけてもエラーにならないので，
         #       変化したレコードが0だった場合にエラーを吐くようにする
         result = conn.execute(
-            text("SELECT `status` FROM `room` WHERE `room_id`=:room_id"),
+            text("SELECT `status`, `live_id` FROM `room` WHERE `room_id`=:room_id"),
             dict(room_id=room_id),
         )
         try:
-            status = result.one().status
+            res = result.one()
+            status = res.status
+            live_id = res.live_id
         except:
             raise HTTPException(status_code=404)
 
         if status != 2:
             raise HTTPException(status_code=403)
+
+        result = conn.execute(
+            text(
+                "SELECT `select_difficulty` FROM `room_member` WHERE `room_id`=:room_id AND `user_id`=:user_id"
+            ),
+            dict(
+                room_id=room_id,
+                user_id=usr.id,
+            ),
+        )
+        try:
+            difficulty = result.one().select_difficulty
+        except:
+            raise HTTPException(status_code=404)
+
+        # スコアチェック
+        if not isValidScore(
+            live_id=live_id, difficulty=difficulty, score=score, judges=judge_count_list
+        ):
+            raise HTTPException(status_code=400)
 
         result = conn.execute(
             text(

@@ -1,9 +1,7 @@
-import json
 import uuid
-from enum import Enum  # , IntEnum
+from enum import Enum
 from typing import Optional
 
-from fastapi import HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
@@ -154,6 +152,7 @@ def get_rooms_by_live_id(live_id: int) -> list[RoomInfo]:
         sql_query = "SELECT `id` AS room_id, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `status`=:status"
         sql_param = {"status": WaitRoomStatus.Waiting.value}
 
+        # live_idが0なら飛ばして全てのルーム表示
         if live_id != 0:
             sql_query += " AND `live_id`=:live_id"
             sql_param["live_id"] = live_id
@@ -182,6 +181,7 @@ def _join_room(conn, room_id: int, select_difficulty: int, user_id: int):
             "difficulty": select_difficulty,
         },
     )
+    # 参加したユーザーをroom_memberテーブルに登録したのでjoined_user_countを一つ増やす。
     result = conn.execute(
         text(
             "UPDATE `room` SET `joined_user_count`=`joined_user_count` + 1 WHERE `id`=:room_id"
@@ -198,7 +198,7 @@ def join_room(room_id: int, select_difficulty: int, token: str) -> JoinRoomResul
         user_id = _get_user_id_by_token(conn, token)
         result = conn.execute(
             text(
-                # NOTE: id=room_idにのみロック
+                # id=room_idにのみロック
                 "SELECT `status`, `joined_user_count`, `max_user_count` FROM `room` WHERE `id`=:room_id FOR UPDATE"
             ),
             {"room_id": room_id},
@@ -209,11 +209,13 @@ def join_room(room_id: int, select_difficulty: int, token: str) -> JoinRoomResul
             return JoinRoomResult.OtherError
 
         if room.status == WaitRoomStatus.Waiting.value:
+            # 満員か判定
             if room.joined_user_count < room.max_user_count:
                 result = _join_room(conn, room_id, select_difficulty, user_id)
                 return JoinRoomResult.Ok
             else:
                 return JoinRoomResult.RoomFull
+        # ルームが解散されていたらJoinRoomResult.Disbandedで解散済みを返す
         elif room.status == WaitRoomStatus.Dissolution.value:
             return JoinRoomResult.Disbanded
     return JoinRoomResult.OtherError
@@ -232,6 +234,7 @@ def wait_room_status(room_id: int) -> WaitRoomStatus:
     return WaitRoomStatus(row.status)
 
 
+# ルームホストのユーザーIDを返す
 def _wait_room_host(conn, room_id: int) -> int:
     result = conn.execute(
         text("SELECT `owner` FROM `room` WHERE `id`=:room_id"),
@@ -367,6 +370,7 @@ def result_room(room_id: int) -> list[ResultUser]:
     return rows
 
 
+# room_memberテーブルから退出するユーザーを削除
 def _delete_room_member(conn, room_id: int, user_id: int):
     result = conn.execute(
         text(
@@ -377,6 +381,7 @@ def _delete_room_member(conn, room_id: int, user_id: int):
     return result
 
 
+# 参加ユーザーの退出
 def _leave_room_user(conn, room_id: int, user_id: int):
     result = conn.execute(
         text(
@@ -387,6 +392,7 @@ def _leave_room_user(conn, room_id: int, user_id: int):
     return result
 
 
+# ホストが退出したらWaitRoomStatus.Dissolution値をstatusカラムに入れてルームを解散させる
 def _leave_room_host(conn, room_id: int, user_id: int):
     result = conn.execute(
         text(

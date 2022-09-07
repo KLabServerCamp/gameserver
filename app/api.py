@@ -88,7 +88,6 @@ class RoomCreateResponse(BaseModel):
 @app.post("/room/create", response_model=RoomCreateResponse)
 def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
     room_id = model.create_room(req.live_id, req.select_difficulty, token)
-
     return RoomCreateResponse(room_id=room_id)
 
 
@@ -103,7 +102,6 @@ class RoomListResponse(BaseModel):
 @app.post("/room/list", response_model=RoomListResponse)
 def room_list(req: RoomListRequest):
     room_info_list = model.get_rooms_by_live_id(req.live_id)
-
     return RoomListResponse(room_info_list=room_info_list)
 
 
@@ -171,7 +169,6 @@ class RoomResultResponse(BaseModel):
 @app.post("/room/result", response_model=RoomResultResponse)
 def room_result(req: RoomResultRequest):
     result_user_list = model.result_room(req.room_id)
-
     return RoomResultResponse(result_user_list=result_user_list)
 
 

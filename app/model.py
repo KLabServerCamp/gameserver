@@ -158,19 +158,21 @@ def create_room(token: str, live_id: int, live_dif: LiveDifficulty) -> int:
 
 
 def _room_list(conn, live_id: int) -> list[RoomInfo]:
+    time_lim = datetime.datetime.now() - datetime.timedelta(minutes=5)
     execute_sent = (
         "SELECT room_id, live_id, j_usr_cnt, m_usr_cnt FROM rooms "
-        "WHERE status = 1 ORDER BY j_usr_cnt"
+        "WHERE status = 1 AND time_made > :time_lim"
     )
     result = None
     if live_id == 0:
         result = conn.execute(
-            text(execute_sent)
+            text(execute_sent + " ORDER BY j_usr_cnt"),
+            {"time_lim": time_lim}
         )
     else:
         result = conn.execute(
-            text(execute_sent + " AND live_id = :live_id"),
-            {"live_id": live_id}
+            text(execute_sent + " AND live_id = :live_id ORDER BY j_usr_cnt"),
+            {"time_lim": time_lim, "live_id": live_id}
         )
     rows = result.all()
     room_infos = [

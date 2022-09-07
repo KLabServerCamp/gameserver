@@ -1,5 +1,6 @@
 import json
 import uuid
+import datetime
 from enum import Enum
 from typing import Optional
 
@@ -129,12 +130,13 @@ def _create_room(conn, user: SafeUser, live_id: int, live_dif: LiveDifficulty) -
         }
     ]
     users_json = json.dumps(users)
+    time_now = datetime.datetime.now()
     result = conn.execute(
         text(
-            "INSERT INTO `rooms` (live_id, hst_id, users) "
-            "VALUES (:live_id, :hst_id, :users)"
+            "INSERT INTO `rooms` (live_id, hst_id, users, time_made) "
+            "VALUES (:live_id, :hst_id, :users, :time_made)"
         ),
-        {"live_id": live_id, "hst_id": user.id, "users": users_json},
+        {"live_id": live_id, "hst_id": user.id, "users": users_json, "time_made": time_now},
     )
     room_id = result.lastrowid
     conn.execute(
@@ -254,7 +256,7 @@ def _room_wait(
     conn, user: SafeUser, room_id: int
 ) -> tuple[WaitRoomStatus, list[RoomUser]]:
     result = conn.execute(
-        text("SELECT status, hst_id, users FROM rooms WHERE room_id = :room_id"),
+        text("SELECT status, hst_id, users, time_made FROM rooms WHERE room_id = :room_id"),
         {"room_id": room_id},
     )
     try:
@@ -262,6 +264,9 @@ def _room_wait(
     except NoResultFound:
         return (WaitRoomStatus.Dissolution, [])
     users = json.loads(row.users)
+    time_now = datetime.datetime.now()
+    if time_now - row.time_made >= datetime.timedelta(minutes=5):
+        _room_start(conn, row.hst_id, room_id)
     room_user_list = [
         RoomUser(
             user_id=User["id"],
@@ -284,12 +289,12 @@ def room_wait(token: str, room_id: int) -> tuple[WaitRoomStatus, list[RoomUser]]
         return _room_wait(conn, user, room_id)
 
 
-def _room_start(conn, user: SafeUser, room_id: int) -> None:
+def _room_start(conn, user_id: int, room_id: int) -> None:
     conn.execute(
         text(
             "UPDATE rooms SET status = :status WHERE room_id = :room_id AND hst_id = :hst_id"
         ),
-        {"status": 2, "room_id": room_id, "hst_id": user.id},
+        {"status": 2, "room_id": room_id, "hst_id": user_id},
     )
     return
 
@@ -299,7 +304,7 @@ def room_start(token: str, room_id: int) -> None:
         user = _get_user_by_token(conn, token)[0]
         if user is None:
             raise InvalidToken("指定されたtokenが不正です")
-        _room_start(conn, user, room_id)
+        _room_start(conn, user.id, room_id)
         return
 
 

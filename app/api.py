@@ -45,7 +45,7 @@ def get_auth_token(cred: HTTPAuthorizationCredentials = Depends(bearer)) -> str:
 
 @app.get("/user/me", response_model=model.SafeUser)
 def user_me(token: str = Depends(get_auth_token)):
-    user = model.get_user_by_token(token)
+    user = model.get_user_by_token(token)[0]
     if user is None:
         raise HTTPException(status_code=404)
     # print(f"user_me({token=}, {user=})")

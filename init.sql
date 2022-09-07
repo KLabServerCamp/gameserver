@@ -18,5 +18,7 @@ CREATE TABLE `rooms` (
   `hst_id` int not null,
   `users` text,
   `r_res_cnt` int default 0,
+  `time_made` datetime not null,
+  `time_begin` datetime default null,
   PRIMARY KEY (`room_id`)
 );

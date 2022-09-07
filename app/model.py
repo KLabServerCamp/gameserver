@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
-from sqlalchemy.exc import NoResultFound, IntegrityError
+from sqlalchemy.exc import IntegrityError, NoResultFound
 
 from .db import engine
 
@@ -84,7 +84,7 @@ def _user_judge(token: str) -> Optional[int]:
 def create_user(name: str, leader_card_id: int) -> Optional[str]:
     """Create new user and returns their token"""
     MAX_RETRY = 3
-
+    # 最後まで詰めきれてない
     with engine.begin() as conn:
         for _ in range(MAX_RETRY + 1):
             token = str(uuid.uuid4())
@@ -132,21 +132,8 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
 
 
 # Room
-def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty) -> int:
-    """Create new room and returns their id"""
-    with engine.begin() as conn:
-        result = conn.execute(
-            text("INSERT INTO `room` (live_id) VALUES (:live_id)"),
-            {"live_id": live_id},
-        )
-    room_id = result.lastrowid
-    _create_room_member(token, room_id, select_difficulty, is_host=True)
-
-    return room_id
-
-
 def _create_room_member(
-    token: str, room_id: int, select_difficulty: LiveDifficulty, is_host: bool
+    conn, token: str, room_id: int, select_difficulty: LiveDifficulty, is_host: bool
 ) -> None:
     user = get_user_by_token(token)
     with engine.begin() as conn:
@@ -167,6 +154,19 @@ def _create_room_member(
             ),
         )
     print(result)
+
+
+def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty) -> int:
+    """Create new room and returns their id"""
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("INSERT INTO `room` (live_id) VALUES (:live_id)"),
+            dict(live_id=live_id),
+        )
+        room_id = result.lastrowid
+        _create_room_member(conn, token, room_id, select_difficulty, is_host=True)
+
+    return room_id
 
 
 def _get_room_list(conn, live_id: int) -> Optional[list[RoomInfo]]:
@@ -212,16 +212,17 @@ def get_room_list(live_id: int) -> Optional[list[RoomInfo]]:
         return _get_room_list(conn, live_id)
 
 
-def _update_room_joined_user_count(token: str, room_id: int, inc_dec_num: int) -> None:
-    with engine.begin() as conn:
-        result = conn.execute(
-            text(
-                "UPDATE `room` SET joined_user_count=joined_user_count + :inc_dec_num \
-                    WHERE room_id=:room_id"
-            ),
-            dict(inc_dec_num=inc_dec_num, token=token, room_id=room_id),
-        )
-        print(result)
+def _update_room_joined_user_count(
+    conn, token: str, room_id: int, inc_dec_num: int
+) -> None:
+    result = conn.execute(
+        text(
+            "UPDATE `room` SET joined_user_count=joined_user_count + :inc_dec_num \
+                WHERE room_id=:room_id"
+        ),
+        dict(inc_dec_num=inc_dec_num, token=token, room_id=room_id),
+    )
+    print(result)
 
 
 def join_room(
@@ -236,18 +237,17 @@ def join_room(
             dict(room_id=room_id),
         )
         print(result)
-    try:
-        room = result.one()
-        if room.joined_user_count >= room.max_user_count:
-            return JoinRoomResult.RoomFull
-        elif room.wait_room_status == WaitRoomStatus.Dissolution.value:
-            return JoinRoomResult.Disbanded
-    except NoResultFound:
-        return JoinRoomResult.OtherError
+        try:
+            room = result.one()
+            if room.joined_user_count >= room.max_user_count:
+                return JoinRoomResult.RoomFull
+            elif room.wait_room_status == WaitRoomStatus.Dissolution.value:
+                return JoinRoomResult.Disbanded
+        except NoResultFound:
+            return JoinRoomResult.OtherError
 
-    # 1つのトランザクションにまとめたい
-    _create_room_member(token, room_id, select_difficulty, is_host=False)
-    _update_room_joined_user_count(token, room_id, inc_dec_num=1)
+        _create_room_member(conn, token, room_id, select_difficulty, is_host=False)
+        _update_room_joined_user_count(conn, token, room_id, inc_dec_num=1)
 
     return JoinRoomResult.Ok
 
@@ -345,15 +345,14 @@ def get_room_result(room_id: int) -> Optional[list[ResultUser]]:
             text("SELECT `joined_user_count` FROM `room` WHERE `room_id`=:room_id"),
             dict(room_id=room_id),
         )
-    joined_user_count = result.one().joined_user_count
-    with engine.begin() as conn:
+        joined_user_count = result.one().joined_user_count
+
         result = conn.execute(
             text("SELECT COUNT(score) FROM `room_member` WHERE `room_id`=:room_id"),
             dict(room_id=room_id),
         )
-    score_count = result.scalar()
-    if joined_user_count == score_count:
-        with engine.begin() as conn:
+        score_count = result.scalar()
+        if joined_user_count == score_count:
             result = conn.execute(
                 text(
                     "SELECT `user_id`, `judge_count_list`, `score` FROM `room_member` \
@@ -361,72 +360,69 @@ def get_room_result(room_id: int) -> Optional[list[ResultUser]]:
                 ),
                 dict(room_id=room_id),
             )
-        try:
-            result_user_list = []
-            for result_user in result:
-                result_user_list.append(
-                    ResultUser(
-                        user_id=result_user.user_id,
-                        judge_count_list=json.loads(result_user.judge_count_list),
-                        score=result_user.score,
+            try:
+                result_user_list = []
+                for result_user in result:
+                    result_user_list.append(
+                        ResultUser(
+                            user_id=result_user.user_id,
+                            judge_count_list=json.loads(result_user.judge_count_list),
+                            score=result_user.score,
+                        )
                     )
-                )
-        except NoResultFound:
-            return None
-        return result_user_list
-    else:
-        return []
+            except NoResultFound:
+                return None
+            return result_user_list
+        else:
+            return []
 
 
-def _delete_room_member(token: str, room_id: int) -> None:
+def _delete_room_member(conn, token: str, room_id: int) -> None:
     user_id = _user_judge(token)
     if _is_host(room_id, user_id):
         # ホストでないユーザーを探す
-        with engine.begin() as conn:
-            result = conn.execute(
-                text(
-                    "SELECT `user_id` FROM `room_member` \
-                        WHERE `room_id`=:room_id AND `is_host`=false"
-                ),
-                dict(room_id=room_id),
-            )
-            become_host = result.first()
-        # 他にユーザーがいなかった場合、部屋を終了する
-        if become_host is None:
-            with engine.begin() as conn:
-                result = conn.execute(
-                    text(
-                        "UPDATE `room` SET wait_room_status=:wait_room_status \
-                            WHERE room_id=:room_id"
-                    ),
-                    dict(
-                        wait_room_status=WaitRoomStatus.Dissolution.value,
-                        room_id=room_id,
-                    ),
-                )
-            return
-        # ホストでないユーザー1人をホストに昇格する
-        with engine.begin() as conn:
-            result = conn.execute(
-                text(
-                    "UPDATE `room_member` SET is_host=true \
-                        WHERE room_id=:room_id AND user_id=:user_id"
-                ),
-                dict(
-                    room_id=room_id,
-                    user_id=become_host.user_id,
-                ),
-            )
-    with engine.begin() as conn:
         result = conn.execute(
             text(
-                "DELETE FROM `room_member` WHERE `room_id`=:room_id AND `user_id`=:user_id"
+                "SELECT `user_id` FROM `room_member` \
+                    WHERE `room_id`=:room_id AND `is_host`=false"
             ),
-            dict(room_id=room_id, user_id=user_id),
+            dict(room_id=room_id),
         )
+        become_host = result.first()
+        # 他にユーザーがいなかった場合、部屋を終了する
+        if become_host is None:
+            result = conn.execute(
+                text(
+                    "UPDATE `room` SET wait_room_status=:wait_room_status \
+                        WHERE room_id=:room_id"
+                ),
+                dict(
+                    wait_room_status=WaitRoomStatus.Dissolution.value,
+                    room_id=room_id,
+                ),
+            )
+            return
+        # ホストでないユーザー1人をホストに昇格する
+        result = conn.execute(
+            text(
+                "UPDATE `room_member` SET is_host=true \
+                    WHERE room_id=:room_id AND user_id=:user_id"
+            ),
+            dict(
+                room_id=room_id,
+                user_id=become_host.user_id,
+            ),
+        )
+    result = conn.execute(
+        text(
+            "DELETE FROM `room_member` WHERE `room_id`=:room_id AND `user_id`=:user_id"
+        ),
+        dict(room_id=room_id, user_id=user_id),
+    )
     print(result)
 
 
 def leave_room(token: str, room_id: int) -> None:
-    _update_room_joined_user_count(token, room_id, inc_dec_num=-1)
-    _delete_room_member(token, room_id)
+    with engine.begin() as conn:
+        _update_room_joined_user_count(conn, token, room_id, inc_dec_num=-1)
+        _delete_room_member(conn, token, room_id)

@@ -17,12 +17,10 @@ def create_room(
     req: schemas.RoomCreateRequest, token: str = Depends(get_auth_token)
 ) -> schemas.RoomCreateResponse:
     """Roomを作成する"""
-    room_id = model.create_room(token, req.live_id)
     me = model.get_user_by_token(token)
     if me is None:
         raise InvalidToken()
-    else:
-        model.insert_room_member(room_id, me.id, req.select_difficulty, is_owner=True)
+    room_id = model.create_room(me.id, req)
     return schemas.RoomCreateResponse(room_id=room_id)
 
 

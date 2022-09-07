@@ -8,7 +8,7 @@ from sqlalchemy.exc import NoResultFound
 
 from . import schemas
 from .db import engine
-from .exceptions import InvalidToken
+from .exceptions import InvalidToken, RoomNotFound
 
 MAX_USER_COUNT = 4
 
@@ -62,12 +62,8 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
         )
 
 
-def create_room(token: str, live_id: int) -> int:
+def create_room(user_id: int, req: schemas.RoomCreateRequest) -> int:
     with engine.begin() as conn:
-        user = _get_user_by_token(conn, token)
-        if user is None:
-            raise InvalidToken()
-        # NOTE:room_idは一意になるようにしたい
         res = conn.execute(text("SELECT COUNT(*) FROM `room`"))
         room_id = int(res.one()[0] + 1)
         conn.execute(
@@ -87,46 +83,51 @@ def create_room(token: str, live_id: int) -> int:
             ),
             dict(
                 room_id=room_id,
-                live_id=live_id,
+                live_id=req.live_id,
                 status=int(schemas.WaitRoomStatus.WAITING),
                 max_user_count=MAX_USER_COUNT,
             ),
         )
 
+        insert_room_member(conn, room_id, user_id, req.select_difficulty, True)
+
     return room_id
 
 
 def insert_room_member(
-    room_id: int, user_id: int, live_difficulty: schemas.LiveDifficulty, is_owner: bool
+    conn: "sqlalchemy.engine.base.Connection",
+    room_id: int,
+    user_id: int,
+    live_difficulty: schemas.LiveDifficulty,
+    is_owner: bool,
 ) -> None:
-    with engine.begin() as conn:
-        conn.execute(
-            text(
-                """
-                INSERT INTO `room_member` (
-                    room_id,
-                    user_id,
-                    live_difficulty,
-                    is_owner, is_end,
-                    score,
-                    judge
-                ) VALUES (
-                    :room_id,
-                    :user_id,
-                    :live_difficulty,
-                    :is_owner,
-                    false,
-                    0,
-                    '')
-                """,
-            ),
-            dict(
-                room_id=room_id,
-                user_id=user_id,
-                live_difficulty=int(live_difficulty),
-                is_owner=is_owner,
-            ),
-        )
+    conn.execute(
+        text(
+            """
+            INSERT INTO `room_member` (
+                room_id,
+                user_id,
+                live_difficulty,
+                is_owner, is_end,
+                score,
+                judge
+            ) VALUES (
+                :room_id,
+                :user_id,
+                :live_difficulty,
+                :is_owner,
+                false,
+                0,
+                '')
+            """,
+        ),
+        dict(
+            room_id=room_id,
+            user_id=user_id,
+            live_difficulty=int(live_difficulty),
+            is_owner=is_owner,
+        ),
+    )
 
 
 def _get_room_list_all() -> list[schemas.RoomInfo]:
@@ -230,19 +231,41 @@ def get_room_info_by_room_id(room_id: int) -> Optional[schemas.RoomInfo]:
 def join_room(
     room_id: int, user_id: int, live_difficulty: schemas.LiveDifficulty
 ) -> schemas.JoinRoomResult:
-    room_info = get_room_info_by_room_id(room_id)
+    with engine.begin() as conn:
+        res = conn.execute(
+            text(
+                """
+                SELECT
+                    count(room_member.user_id) as joined_user_count,
+                    max_user_count
+                FROM
+                    room
+                    JOIN room_member
+                        ON room.room_id = room_member.room_id
+                WHERE
+                    room.room_id = :room_id
+                FOR UPDATE
+                """
+            ),
+            dict(room_id=room_id),
+        )
 
-    if room_info is None or room_info.joined_user_count == 0:
-        return schemas.JoinRoomResult.DISBANDED
+        try:
+            room_info = res.one()
+        except NoResultFound:
+            raise RoomNotFound()
 
-    if room_info.joined_user_count >= room_info.max_user_count:
-        return schemas.JoinRoomResult.ROOM_FULL
+        if room_info.joined_user_count == 0:
+            return schemas.JoinRoomResult.DISBANDED
 
-    # TODO:
-    # すでに他のRoomに参加していたらエラーにするか、別の部屋に移動させる
+        if room_info.joined_user_count >= room_info.max_user_count:
+            return schemas.JoinRoomResult.ROOM_FULL
 
-    insert_room_member(room_id, user_id, live_difficulty, False)
-    return schemas.JoinRoomResult.OK
+        # TODO:
+        # すでに他のRoomに参加していたらエラーにするか、別の部屋に移動させる
+
+        insert_room_member(conn, room_id, user_id, live_difficulty, False)
+        return schemas.JoinRoomResult.OK
 
 
 def get_room_user_list(room_id: int, user_id: int) -> list[schemas.RoomUser]:

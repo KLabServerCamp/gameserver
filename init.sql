@@ -4,6 +4,7 @@ CREATE TABLE `user` (
   `name` varchar(255) NOT NULL,
   `token` varchar(255) NOT NULL,
   `leader_card_id` int NOT NULL,
+  `room_id` bigint DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `token` (`token`)
 );

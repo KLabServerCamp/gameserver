@@ -44,19 +44,19 @@ def create_user(name: str, leader_card_id: int) -> str:
     return token
 
 
-def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
+def _get_user_by_token(conn, token: str) -> tuple[Optional[SafeUser], int]:
     res = conn.execute(
-        text("SELECT id, name, leader_card_id FROM user WHERE token = :token"),
+        text("SELECT id, name, leader_card_id, room_id FROM user WHERE token = :token"),
         {"token": token},
     )
     try:
         row = res.one()
     except NoResultFound:
         return None
-    return SafeUser.from_orm(row)
+    return (SafeUser(id=row.id, name=row.name, leader_card_id=row.leader_card_id), row.room_id)
 
 
-def get_user_by_token(token: str) -> Optional[SafeUser]:
+def get_user_by_token(token: str) -> tuple[Optional[SafeUser], int]:
     with engine.begin() as conn:
         return _get_user_by_token(conn, token)
 
@@ -137,12 +137,19 @@ def _create_room(conn, user: SafeUser, live_id: int, live_dif: LiveDifficulty) -
         {"live_id": live_id, "hst_id": user.id, "users": users_json},
     )
     room_id = result.lastrowid
+    conn.execute(
+        text(
+            "UPDATE user SET room_id = :room_id "
+            "WHERE id = :user_id"
+        ),
+        {"room_id": room_id, "user_id": user.id},
+    )
     return room_id
 
 
 def create_room(token: str, live_id: int, live_dif: LiveDifficulty) -> int:
     with engine.begin() as conn:
-        user = _get_user_by_token(conn, token)
+        user = _get_user_by_token(conn, token)[0]
         if user is None:
             raise InvalidToken("指定されたtokenが不正です")
         return _create_room(conn, user, live_id, live_dif)
@@ -151,11 +158,13 @@ def create_room(token: str, live_id: int, live_dif: LiveDifficulty) -> int:
 def _room_list(conn, live_id: int) -> list[RoomInfo]:
     execute_sent = (
         "SELECT room_id, live_id, j_usr_cnt, m_usr_cnt FROM rooms "
-        "WHERE j_usr_cnt < m_usr_cnt AND status = 1"
+        "WHERE status = 1 ORDER BY j_usr_cnt"
     )
     result = None
     if live_id == 0:
-        result = conn.execute(text(execute_sent))
+        result = conn.execute(
+            text(execute_sent)
+        )
     else:
         result = conn.execute(
             text(execute_sent + " AND live_id = :live_id"),
@@ -180,7 +189,7 @@ def room_list(live_id: int) -> list[RoomInfo]:
 
 
 def _room_join(
-    conn, user: SafeUser, room_id: int, live_dif: LiveDifficulty
+    conn, user: SafeUser, room_id: int, old_room_id: int, live_dif: LiveDifficulty
 ) -> JoinRoomResult:
     result = conn.execute(
         text(
@@ -193,14 +202,19 @@ def _room_join(
         row = result.one()
     except NoResultFound:
         return JoinRoomResult.OtherError
-    if row.j_usr_cnt == row.m_usr_cnt:
-        return JoinRoomResult.RoomFull
-    if row.status == 3:
-        return JoinRoomResult.Disbanded
-    if row.status != 1:
-        return JoinRoomResult.OtherError
     j_usr_cnt = row.j_usr_cnt + 1
     users = json.loads(row.users)
+    if room_id == old_room_id:
+        for i, User in enumerate(users):
+            if User["id"] == user.id:
+                users.pop(i)
+                j_usr_cnt -= 1
+    elif row.j_usr_cnt == row.m_usr_cnt:
+        return JoinRoomResult.RoomFull
+    elif row.status == 3:
+        return JoinRoomResult.Disbanded
+    elif row.status != 1:
+        return JoinRoomResult.OtherError
     users.append(
         {
             "id": user.id,
@@ -217,15 +231,22 @@ def _room_join(
         ),
         {"j_usr_cnt": j_usr_cnt, "users": users_json, "room_id": room_id},
     )
+    conn.execute(
+        text(
+            "UPDATE user SET room_id = :room_id "
+            "WHERE id = :user_id"
+        ),
+        {"room_id": room_id, "user_id": user.id},
+    )
     return JoinRoomResult.Ok
 
 
 def room_join(token: str, room_id: int, live_dif: LiveDifficulty) -> JoinRoomResult:
     with engine.begin() as conn:
-        user = _get_user_by_token(conn, token)
+        user, old_room_id = _get_user_by_token(conn, token)
         if user is None:
             raise InvalidToken("指定されたtokenが不正です")
-        ret = _room_join(conn, user, room_id, live_dif)
+        ret = _room_join(conn, user, room_id, old_room_id, live_dif)
         return ret
 
 
@@ -257,7 +278,7 @@ def _room_wait(
 
 def room_wait(token: str, room_id: int) -> tuple[WaitRoomStatus, list[RoomUser]]:
     with engine.begin() as conn:
-        user = _get_user_by_token(conn, token)
+        user = _get_user_by_token(conn, token)[0]
         if user is None:
             raise InvalidToken("指定されたtokenが不正です")
         return _room_wait(conn, user, room_id)
@@ -275,7 +296,7 @@ def _room_start(conn, user: SafeUser, room_id: int) -> None:
 
 def room_start(token: str, room_id: int) -> None:
     with engine.begin() as conn:
-        user = _get_user_by_token(conn, token)
+        user = _get_user_by_token(conn, token)[0]
         if user is None:
             raise InvalidToken("指定されたtokenが不正です")
         _room_start(conn, user, room_id)
@@ -319,7 +340,7 @@ def _room_end(
 
 def room_end(token: str, room_id: int, judge_count_list: list[int], score: int) -> None:
     with engine.begin() as conn:
-        user = _get_user_by_token(conn, token)
+        user = _get_user_by_token(conn, token)[0]
         if user is None:
             raise InvalidToken("指定されたtokenが不正です")
         _room_end(conn, user, room_id, judge_count_list, score)
@@ -410,7 +431,7 @@ def _room_leave(conn, user: SafeUser, room_id: int) -> None:
 
 def room_leave(token: str, room_id: int) -> None:
     with engine.begin() as conn:
-        user = _get_user_by_token(conn, token)
+        user = _get_user_by_token(conn, token)[0]
         if user is None:
             raise InvalidToken("指定されたtokenが不正です")
         _room_leave(conn, user, room_id)

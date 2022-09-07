@@ -15,33 +15,36 @@ MAX_USER_COUNT = 4
 
 
 class LiveDifficulty(IntEnum):
+    """プレイする楽曲の難易度"""
+
     NORMAL = 1
+    """ノーマル難易度"""
     HARD = 2
+    """ハード難易度"""
 
 
 class JoinRoomResult(IntEnum):
+    """ルームに参加した結果"""
+
     OK = 1
+    """入場OK"""
     ROOM_FULL = 2
+    """満員"""
     DISBANDED = 3
+    """解散済み"""
     OTHER_ERROR = 4
+    """その他エラー"""
 
 
 class WaitRoomStatus(IntEnum):
-    """ルーム待機中の状態
-
-    Attributes
-    ----------
-    WAITING: int
-        ホストがライブ開始ボタン押すのを待っている
-    LIVE_START: int
-       ライブ画面遷移OK
-    DISSOLUTION: int
-        解散された
-    """
+    """ルーム待機中の状態"""
 
     WAITING = 1
+    """ホストがライブ開始ボタン押すのを待っている"""
     LIVE_START = 2
+    """ライブ画面遷移OK"""
     DISSOLUTION = 3
+    """解散された"""
 
 
 class SafeUser(BaseModel):

@@ -183,12 +183,12 @@ def isValidScore(
     if difficulty == LiveDifficulty.normal:
         isValid = score <= valid_score.normal_max * 1.2
         norts_total = sum(judges)
-        isValid = isValid and (norts_total == valid_score.max_notes_normal)
+        isValid &= norts_total == valid_score.max_notes_normal
 
     elif difficulty == LiveDifficulty.hard:
         isValid = score <= valid_score.hard_max * 1.2
         norts_total = sum(judges)
-        isValid = isValid and (norts_total == valid_score.max_notes_hard)
+        isValid &= norts_total == valid_score.max_notes_hard
 
     return isValid
 

@@ -54,7 +54,6 @@ def user_me(token: str = Depends(get_auth_token)):
     user = model.get_user_by_token(token)
     if user is None:
         raise HTTPException(status_code=404)
-    # print(f"user_me({token=}, {user=})")
     return SafeUser(
         id=user.id, name=user.name, leader_card_id=user.leader_card_id
     )
@@ -72,7 +71,6 @@ class UserUpdateRequest(BaseModel):
 @app.post("/user/update", response_model=Empty)
 def update(req: UserUpdateRequest, token: str = Depends(get_auth_token)):
     """Update user attributes"""
-    # print(req)
     model.update_user(token, req.user_name, req.leader_card_id)
     return Empty()
 
@@ -94,8 +92,6 @@ class RoomCreateResponse(BaseModel):
 @app.post("/room/create", response_model=RoomCreateResponse)
 def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
     """新規ルーム作成"""
-    # 入力：曲ID,難易度設定 + トークン
-    # 出力：ルームID
     id = model.create_room(token, req.live_id, req.select_difficulty)
     return RoomCreateResponse(room_id=id)
 
@@ -195,7 +191,7 @@ def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
     output = []
     for row in result[1]:
         output.append(
-            dict(
+            RoomUser(
                 user_id=row.user_id,
                 name=row.name,
                 leader_card_id=row.leader_card_id,
@@ -251,7 +247,7 @@ def room_result(req: RoomResultRequest):
     output = []
     for row in result:
         output.append(
-            dict(
+            ResultUser(
                 user_id=row.user_id,
                 judge_count_list=[
                     row.judge_perfect,

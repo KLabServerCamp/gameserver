@@ -45,24 +45,19 @@ def create_user(name: str, leader_card_id: int) -> str:
             ),
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
-        # print("lastrowid: ", result.lastrowid)
-        # print(result)
     return token
 
 
 def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
     """fetch user data"""
-    # TODO: 実装
     result = conn.execute(
         text("SELECT * FROM `user` WHERE `token` = :token"),
         {"token": token},
     )
     try:
         row = result.one()
-        # print(row)
     except NoResultFound:
         return None
-    # print(result)
     return row
 
 
@@ -78,9 +73,6 @@ def _get_user(conn) -> Optional[SafeUser]:
         text("SELECT * FROM `user`"),
     )
     try:
-        # rows = result.all()
-        # print(rows)
-
         for row in result:
             print(row)
 
@@ -109,7 +101,6 @@ def _update_user_by_token(
         ),
         {"name": name, "leader_card_id": leader_card_id, "token": token},
     )
-    # print(result)
     return
 
 
@@ -188,7 +179,6 @@ def _list_room(
                 max_user_count=row.max_user_count
             )
         )
-    # print(output)
     return output
 
 
@@ -203,7 +193,6 @@ def _join_room(
     result = _get_user_by_token(conn, token)
     user_id = result.id
     # 部屋人数チェック
-    # そもそもその部屋あるのか
     result2 = conn.execute(
         text(
             "SELECT joined_user_count, max_user_count, status"
@@ -213,7 +202,6 @@ def _join_room(
     )
     try:
         elements = result2.one()
-        # print(elements)
         status = elements.status
         joined_user_count = elements.joined_user_count
         max_user_count = elements.max_user_count
@@ -269,7 +257,6 @@ def _wait_room(conn, room_id: int, token: str) -> int:
     host_user_id = element.host_user_id
     status = element.status
     joined_user_count = element.joined_user_count
-    # print("参加者人数",joined_user_count)
     result = _get_user_by_token(conn, token)
     my_user_id = result.id
 
@@ -292,7 +279,6 @@ def _wait_room(conn, room_id: int, token: str) -> int:
         },
     )
     room_user_list = result2.all()
-    print("結果2", room_user_list[0:joined_user_count])
     return [status, room_user_list[0:joined_user_count]]
 
 
@@ -348,7 +334,9 @@ def _end_room(
     return
 
 
-def end_room(room_id: int, judge_count_list: list[int], score: int, token: str):
+def end_room(
+    room_id: int, judge_count_list: list[int], score: int, token: str
+):
     with engine.begin() as conn:
         return _end_room(conn, room_id, judge_count_list, score, token)
 

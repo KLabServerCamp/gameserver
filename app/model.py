@@ -400,7 +400,30 @@ def end_live(token: str, room_id: int, judge: str, score: int) -> None:
     with engine.begin() as conn:
         conn: Connection
         if user := _get_user_by_token(conn, token):
-            query_str: str = "\
+            query_str: str
+
+            query_str = "\
+                SELECT \
+                    `first_user_end_time` AS end_at \
+                FROM `room` \
+                WHERE `id`=:room_id \
+                FOR UPDATE \
+            "
+
+            result = conn.execute(text(query_str), {"room_id": room_id})
+            if row := result.one_or_none():
+                if not row["end_at"]:
+                    query_str = "\
+                        UPDATE `room` SET \
+                            `first_user_end_time` = CURRENT_TIMESTAMP \
+                        WHERE `id`=:room_id \
+                    "
+                    conn.execute(
+                        text(query_str),
+                        {"room_id": room_id},
+                    )
+
+            query_str = "\
                 UPDATE `room_user` SET \
                     `judge`=:judge, \
                     `score`=:score \
@@ -454,7 +477,7 @@ def get_room_result(room_id: int) -> list[ResultUser]:
         query_str = "\
             SELECT \
                 TIMESTAMPDIFF(SECOND, \
-                    `created_at`, \
+                    `first_user_end_time`, \
                     CURRENT_TIMESTAMP \
                 ) AS timespan, \
                 `live_member` \
@@ -467,7 +490,7 @@ def get_room_result(room_id: int) -> list[ResultUser]:
         ).one()
         logger.debug(creation_data)
 
-        is_timeout = 60 * config.RESULT_TIMEOUT_MIN < creation_data["timespan"]
+        is_timeout = config.RESULT_TIMEOUT <= creation_data["timespan"]
         if not is_timeout and (len(ret) < creation_data["live_member"]):
             logger.debug(result)
             return list[ResultUser]()

@@ -1,8 +1,8 @@
-DROP TABLE IF EXISTS `room_user`;
-DROP TABLE IF EXISTS `room`;
-DROP TABLE IF EXISTS `user`;
+-- DROP TABLE IF EXISTS `room_user`;
+-- DROP TABLE IF EXISTS `room`;
+-- DROP TABLE IF EXISTS `user`;
 
-CREATE TABLE `user` (
+CREATE TABLE IF NOT EXISTS `user` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `name` varchar(255) NOT NULL,
   `token` varchar(255) NOT NULL,
@@ -11,7 +11,7 @@ CREATE TABLE `user` (
   UNIQUE KEY `token` (`token`)
 );
 
-CREATE TABLE `room` (
+CREATE TABLE IF NOT EXISTS `room` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `live_id` int NOT NULL,
   `host_id` bigint NOT NULL,
@@ -23,7 +23,7 @@ CREATE TABLE `room` (
   FOREIGN KEY (`host_id`) REFERENCES `user` (`id`)
 );
 
-CREATE TABLE `room_user` (
+CREATE TABLE IF NOT EXISTS `room_user` (
   `room_id` bigint NOT NULL,
   `user_id` bigint NOT NULL,
   `difficulty` tinyint NOT NULL,

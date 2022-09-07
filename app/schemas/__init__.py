@@ -28,7 +28,7 @@ from .user import (
 )
 
 
-class Empty(BaseModel):
+class EmptyResponse(BaseModel):
     """空のレスポンス"""
 
     pass

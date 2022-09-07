@@ -61,21 +61,21 @@ def wait_room(
     return schemas.RoomWaitResponse(status=status, room_user_list=room_user_list)
 
 
-@router.post("/start", response_model=schemas.Empty)
+@router.post("/start", response_model=schemas.EmptyResponse)
 def start_room(
     req: schemas.RoomStartRequest, token: str = Depends(get_auth_token)
-) -> schemas.Empty:
+) -> schemas.EmptyResponse:
     """Roomをゲーム開始状態にする"""
     # NOTE:
     # オーナーかどうかを確認する必要があるかも
     model.start_room(req.room_id)
-    return schemas.Empty()
+    return schemas.EmptyResponse()
 
 
-@router.post("/end", response_model=schemas.Empty)
+@router.post("/end", response_model=schemas.EmptyResponse)
 def end_room(
     req: schemas.RoomEndRequest, token: str = Depends(get_auth_token)
-) -> schemas.Empty:
+) -> schemas.EmptyResponse:
     """結果をサーバーに送信する"""
     if len(req.judge_count_list) != 5:
         raise InvalidJudgeResult()
@@ -84,7 +84,7 @@ def end_room(
         raise InvalidToken()
 
     model.store_score(req.room_id, me.id, req.judge_count_list, req.score)
-    return schemas.Empty()
+    return schemas.EmptyResponse()
 
 
 @router.post("/result", response_model=schemas.RoomResultResponse)
@@ -103,10 +103,10 @@ def get_room_result(req: schemas.RoomResultRequest) -> schemas.RoomResultRespons
     return schemas.RoomResultResponse(result_user_list=result_user_list)
 
 
-@router.post("/leave", response_model=schemas.Empty)
+@router.post("/leave", response_model=schemas.EmptyResponse)
 def leave_room(
     req: schemas.RoomLeaveRequest, token: str = Depends(get_auth_token)
-) -> schemas.Empty:
+) -> schemas.EmptyResponse:
     """Roomから退出する"""
     me = model.get_user_by_token(token)
     if me is None:
@@ -132,4 +132,4 @@ def leave_room(
     if len(users) == 0:
         model.delete_room(req.room_id)
 
-    return schemas.Empty()
+    return schemas.EmptyResponse()

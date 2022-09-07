@@ -27,9 +27,11 @@ def user_me(token: str = Depends(get_auth_token)) -> schemas.SafeUser:
     return user
 
 
-@router.post("/update", response_model=schemas.Empty)
-def update(req: schemas.UserCreateRequest, token: str = Depends(get_auth_token)) -> schemas.Empty:
+@router.post("/update", response_model=schemas.EmptyResponse)
+def update(
+    req: schemas.UserCreateRequest, token: str = Depends(get_auth_token)
+) -> schemas.EmptyResponse:
     """Update user attributes"""
     # print(req)
     model.update_user(token, req.user_name, req.leader_card_id)
-    return schemas.Empty()
+    return schemas.EmptyResponse()

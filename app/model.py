@@ -1,98 +1,17 @@
 import json
 import uuid
-from enum import IntEnum
 from typing import Optional
 
 import sqlalchemy.engine.base
-from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
+
+from app import schemas
 
 from .db import engine
 from .exceptions import InvalidToken
 
 MAX_USER_COUNT = 4
-
-
-class LiveDifficulty(IntEnum):
-    """プレイする楽曲の難易度"""
-
-    NORMAL = 1
-    """ノーマル難易度"""
-    HARD = 2
-    """ハード難易度"""
-
-
-class JoinRoomResult(IntEnum):
-    """ルームに参加した結果"""
-
-    OK = 1
-    """入場OK"""
-    ROOM_FULL = 2
-    """満員"""
-    DISBANDED = 3
-    """解散済み"""
-    OTHER_ERROR = 4
-    """その他エラー"""
-
-
-class WaitRoomStatus(IntEnum):
-    """ルーム待機中の状態"""
-
-    WAITING = 1
-    """ホストがライブ開始ボタン押すのを待っている"""
-    LIVE_START = 2
-    """ライブ画面遷移OK"""
-    DISSOLUTION = 3
-    """解散された"""
-
-
-class SafeUser(BaseModel):
-    """token を含まないUser"""
-
-    id: int = Field(description="ユーザー識別子")
-    name: str = Field(description="ユーザー名")
-    leader_card_id: int = Field(description="設定アバター")
-
-    class Config:
-        orm_mode = True
-
-
-class RoomUser(BaseModel):
-    """ルームに参加しているユーザー"""
-
-    user_id: int = Field(description="ユーザー識別子")
-    name: str = Field(description="ユーザ名")
-    leader_card_id: int = Field(description="設定アバター")
-    select_difficulty: LiveDifficulty = Field(description="選択難易度")
-    is_me: bool = Field(description="リクエストを投げたユーザと同じか")
-    is_host: bool = Field(description="部屋を立てた人か")
-
-    class Config:
-        orm_mode = True
-
-
-class ResultUser(BaseModel):
-    """ユーザのスコア情報"""
-
-    user_id: int = Field(description="ユーザー識別子")
-    judge_count_list: list[int] = Field(description="各判定数（良い判定から昇順）")
-    score: int = Field(description="スコア")
-
-    class Config:
-        orm_mode = True
-
-
-class RoomInfo(BaseModel):
-    """ルーム情報"""
-
-    room_id: int = Field(description="部屋識別子")
-    live_id: int = Field(description="プレイ対象の楽曲識別子")
-    joined_user_count: int = Field(description="部屋に入っている人数")
-    max_user_count: int = Field(description="部屋の最大人数")
-
-    class Config:
-        orm_mode = True
 
 
 def create_user(name: str, leader_card_id: int) -> str:
@@ -112,7 +31,7 @@ def create_user(name: str, leader_card_id: int) -> str:
 
 def _get_user_by_token(
     conn: "sqlalchemy.engine.base.Connection", token: str
-) -> Optional[SafeUser]:
+) -> Optional[schemas.SafeUser]:
     result = conn.execute(
         text(
             "SELECT `id`, `name`, `leader_card_id` FROM `user` WHERE `token` = :token"
@@ -123,10 +42,10 @@ def _get_user_by_token(
         row = result.one()
     except NoResultFound:
         return None
-    return SafeUser.from_orm(row)
+    return schemas.SafeUser.from_orm(row)
 
 
-def get_user_by_token(token: str) -> Optional[SafeUser]:
+def get_user_by_token(token: str) -> Optional[schemas.SafeUser]:
     with engine.begin() as conn:
         return _get_user_by_token(conn, token)
 
@@ -170,7 +89,7 @@ def create_room(token: str, live_id: int) -> int:
             dict(
                 room_id=room_id,
                 live_id=live_id,
-                status=int(WaitRoomStatus.WAITING),
+                status=int(schemas.WaitRoomStatus.WAITING),
                 max_user_count=MAX_USER_COUNT,
             ),
         )
@@ -179,7 +98,7 @@ def create_room(token: str, live_id: int) -> int:
 
 
 def insert_room_member(
-    room_id: int, user_id: int, live_difficulty: LiveDifficulty, is_owner: bool
+    room_id: int, user_id: int, live_difficulty: schemas.LiveDifficulty, is_owner: bool
 ) -> None:
     with engine.begin() as conn:
         conn.execute(
@@ -211,7 +130,7 @@ def insert_room_member(
         )
 
 
-def _get_room_list_all() -> list[RoomInfo]:
+def _get_room_list_all() -> list[schemas.RoomInfo]:
     with engine.begin() as conn:
         res = conn.execute(
             text(
@@ -233,15 +152,15 @@ def _get_room_list_all() -> list[RoomInfo]:
                     joined_user_count < max_user_count
             """
             ),
-            dict(status=int(WaitRoomStatus.WAITING)),
+            dict(status=int(schemas.WaitRoomStatus.WAITING)),
         )
     res = res.fetchall()
     if len(res) == 0:
         return []
-    return [RoomInfo.from_orm(row) for row in res]
+    return [schemas.RoomInfo.from_orm(row) for row in res]
 
 
-def _get_room_list_by_live_id(live_id: int) -> list[RoomInfo]:
+def _get_room_list_by_live_id(live_id: int) -> list[schemas.RoomInfo]:
     with engine.begin() as conn:
         res = conn.execute(
             text(
@@ -264,16 +183,16 @@ def _get_room_list_by_live_id(live_id: int) -> list[RoomInfo]:
                     joined_user_count < max_user_count
             """
             ),
-            dict(live_id=live_id, status=int(WaitRoomStatus.WAITING)),
+            dict(live_id=live_id, status=int(schemas.WaitRoomStatus.WAITING)),
         )
 
     res = res.fetchall()
     if len(res) == 0:
         return []
-    return [RoomInfo.from_orm(row) for row in res]
+    return [schemas.RoomInfo.from_orm(row) for row in res]
 
 
-def get_room_list(live_id: int) -> list[RoomInfo]:
+def get_room_list(live_id: int) -> list[schemas.RoomInfo]:
     # NOTE:
     # SQLでは全部取ってきて、Pythonで絞り込むようにしてもいいかも
     if live_id == 0:
@@ -282,7 +201,7 @@ def get_room_list(live_id: int) -> list[RoomInfo]:
         return _get_room_list_by_live_id(live_id)
 
 
-def get_room_info_by_room_id(room_id: int) -> Optional[RoomInfo]:
+def get_room_info_by_room_id(room_id: int) -> Optional[schemas.RoomInfo]:
     with engine.begin() as conn:
         res = conn.execute(
             text(
@@ -306,28 +225,28 @@ def get_room_info_by_room_id(room_id: int) -> Optional[RoomInfo]:
             row = res.one()
         except NoResultFound:
             return None
-        return RoomInfo.from_orm(row)
+        return schemas.RoomInfo.from_orm(row)
 
 
 def join_room(
-    room_id: int, user_id: int, live_difficulty: LiveDifficulty
-) -> JoinRoomResult:
+    room_id: int, user_id: int, live_difficulty: schemas.LiveDifficulty
+) -> schemas.JoinRoomResult:
     room_info = get_room_info_by_room_id(room_id)
 
     if room_info is None or room_info.joined_user_count == 0:
-        return JoinRoomResult.DISBANDED
+        return schemas.JoinRoomResult.DISBANDED
 
     if room_info.joined_user_count >= room_info.max_user_count:
-        return JoinRoomResult.ROOM_FULL
+        return schemas.JoinRoomResult.ROOM_FULL
 
     # TODO:
     # すでに他のRoomに参加していたらエラーにするか、別の部屋に移動させる
 
     insert_room_member(room_id, user_id, live_difficulty, False)
-    return JoinRoomResult.OK
+    return schemas.JoinRoomResult.OK
 
 
-def get_room_user_list(room_id: int, user_id: int) -> list[RoomUser]:
+def get_room_user_list(room_id: int, user_id: int) -> list[schemas.RoomUser]:
     with engine.begin() as conn:
         res = conn.execute(
             text(
@@ -353,10 +272,10 @@ def get_room_user_list(room_id: int, user_id: int) -> list[RoomUser]:
 
     if len(res) == 0:
         return []
-    return [RoomUser.from_orm(row) for row in res]
+    return [schemas.RoomUser.from_orm(row) for row in res]
 
 
-def get_room_status(room_id: int) -> WaitRoomStatus:
+def get_room_status(room_id: int) -> schemas.WaitRoomStatus:
     with engine.begin() as conn:
         res = conn.execute(
             text("SELECT status FROM room WHERE room_id = :room_id"),
@@ -368,14 +287,14 @@ def get_room_status(room_id: int) -> WaitRoomStatus:
     except NoResultFound:
         raise Exception("room not found")
 
-    return WaitRoomStatus(status[0])
+    return schemas.WaitRoomStatus(status[0])
 
 
 def start_room(room_id: int) -> None:
     with engine.begin() as conn:
         conn.execute(
             text("UPDATE room SET status = :status WHERE room_id = :room_id"),
-            dict(room_id=room_id, status=int(WaitRoomStatus.LIVE_START)),
+            dict(room_id=room_id, status=int(schemas.WaitRoomStatus.LIVE_START)),
         )
 
 
@@ -405,7 +324,7 @@ def store_score(
         )
 
 
-def get_room_result(room_id: int) -> list[ResultUser]:
+def get_room_result(room_id: int) -> list[schemas.ResultUser]:
     with engine.begin() as conn:
         res = conn.execute(
             text(
@@ -429,7 +348,7 @@ def get_room_result(room_id: int) -> list[ResultUser]:
         return []
 
     return [
-        ResultUser(
+        schemas.ResultUser(
             user_id=row.user_id,
             judge_count_list=json.loads(row.judge_count_list),
             score=row.score,

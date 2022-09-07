@@ -1,125 +1,23 @@
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+
+from app import schemas
 
 from .. import model
 from ..dependencies import get_auth_token
 from ..exceptions import InvalidJudgeResult, InvalidToken, RoomNotFound
-from ..model import (
-    JoinRoomResult,
-    LiveDifficulty,
-    ResultUser,
-    RoomInfo,
-    RoomUser,
-    WaitRoomStatus,
-)
 
 router = APIRouter(
     prefix="/room",
     tags=["room"],
 )
 
-
-class Empty(BaseModel):
-    """空のレスポンス"""
-
-    pass
-
-
-class RoomCreateRequest(BaseModel):
-    """Room作成時のリクエスト"""
-
-    live_id: int = Field(description="ルームで遊ぶ楽曲のID")
-    select_difficulty: LiveDifficulty = Field(description="選択難易度")
-
-
-class RoomCreateResponse(BaseModel):
-    """Room作成時のレスポンス"""
-
-    room_id: int = Field(description="発行されたルームのID（以後の通信はこのiDを添える）")
-
-
-class RoomListRequest(BaseModel):
-    """Room一覧取得時のリクエスト"""
-
-    live_id: int = Field(description="ルームで遊ぶ楽曲のID（※0はワイルドカード。全てのルームを対象とする）")
-
-
-class RoomListResponse(BaseModel):
-    """Room一覧取得時のレスポンス"""
-
-    room_info_list: list[RoomInfo] = Field(description="ルーム一覧")
-
-
-class RoomJoinRequest(BaseModel):
-    """Room参加時のリクエスト"""
-
-    room_id: int = Field(description="入るルーム")
-    select_difficulty: LiveDifficulty = Field(description="選択難易度")
-
-
-class RoomJoinResponse(BaseModel):
-    """Room参加時のレスポンス"""
-
-    join_room_result: JoinRoomResult = Field(description="ルーム入場結果")
-
-
-class RoomWaitRequest(BaseModel):
-    """ルーム待機時のリクエスト"""
-
-    room_id: int = Field(description="対象ルーム")
-
-
-class RoomWaitResponse(BaseModel):
-    """ルーム待機時のレスポンス"""
-
-    status: WaitRoomStatus = Field(description="参加しているルームの状態")
-    room_user_list: list[RoomUser] = Field(description="ルームにいるプレイヤー一覧")
-
-
-class RoomStartRequest(BaseModel):
-    """ルーム開始時のリクエスト"""
-
-    room_id: int = Field(description="対象ルーム")
-
-
-class RoomEndRequest(BaseModel):
-    """ルームのライブ終了時リクエスト"""
-
-    room_id: int = Field(description="対象ルーム")
-    judge_count_list: list[int] = Field(description="各判定数")
-    score: int = Field(description="スコア")
-
-
-class RoomResultRequest(BaseModel):
-    """ルームの結果取得時のリクエスト
-
-    /room/end 叩いたあとにこれをポーリングする。 クライアントはn秒間隔で投げる想定。
-    """
-
-    room_id: int = Field(description="対象ルーム")
-
-
-class RoomResultResponse(BaseModel):
-    """ルームの結果取得時のレスポンス"""
-
-    result_user_list: list[ResultUser] = Field(
-        description="自身を含む各ユーザーの結果※全員揃っていない待機中は[]が返却される想定"
-    )
-
-
-class RoomLeaveRequest(BaseModel):
-    """ルームの退出時のリクエスト"""
-
-    room_id: int = Field(description="対象ルーム")
-
-
 # Room APIs
 
 
-@router.post("/create", response_model=RoomCreateResponse)
+@router.post("/create", response_model=schemas.RoomCreateResponse)
 def create_room(
-    req: RoomCreateRequest, token: str = Depends(get_auth_token)
-) -> RoomCreateResponse:
+    req: schemas.RoomCreateRequest, token: str = Depends(get_auth_token)
+) -> schemas.RoomCreateResponse:
     """Roomを作成する"""
     room_id = model.create_room(token, req.live_id)
     me = model.get_user_by_token(token)
@@ -127,32 +25,32 @@ def create_room(
         raise InvalidToken()
     else:
         model.insert_room_member(room_id, me.id, req.select_difficulty, is_owner=True)
-    return RoomCreateResponse(room_id=room_id)
+    return schemas.RoomCreateResponse(room_id=room_id)
 
 
-@router.post("/list", response_model=RoomListResponse)
-def get_room_list(req: RoomListRequest) -> RoomListResponse:
+@router.post("/list", response_model=schemas.RoomListResponse)
+def get_room_list(req: schemas.RoomListRequest) -> schemas.RoomListResponse:
     room_info_list = model.get_room_list(req.live_id)
-    return RoomListResponse(room_info_list=room_info_list)
+    return schemas.RoomListResponse(room_info_list=room_info_list)
 
 
-@router.post("/join", response_model=RoomJoinResponse)
+@router.post("/join", response_model=schemas.RoomJoinResponse)
 def join_room(
-    req: RoomJoinRequest, token: str = Depends(get_auth_token)
-) -> RoomJoinResponse:
+    req: schemas.RoomJoinRequest, token: str = Depends(get_auth_token)
+) -> schemas.RoomJoinResponse:
     """Roomに参加する"""
     me = model.get_user_by_token(token)
     if me is None:
         raise InvalidToken()
 
     join_room_result = model.join_room(req.room_id, me.id, req.select_difficulty)
-    return RoomJoinResponse(join_room_result=join_room_result)
+    return schemas.RoomJoinResponse(join_room_result=join_room_result)
 
 
-@router.post("/wait", response_model=RoomWaitResponse)
+@router.post("/wait", response_model=schemas.RoomWaitResponse)
 def wait_room(
-    req: RoomWaitRequest, token: str = Depends(get_auth_token)
-) -> RoomWaitResponse:
+    req: schemas.RoomWaitRequest, token: str = Depends(get_auth_token)
+) -> schemas.RoomWaitResponse:
     """Roomの待機状態を取得する"""
     status = model.get_room_status(req.room_id)
     me = model.get_user_by_token(token)
@@ -160,20 +58,24 @@ def wait_room(
         raise InvalidToken()
 
     room_user_list = model.get_room_user_list(req.room_id, me.id)
-    return RoomWaitResponse(status=status, room_user_list=room_user_list)
+    return schemas.RoomWaitResponse(status=status, room_user_list=room_user_list)
 
 
-@router.post("/start", response_model=Empty)
-def start_room(req: RoomStartRequest, token: str = Depends(get_auth_token)) -> Empty:
+@router.post("/start", response_model=schemas.Empty)
+def start_room(
+    req: schemas.RoomStartRequest, token: str = Depends(get_auth_token)
+) -> schemas.Empty:
     """Roomをゲーム開始状態にする"""
     # NOTE:
     # オーナーかどうかを確認する必要があるかも
     model.start_room(req.room_id)
-    return Empty()
+    return schemas.Empty()
 
 
-@router.post("/end", response_model=Empty)
-def end_room(req: RoomEndRequest, token: str = Depends(get_auth_token)) -> Empty:
+@router.post("/end", response_model=schemas.Empty)
+def end_room(
+    req: schemas.RoomEndRequest, token: str = Depends(get_auth_token)
+) -> schemas.Empty:
     """結果をサーバーに送信する"""
     if len(req.judge_count_list) != 5:
         raise InvalidJudgeResult()
@@ -182,11 +84,11 @@ def end_room(req: RoomEndRequest, token: str = Depends(get_auth_token)) -> Empty
         raise InvalidToken()
 
     model.store_score(req.room_id, me.id, req.judge_count_list, req.score)
-    return Empty()
+    return schemas.Empty()
 
 
-@router.post("/result", response_model=RoomResultResponse)
-def get_room_result(req: RoomResultRequest) -> RoomResultResponse:
+@router.post("/result", response_model=schemas.RoomResultResponse)
+def get_room_result(req: schemas.RoomResultRequest) -> schemas.RoomResultResponse:
     """ルームの結果を取得する"""
     result_user_list = model.get_room_result(req.room_id)
     room_info = model.get_room_info_by_room_id(req.room_id)
@@ -196,13 +98,15 @@ def get_room_result(req: RoomResultRequest) -> RoomResultResponse:
 
     # 全員が終了した場合のみリザルトを返す
     if len(result_user_list) < room_info.joined_user_count:
-        return RoomResultResponse(result_user_list=[])
+        return schemas.RoomResultResponse(result_user_list=[])
 
-    return RoomResultResponse(result_user_list=result_user_list)
+    return schemas.RoomResultResponse(result_user_list=result_user_list)
 
 
-@router.post("/leave", response_model=Empty)
-def leave_room(req: RoomLeaveRequest, token: str = Depends(get_auth_token)) -> Empty:
+@router.post("/leave", response_model=schemas.Empty)
+def leave_room(
+    req: schemas.RoomLeaveRequest, token: str = Depends(get_auth_token)
+) -> schemas.Empty:
     """Roomから退出する"""
     me = model.get_user_by_token(token)
     if me is None:
@@ -228,4 +132,4 @@ def leave_room(req: RoomLeaveRequest, token: str = Depends(get_auth_token)) -> E
     if len(users) == 0:
         model.delete_room(req.room_id)
 
-    return Empty()
+    return schemas.Empty()

@@ -137,8 +137,8 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
 
 #ルームを新規で建てる
 @app.post("/room/create", response_model=RoomCreateResponse)
-def room_create(req: RoomCreateRequest):
-    user_data = user_me()
+def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
+    user_data = model.get_user_by_token(token)
     room_id = model.create_room(req.live_id, user_data, req.select_difficulty)
     return RoomCreateResponse(room_id=room_id)
 
@@ -152,16 +152,16 @@ def room_list(req: RoomListRequest):
 
 #ルームに入場
 @app.post("/room/join", response_model=RoomJoinResponse)
-def room_join(req: RoomJoinRequest):
-    user_data = user_me()
+def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
+    user_data = model.get_user_by_token(token)
     join_room_result = model.join_room(req.room_id, user_data, req.select_difficulty)
     return RoomJoinResponse(join_room_result=join_room_result)
 
 
 #ルーム待機中
 @app.post("/room/wait", response_model=RoomWaitResponse)
-def room_wait(req: RoomWaitRequest):
-    user_data = user_me()
+def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
+    user_data = model.get_user_by_token(token)
     status, room_user_list = model.get_wait_room_status(req.room_id, user_data.id)
     return RoomWaitResponse(status=status, room_user_list=room_user_list)
 
@@ -175,8 +175,8 @@ def room_start(req: RoomStartRequest):
 
 #ルームのライブ終了時リクエスト
 @app.post("/room/end", response_model=RoomEndResponse)
-def room_end(req: RoomEndRequest):
-    user_data = user_me()
+def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
+    user_data = model.get_user_by_token(token)
     model.room_end_(user_data.id, req.room_id, req.score, req.judge_count_list)
     return RoomEndResponse()
 
@@ -190,7 +190,7 @@ def room_result(req: RoomResultRequest):
 
 #ルーム退出リクエスト
 @app.post("/room/leave", response_model=RoomLeaveResponse)
-def room_leave(req: RoomLeaveRequest):
-    user_data = user_me()
+def room_leave(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
+    user_data = model.get_user_by_token(token)
     model.room_leave_(req.room_id, user_data.id)
     return RoomLeaveResponse()

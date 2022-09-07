@@ -290,11 +290,13 @@ def room_wait(token: str, room_id: int) -> tuple[WaitRoomStatus, list[RoomUser]]
 
 
 def _room_start(conn, user_id: int, room_id: int) -> None:
+    time_now = datetime.datetime.now()
     conn.execute(
         text(
-            "UPDATE rooms SET status = :status WHERE room_id = :room_id AND hst_id = :hst_id"
+            "UPDATE rooms SET status = :status, time_begin = :time_begin "
+            "WHERE room_id = :room_id AND hst_id = :hst_id"
         ),
-        {"status": 2, "room_id": room_id, "hst_id": user_id},
+        {"status": 2, "time_begin": time_now,  "room_id": room_id, "hst_id": user_id},
     )
     return
 
@@ -355,13 +357,17 @@ def room_end(token: str, room_id: int, judge_count_list: list[int], score: int) 
 def _room_result(conn, room_id: int) -> list[ResultUser]:
     result = conn.execute(
         text(
-            "SELECT j_usr_cnt, r_res_cnt, users FROM rooms "
+            "SELECT j_usr_cnt, r_res_cnt, time_begin, users FROM rooms "
             "WHERE room_id = :room_id"
         ),
         {"room_id": room_id},
     )
     row = result.one()
-    if row.r_res_cnt < row.j_usr_cnt:
+    r_res_cnt = row.r_res_cnt
+    time_now = datetime.datetime.now()
+    if time_now - row.time_begin >= datetime.timedelta(minutes=5):
+        r_res_cnt = row.j_usr_cnt
+    if r_res_cnt < row.j_usr_cnt:
         return []
     users = json.loads(row.users)
     res = [

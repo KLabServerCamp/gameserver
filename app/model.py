@@ -257,6 +257,7 @@ def _wait_room(conn, room_id: int, token: str) -> int:
     host_user_id = element.host_user_id
     status = element.status
     joined_user_count = element.joined_user_count
+
     result = _get_user_by_token(conn, token)
     my_user_id = result.id
 
@@ -394,6 +395,7 @@ def result_room(room_id: int):
 def _leave_room(conn, room_id: int, token: str):
     result = _get_user_by_token(conn, token)
     my_user_id = result.id
+
     result2 = conn.execute(
         text(
             "SELECT host_user_id"
@@ -438,14 +440,15 @@ def _leave_room(conn, room_id: int, token: str):
         )
         try:
             # ホスト移行処理
-            _post_host_user_id = result3.one()
-            post_host_user_id = _post_host_user_id.user_id
+            print("ホスト移行処理")
+            _post_host_user_id = result3.all()
+            post_host_user_id = _post_host_user_id[0].user_id
             _ = conn.execute(
                 text(
                     "UPDATE `room`"
                     + " SET `host_user_id`= :post_host_user_id,"
                     + " `status` = :status"
-                    + " WHERE `room_id` = :room_id"
+                    + " WHERE `id` = :room_id"
                 ),
                 {
                     "post_host_user_id": post_host_user_id,
@@ -455,6 +458,7 @@ def _leave_room(conn, room_id: int, token: str):
             )
         except NoResultFound:
             # 部屋解散処理
+            print("部屋解散処理")
             _ = conn.execute(
                 text(
                     "UPDATE `room`"

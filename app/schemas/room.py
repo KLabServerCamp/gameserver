@@ -2,7 +2,7 @@ from enum import IntEnum
 
 from pydantic import BaseModel, Field
 
-from app.schemas import user as user_schemas
+from ..schemas import user as user_schemas
 
 
 class JoinRoomResult(IntEnum):

@@ -1,8 +1,6 @@
 from fastapi import APIRouter, Depends
 
-from app import schemas
-
-from .. import model
+from .. import model, schemas
 from ..dependencies import get_auth_token
 from ..exceptions import InvalidToken
 

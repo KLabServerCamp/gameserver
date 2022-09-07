@@ -6,8 +6,7 @@ import sqlalchemy.engine.base
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
-from app import schemas
-
+from . import schemas
 from .db import engine
 from .exceptions import InvalidToken
 

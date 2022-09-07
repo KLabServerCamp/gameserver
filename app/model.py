@@ -298,18 +298,32 @@ def _get_room_status(room_id: int) -> WaitRoomStatus:
 
 def get_available_rooms_by_live_id(live_id: int) -> list[RoomInfo]:
     with engine.begin() as conn:
-        result = conn.execute(
-            text(
-                "SELECT"
-                "  * "
-                "FROM"
-                "  room "
-                "WHERE"
-                "  live_id = :live_id "
-                "AND joined_user_count < 4 "
-                "AND status = :status"
-            ), {"live_id": live_id, "status": int(WaitRoomStatus.Waiting)}
-        )
+        if live_id == 0:
+            result = conn.execute(
+                text(
+                    "SELECT"
+                    "  * "
+                    "FROM"
+                    "  room "
+                    "WHERE "
+                    "joined_user_count < 4 "
+                    "AND status = :status"
+                ),
+                {"status": int(WaitRoomStatus.Waiting)}
+            )
+        else:
+            result = conn.execute(
+                text(
+                    "SELECT"
+                    "  * "
+                    "FROM"
+                    "  room "
+                    "WHERE"
+                    "  live_id = :live_id "
+                    "AND joined_user_count < 4 "
+                    "AND status = :status"
+                ), {"live_id": live_id, "status": int(WaitRoomStatus.Waiting)}
+            )
     rooms = []
     for row in result:
         rooms.append(RoomInfo.from_orm(row))
@@ -447,20 +461,21 @@ def end_room(
 
 def all_user_results(room_id: int) -> list[ResultUser]:
     with engine.begin() as conn:
-        # if room status is Waiting
-        status = conn.execute(
+        # return [] when all member finished
+        scores = conn.execute(
             text(
                 "SELECT"
-                "  status "
+                "  score "
                 "FROM"
-                "  room "
+                "  room_member "
                 "WHERE"
                 "  room_id = :room_id"
             ),
             {"room_id": room_id},
         )
-        if status.scalar_one() == WaitRoomStatus.Waiting:
-            return []
+        for row in scores:
+            if row[0] is None:
+                return []
 
         # if room status is LiveStart
         res = conn.execute(

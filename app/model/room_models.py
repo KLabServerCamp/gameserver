@@ -174,8 +174,19 @@ def end_room(token: str, room_id: int, score: int, judge_count_list: list[int]) 
         # TODO: 終わったはずのroomにscoreを登録しようとしたら弾く
         # TODO: 存在しないレコードに対してUpdateをかけてもエラーにならないので，
         #       変化したレコードが0だった場合にエラーを吐くようにする
+        result = conn.execute(
+            text("SELECT `status` FROM `room` WHERE `room_id`=:room_id"),
+            dict(room_id=room_id),
+        )
+        try:
+            status = result.one().status
+        except:
+            raise HTTPException(status_code=404)
 
-        conn.execute(
+        if status != 2:
+            raise HTTPException(status_code=403)
+
+        result = conn.execute(
             text(
                 "UPDATE `room_member` SET `judge_count_list`=:judge_count_list, `score`=:score WHERE `room_id`=:room_id AND `user_id`=:user_id"
             ),
@@ -186,6 +197,8 @@ def end_room(token: str, room_id: int, score: int, judge_count_list: list[int]) 
                 user_id=usr.id,
             ),
         )
+        if result.rowcount != 1:
+            raise HTTPException(status_code=404)
 
 
 def get_results(room_id: int) -> list[ResultUser]:

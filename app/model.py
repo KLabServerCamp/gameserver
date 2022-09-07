@@ -66,6 +66,7 @@ def get_user_by_token(token: str) -> Optional[SafeUser]:
         return _get_user_by_token(conn, token)
 
 
+'''
 def _get_user(conn) -> Optional[SafeUser]:
     """fetch user data"""
     # TODO: 実装
@@ -85,6 +86,7 @@ def _get_user(conn) -> Optional[SafeUser]:
 def get_user() -> Optional[SafeUser]:
     with engine.begin() as conn:
         return _get_user(conn)
+'''
 
 
 def _update_user_by_token(

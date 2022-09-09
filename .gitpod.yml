@@ -11,7 +11,7 @@ tasks:
       python -m venv venv
       venv/bin/pip install -r requirements.txt
       docker pull mysql:latest
-      sudo apt install mysql-client
+      sudo apt-get install -y mysql-client
       cp conf/.my.cnf ~
     command: docker run -d -e MYSQL_ALLOW_EMPTY_PASSWORD=yes \
       -e MYSQL_DATABASE=webapp -e MYSQL_USER=webapp -e MYSQL_PASSWORD=webapp_no_password \

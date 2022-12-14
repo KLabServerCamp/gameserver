@@ -11,7 +11,16 @@
 	// The optional 'workspaceFolder' property is the path VS Code should open by default when
 	// connected. This is typically a volume mount in .devcontainer/docker-compose.yml
 	"workspaceFolder": "/workspace",
+	// Use 'postCreateCommand' to run commands after the container is created.
+	// "postCreateCommand": "pip3 install --user -r requirements.txt",
 	"postCreateCommand": ".devcontainer/postCreate.sh",
+
+	"features": {
+		"ghcr.io/devcontainers/features/docker-from-docker:1": {"dockerDashComposeVersion": "v2"},
+		"ghcr.io/devcontainers/features/python:1": {},
+		// See https://github.com/devcontainers/features/blob/main/src/sshd/NOTES.md
+		"ghcr.io/devcontainers/features/sshd:1": {}
+	},
 
 	// Set *default* container specific settings.json values on container create.
 	"settings": { 
@@ -21,28 +30,18 @@
 		"python.linting.flake8Enabled": true,
 		"python.linting.pylintEnabled": false,
 		"python.formatting.provider": "black",
-		"python.formatting.blackPath": "/usr/local/py-utils/bin/black",
-		"python.linting.banditPath": "/usr/local/py-utils/bin/bandit",
-		"python.linting.flake8Path": "/usr/local/py-utils/bin/flake8",
-		"python.linting.mypyPath": "/usr/local/py-utils/bin/mypy",
-		"python.linting.pycodestylePath": "/usr/local/py-utils/bin/pycodestyle",
-		"python.linting.pydocstylePath": "/usr/local/py-utils/bin/pydocstyle",
-		"python.linting.pylintPath": "/usr/local/py-utils/bin/pylint",
+		"python.defaultInterpreterPath": "${workspaceFolder}/venv/bin/python",
 		"python.terminal.activateEnvironment": true
 	},
 
 	// Add the IDs of extensions you want installed when the container is created.
 	"extensions": [
 		"ms-python.python",
-		"ms-python.vscode-pylance",
-		"MS-vsliveshare.vsliveshare-pack"
+		"ms-python.vscode-pylance"
 	],
 
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	"forwardPorts": [2222],
-
-	// Use 'postCreateCommand' to run commands after the container is created.
-	// "postCreateCommand": "pip3 install --user -r requirements.txt",
 
 	// Comment out connect as root instead. More info: https://aka.ms/vscode-remote/containers/non-root.
 	"remoteUser": "vscode"

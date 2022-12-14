@@ -1,5 +1,6 @@
 fastapi
 uvicorn[standard]
+httpx>=0.22.0
 sqlalchemy
 pytest
 requests

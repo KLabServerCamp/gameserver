@@ -1,6 +1,6 @@
 #!/bin/bash
 
-python -m venv --prompt . venv
+python3 -m venv --prompt . venv
 venv/bin/pip install -U pip
 venv/bin/pip install -r requirements.txt
 

@@ -3,7 +3,7 @@
 export DEBIAN_FRONTEND=noninteractive
 sudo apt-get update
 sudo apt-get -y install --no-install-recommends bash-completion \
-    default-libmysqlclient-dev default-mysql-client \
+    default-mysql-client \
     vim
 
 python3 -m venv --prompt . venv

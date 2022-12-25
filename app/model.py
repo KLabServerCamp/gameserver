@@ -37,7 +37,7 @@ def create_user(name: str, leader_card_id: int) -> str:
             ),
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
-        # print(result)
+        # print(f"create_user(): id={result.lastrowid} {token=}")
     return token
 
 

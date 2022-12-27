@@ -1,3 +1,5 @@
+DROP TABLE IF EXISTS `room_member`;
+
 DROP TABLE IF EXISTS `user`;
 CREATE TABLE `user` (
   `id` bigint NOT NULL AUTO_INCREMENT,
@@ -17,7 +19,6 @@ CREATE TABLE `room` (
   FOREIGN KEY (`owner_id`) REFERENCES `user` (`id`)
 );
 
-DROP TABLE IF EXISTS `room_member`;
 CREATE TABLE `room_member` (
   `user_id` bigint NOT NULL,
   `room_id` bigint NOT NULL,

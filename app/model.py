@@ -100,7 +100,12 @@ class RoomUser(BaseModel):
 class RoomMember(BaseModel):
     name: str
     room_id: int
+    token: str
     is_host: bool = False
+    select_difficulty: LiveDifficulty
+
+    class Config:
+        orm_mode = True
 
 
 class ResultUser(BaseModel):
@@ -203,11 +208,12 @@ def _create_room(
     user = _get_user_by_token(conn, token)
     _ = conn.execute(
         text(
-            "INSERT INTO `room_member` (name, room_id, is_host, select_difficulty) VALUES (:name, :room_id, :is_host, :select_difficulty)"
+            "INSERT INTO `room_member` (name, room_id, token, is_host, select_difficulty) VALUES (:name, :room_id, :token, :is_host, :select_difficulty)"
         ),
         {
             "name": user.name,
             "room_id": room_id,
+            "token": token,
             "is_host": True,
             "select_difficulty": select_difficulty.value,
         },
@@ -229,12 +235,12 @@ def _get_room_list(conn, live_id: int) -> list[RoomInfo]:
             {"status": WaitRoomStatus.Waiting.value},
         )
     else:
-    result = conn.execute(
-        text(
-            "SELECT `live_id`, `room_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `live_id` = :live_id AND `status` = :status AND `joined_user_count` < `max_user_count`"
-        ),
-        {"live_id": live_id, "status": WaitRoomStatus.Waiting.value},
-    )
+        result = conn.execute(
+            text(
+                "SELECT `live_id`, `room_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `live_id` = :live_id AND `status` = :status AND `joined_user_count` < `max_user_count`"
+            ),
+            {"live_id": live_id, "status": WaitRoomStatus.Waiting.value},
+        )
     try:
         rows = result.all()
     except NoResultFound:
@@ -283,11 +289,12 @@ def _join_room(
     user = _get_user_by_token(conn, token)
     _ = conn.execute(
         text(
-            "INSERT INTO `room_member` (name, room_id, is_host, select_difficulty) VALUES (:name, :room_id, :is_host, :select_difficulty)"
+            "INSERT INTO `room_member` (name, room_id, token, is_host, select_difficulty) VALUES (:name, :room_id, :token, :is_host, :select_difficulty)"
         ),
         {
             "name": user.name,
             "room_id": room_id,
+            "token": token,
             "is_host": False,
             "select_difficulty": select_difficulty.value,
         },
@@ -310,7 +317,7 @@ def _get_room_member_by_room_id_and_token(
 ) -> Optional[RoomMember]:
     result = conn.execute(
         text(
-            "SELECT `name`, `room_id`, `is_host` FROM `room_member` WHERE `room_id` = :room_id AND `token` = :token"
+            "SELECT `name`, `room_id`, `token`, `token`, `is_host`, `select_difficulty` FROM `room_member` WHERE `room_id` = :room_id AND `token` = :token"
         ),
         {
             "room_id": room_id,
@@ -322,3 +329,72 @@ def _get_room_member_by_room_id_and_token(
     except NoResultFound:
         return None
     return RoomMember.from_orm(row)
+
+
+def get_room_wait(room_id: int, token: str) -> tuple[WaitRoomStatus, list[RoomUser]]:
+    with engine.begin() as conn:
+        return _get_room_wait(conn, room_id, token)
+
+
+def _get_room_wait(
+    conn, room_id: int, token: str
+) -> tuple[WaitRoomStatus, list[RoomUser]]:
+    status = _get_room_status(conn, room_id)
+    if status != WaitRoomStatus.Waiting.value:
+        return status, []
+
+    result = conn.execute(
+        text(
+            "SELECT `name`, `room_id`, `token`, `is_host`, select_difficulty FROM `room_member` WHERE `room_id` = :room_id"
+        ),
+        {
+            "room_id": room_id,
+        },
+    )
+    try:
+        rows = result.all()
+    except NoResultFound:
+        return WaitRoomStatus.Dissolution, []
+    room_user_list = []
+    for row in rows:
+        this_member = RoomMember.from_orm(row)
+        this_user = convert_room_member_to_room_user(
+            conn, this_member, is_me=(this_member.token == token)
+        )
+        room_user_list.append(this_user)
+
+    return WaitRoomStatus.Waiting, room_user_list
+
+
+def convert_room_member_to_room_user(
+    conn, room_member: RoomMember, is_me=True
+) -> RoomUser:
+    user = _get_user_by_token(conn, room_member.token)
+    return RoomUser(
+        user_id=user.id,
+        name=room_member.name,
+        leader_card_id=user.leader_card_id,
+        select_difficulty=room_member.select_difficulty,
+        is_host=room_member.is_host,
+        is_me=is_me,
+    )
+
+
+def _get_room_status(conn, room_id: int) -> WaitRoomStatus:
+    room = _get_room_by_room_id(conn, room_id)
+    if room is None:
+        return WaitRoomStatus.Dissolution
+
+    result = conn.execute(
+        text(  
+            "SELECT `status` FROM `room` WHERE `room_id` = :room_id"
+        ),
+        {
+            "room_id": room_id,
+        },
+    )
+    try:
+        row = result.one()
+    except NoResultFound:
+        return WaitRoomStatus.OtherError
+    return WaitRoomStatus(row[0])

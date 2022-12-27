@@ -5,7 +5,15 @@ from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from . import model
-from .model import SafeUser
+from .model import (
+    JoinRoomResult,
+    LiveDifficulty,
+    ResultUser,
+    RoomInfo,
+    RoomUser,
+    SafeUser,
+    WaitRoomStatus,
+)
 
 app = FastAPI()
 
@@ -18,8 +26,7 @@ async def root():
 
 
 # User APIs
-
-
+#    user/create
 class UserCreateRequest(BaseModel):
     user_name: str
     leader_card_id: int
@@ -32,7 +39,7 @@ class UserCreateResponse(BaseModel):
 @app.post("/user/create", response_model=UserCreateResponse)
 def user_create(req: UserCreateRequest):
     """新規ユーザー作成"""
-    token = model.create_user(req.user_name, req.leader_card_id)
+    token = model.create_user(name=req.user_name, leader_card_id=req.leader_card_id)
     return UserCreateResponse(user_token=token)
 
 
@@ -63,5 +70,80 @@ class Empty(BaseModel):
 def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
     """Update user attributes"""
     # print(req)
-    model.update_user(token, req.user_name, req.leader_card_id)
+    model.update_user(
+        token=token, name=req.user_name, leader_card_id=req.leader_card_id
+    )
     return {}
+
+
+#    room/create
+class RoomCreateRequest(BaseModel):
+    live_id: int
+    select_difficulty: LiveDifficulty
+
+
+class RoomCreateResponse(BaseModel):
+    room_id: int
+
+
+@app.post("/room/create", response_model=RoomCreateResponse)
+def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
+    room_id = model.create_room(
+        token=token, live_id=req.live_id, select_difficulty=req.select_difficulty
+    )
+    return RoomCreateResponse(room_id=room_id)
+
+
+#   room/list
+class RoomListRequest(BaseModel):
+    live_id: int
+
+
+class RoomListResponse(BaseModel):
+    room_info_list: list[RoomInfo]
+
+
+#   room/join
+class RoomJoinRequest(BaseModel):
+    live_id: int
+    select_difficulty: LiveDifficulty
+
+
+class RoomJoinResponse(BaseModel):
+    join_room_result: JoinRoomResult
+
+
+#   room/wait
+class RoomWaitRequest(BaseModel):
+    live_id: int
+
+
+class RoomWaitResponse(BaseModel):
+    status: WaitRoomStatus
+    room_user_list: list[RoomUser]
+
+
+#    room/start
+class RoomStartRequest(BaseModel):
+    live_id: int
+
+
+#    room/end
+class RoomEndRequest(BaseModel):
+    live_id: int
+    judge_count_list: list[int]
+    score: int
+
+
+#   room/result
+class RoomResultRequest(BaseModel):
+    live_id: int
+
+
+class RoomResultResponse(BaseModel):
+    result_user_list: list[ResultUser]
+
+
+#   room/leave
+class RoomLeaveRequest(BaseModel):
+    room_id: int

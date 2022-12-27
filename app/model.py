@@ -10,6 +10,8 @@ from sqlalchemy.exc import NoResultFound
 
 from .db import engine
 
+MAX_ROOM_USER_COUNT = 4
+
 
 class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げる"""
@@ -72,3 +74,89 @@ def _update_user(conn, token: str, name: str, leader_card_id: int) -> None:
 def update_user(token: str, name: str, leader_card_id: int) -> None:
     with engine.begin() as conn:
         _update_user(conn=conn, token=token, name=name, leader_card_id=leader_card_id)
+
+
+class LiveDifficulty(IntEnum):
+    Normal = 1
+    Hard = 2
+
+
+def _create_room(
+    conn, token: str, live_id: int, select_difficulty: LiveDifficulty
+) -> Optional[int]:
+    user = _get_user_by_token(conn=conn, token=token)
+    if user is None:
+        return None
+
+    # roomテーブルに部屋追加
+    result = conn.execute(
+        text(
+            "INSERT INTO `room` SET `live_id`=:live_id, `joined_user_count`=1, `max_user_count`=:max_user_count"
+        ),
+        {"live_id": live_id, "max_user_count": MAX_ROOM_USER_COUNT},
+    )
+
+    room_id = result.lastrowid
+    id = user.id
+
+    # room_userテーブルにユーザー追加
+    result = conn.execute(
+        text(
+            "INSERT INTO `room_user` SET `room_id`=:room_id, `id`=:id, `select_difficulty`=:select_difficulty, `is_host`=true"
+        ),
+        {"room_id": room_id, "id": id, "select_difficulty": int(select_difficulty)},
+    )
+    return room_id
+
+
+def create_room(
+    token: str, live_id: int, select_difficulty: LiveDifficulty
+) -> Optional[int]:
+    with engine.begin() as conn:
+        return _create_room(
+            conn=conn, token=token, live_id=live_id, select_difficulty=select_difficulty
+        )
+
+
+class JoinRoomResult(IntEnum):
+    Ok = 1
+    RoomFull = 2
+    Disbanded = 3  # 解散
+    OtherError = 4
+
+
+class WaitRoomStatus(IntEnum):
+    Waiting = 1
+    LiveStart = 2
+    Dissolution = 3  # 解散
+
+
+class RoomInfo(BaseModel):
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int
+
+    class Config:
+        orm_mode = True
+
+
+class RoomUser(BaseModel):
+    user_id: int
+    name: str
+    leader_card_id: int  # 設定アバター
+    select_difficulty: LiveDifficulty
+    is_me: bool  # リクエストを投げたユーザーと同じか
+    is_host: bool  # 部屋を立てた人か
+
+    class Config:
+        orm_mode = True
+
+
+class ResultUser(BaseModel):
+    user_id: int
+    judge_count_list: list[int]  # 各判定数(良い判定から昇順)
+    score: int
+
+    class Config:
+        orm_mode = True

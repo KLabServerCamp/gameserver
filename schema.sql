@@ -7,3 +7,25 @@ CREATE TABLE `user` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `token` (`token`)
 );
+
+
+DROP TABLE IF EXISTS `room`;
+CREATE TABLE `room` (
+  `room_id` bigint NOT NULL AUTO_INCREMENT,
+  `live_id` int DEFAULT NULL,
+  `joined_user_count` int DEFAULT NULL,
+  `max_user_count` int DEFAULT NULL,
+  PRIMARY KEY (`room_id`)
+);
+
+
+DROP TABLE IF EXISTS `room_user`;
+CREATE TABLE `room_user` (
+  `room_id` bigint NOT NULL,
+  `id` bigint NOT NULL,
+  `select_difficulty` int NOT NULL,
+  `is_host` boolean NOT NULL,
+  PRIMARY KEY (`room_id`),
+  UNIQUE KEY `id` (`id`)
+);
+

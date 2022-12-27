@@ -30,6 +30,11 @@ def create_user(name: str, leader_card_id: int) -> str:
     """Create new user and returns their token"""
     token = str(uuid.uuid4())
     # NOTE: tokenが衝突したらリトライする必要がある.
+    """
+    # 衝突回避を考える場所
+    while get_user_by_token(token) is not None:
+        token = str(uuid.uuid4())
+    """
     with engine.begin() as conn:
         result = conn.execute(
             text(
@@ -37,16 +42,16 @@ def create_user(name: str, leader_card_id: int) -> str:
             ),
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
-        print(result)
+        # print(result)
     return token
 
 
 def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
     # TODO: 実装
     result = conn.execute(
-            text("SELECT * FROM `user` WHERE `token`=:search_token"),
-            {"search_token": token}
-            )
+        text("SELECT * FROM `user` WHERE `token`=:search_token"),
+        {"search_token": token},
+    )
     try:
         row = result.one()
     except NoResultFound:
@@ -64,7 +69,9 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
     with engine.begin() as conn:
         # TODO: 実装
         result = conn.execute(
-            text("UPDATE `user` SET `name`=:name, `leader_card_id`=:card_id WHERE `token`=:token"),
-            {"name": name, "card_id": leader_card_id, "token": token}
-            )
-        print(result)
+            text(
+                "UPDATE `user` SET `name`=:name, `leader_card_id`=:card_id WHERE `token`=:token"
+            ),
+            {"name": name, "card_id": leader_card_id, "token": token},
+        )
+        # print(result)

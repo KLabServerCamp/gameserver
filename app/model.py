@@ -10,6 +10,8 @@ from sqlalchemy import Column, ForeignKey, Integer, String, select, text, update
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import declarative_base, relationship
 
+from app.config import MAX_USER_COUNT
+
 from .db import engine
 
 Base = declarative_base()
@@ -39,6 +41,10 @@ class UserTable(Base):
 
 class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げる"""
+
+
+class UserNotFound(Exception):
+    """指定されたtokenに対応するユーザーが見つからなかったときに投げる"""
 
 
 class SafeUser(BaseModel):
@@ -118,8 +124,9 @@ class RoomTable(Base):
 
 class Room(BaseModel):
     id: int
-    name: str
+    live_id: int
     owner_user_id: int
+    max_user_count: int
 
     class Config:
         orm_mode = True
@@ -149,12 +156,24 @@ class RoomUser(BaseModel):
 
 
 def create_room(token: str, live_id: int, select_difficalty: LiveDifficulty) -> int:
-    pass
+    return _create_room(engine, token, live_id, select_difficalty)
 
 
 def _create_room(conn, token: str, live_id: int, select_difficalty: LiveDifficulty) -> int:
-    # _ = conn.execute(insert(RoomTable).values(name=name, owner_user_id=owner_user_id))
-    pass
+    user = _get_user_by_token(conn, token)
+
+    # TODO: Error handling
+    if user is None:
+        pass
+        # raise UserNotFound()
+    res = conn.execute(insert(RoomTable).values(live_id=live_id, owner_user_id=user.id, max_user_count=MAX_USER_COUNT))
+
+    room = Room.from_orm(res)
+    _ = conn.execute(
+        insert(RoomUserTable).values(room_id=room.id, user_token=token, select_difficulty=select_difficalty)
+    )
+
+    return room.id
 
 
 if __name__ == "__main__":

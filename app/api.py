@@ -85,17 +85,17 @@ def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
     return room_id
 
 
-# class RoomListRequest(BaseModel):
-#     live_id: int
+class RoomListRequest(BaseModel):
+    live_id: int
 
 
-# class RoomListResPonse(BaseModel):
-#     room_info_list: list[RoomInfo]
+class RoomListResponse(BaseModel):
+    room_info_list: list[RoomInfo]
 
 
-# @app.post("/room/list", response_model=RoomListResPonse)
-# def room_list(req: RoomListRequest, token: str = Depends(get_auth_token)):
-#     """ルームリストの取得"""
-#     # print(req)
-#     model.update_user(token, req.user_name, req.leader_card_id)
-#     return {}
+@app.post("/room/list", response_model=RoomListResponse)
+def room_list(req: RoomListRequest):
+    """ルームリストの取得"""
+    # print(req)
+    room_info_list = room_model.get_room_list(req.live_id)
+    return room_info_list

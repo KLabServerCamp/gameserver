@@ -25,4 +25,4 @@ class RoomCreateResponse(BaseModel):
 
 @router.post("/room/create", tags=["room"], response_model=RoomCreateResponse)
 def room_list(req: RoomCreateRequest, token=Depends(get_auth_token)):
-    return model.create_room(req.live_id, req.select_difficulty, token)
+    return RoomCreateResponse(room_id=model.create_room(req.live_id, req.select_difficulty, token))

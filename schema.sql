@@ -31,18 +31,3 @@ CREATE TABLE `room_member` (
   PRIMARY KEY (`id`),
   KEY `room_id` (`room_id`)
 );
-
--- _ = conn.execute(
---         text(
---             "INSERT INTO `room` (live_id, room_id, joined_user_count, max_user_count, status) VALUES (:live_id, :room_id, :joined_user_count, :max_user_count, :status)"
---         ),
---         {"live_id": live_id, "room_id": room_id, "joined_user_count": 1, "max_user_count": MAX_USER_COUNT, "status": WaitRoomStatus.Waiting.value},
---     )
-
---     user = _get_user_by_token(conn, token)
---     _ = conn.execute(
---         text(
---             "INSERT INTO `room_member` (name, room_id, is_host) VALUES (:name, :room_id, :is_host)"
---         ),
---         {"name": user.name, "room_id": room_id, "is_host": True},
---     )

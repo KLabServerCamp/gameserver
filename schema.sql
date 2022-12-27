@@ -27,6 +27,7 @@ CREATE TABLE `room_member` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `name` varchar(255) DEFAULT NULL,
   `room_id` int DEFAULT NULL,
+  `select_difficulty` int DEFAULT NULL,
   `is_host` boolean DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `room_id` (`room_id`)

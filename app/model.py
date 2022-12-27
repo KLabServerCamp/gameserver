@@ -97,6 +97,12 @@ class RoomUser(BaseModel):
         orm_mode = True
 
 
+class RoomMember(BaseModel):
+    name: str
+    room_id: int
+    is_host: bool = False
+
+
 class ResultUser(BaseModel):
     """
     Attributes
@@ -197,9 +203,14 @@ def _create_room(
     user = _get_user_by_token(conn, token)
     _ = conn.execute(
         text(
-            "INSERT INTO `room_member` (name, room_id, is_host) VALUES (:name, :room_id, :is_host)"
+            "INSERT INTO `room_member` (name, room_id, is_host, select_difficulty) VALUES (:name, :room_id, :is_host, :select_difficulty)"
         ),
-        {"name": user.name, "room_id": room_id, "is_host": True},
+        {
+            "name": user.name,
+            "room_id": room_id,
+            "is_host": True,
+            "select_difficulty": select_difficulty.value,
+        },
     )
     return room_id
 
@@ -235,3 +246,71 @@ def _get_room_by_room_id(conn, room_id: int) -> Optional[RoomInfo]:
     except NoResultFound:
         return None
     return RoomInfo.from_orm(row)
+
+
+def join_room(
+    room_id: int, select_difficulty: LiveDifficulty, token: str
+) -> JoinRoomResult:
+    with engine.begin() as conn:
+        return _join_room(conn, room_id, select_difficulty, token)
+
+
+def _join_room(
+    conn, room_id: int, select_difficulty: LiveDifficulty, token: str
+) -> JoinRoomResult:
+    room = _get_room_by_room_id(conn, room_id)
+    if room is None:
+        return JoinRoomResult.Disbanded
+
+    if room.joined_user_count >= room.max_user_count:
+        return JoinRoomResult.RoomFull
+
+    if room.status != WaitRoomStatus.Waiting.value:
+        return JoinRoomResult.OtherError
+
+    # you are already in the room
+    if not (_get_room_member_by_room_id_and_token(conn, room_id, token) is None):
+        return JoinRoomResult.OtherError
+
+    user = _get_user_by_token(conn, token)
+    _ = conn.execute(
+        text(
+            "INSERT INTO `room_member` (name, room_id, is_host, select_difficulty) VALUES (:name, :room_id, :is_host, :select_difficulty)"
+        ),
+        {
+            "name": user.name,
+            "room_id": room_id,
+            "is_host": False,
+            "select_difficulty": select_difficulty.value,
+        },
+    )
+
+    _ = conn.execute(
+        text(
+            "UPDATE `room` SET `joined_user_count` = `joined_user_count` + 1 WHERE `room_id` = :room_id"
+        ),
+        {
+            "room_id": room_id,
+        },
+    )
+
+    return JoinRoomResult.Ok
+
+
+def _get_room_member_by_room_id_and_token(
+    conn, room_id: int, token: str
+) -> Optional[RoomMember]:
+    result = conn.execute(
+        text(
+            "SELECT `name`, `room_id`, `is_host` FROM `room_member` WHERE `room_id` = :room_id AND `token` = :token"
+        ),
+        {
+            "room_id": room_id,
+            "token": token,
+        },
+    )
+    try:
+        row = result.one()
+    except NoResultFound:
+        return None
+    return RoomMember.from_orm(row)

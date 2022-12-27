@@ -191,3 +191,7 @@ def get_room_info_list(live_id: int) -> list[RoomInfo]:
         )
 
         return list(map(RoomInfo.from_orm, result))
+
+
+def join_room(token: str, room_id: int) -> JoinRoomResult:
+    pass

@@ -111,5 +111,7 @@ class RoomJoinResponse(BaseModel):
 
 
 @app.post("/room/join", response_model=RoomListResponse)
-def room_join(req: RoomListRequest):
-    pass
+def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
+    """ルーム入場リクエスト"""
+    join_room_result = model.join_room(token, req.room_id)
+    return RoomJoinResponse(join_room_result=join_room_result)

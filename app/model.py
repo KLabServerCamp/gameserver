@@ -69,7 +69,7 @@ class RoomInfo(BaseModel):
     room_id: int
     live_id: int
     joined_user_count: int
-    max_user_count: int
+    max_user_count: int = MAX_USER_COUNT
 
     class Config:
         orm_mode = True
@@ -90,8 +90,8 @@ class RoomUser(BaseModel):
     name: str
     leader_card_id: int
     select_difficulty: LiveDifficulty
-    is_me: bool
-    is_host: bool
+    is_me: bool = False
+    is_host: bool = False
 
     class Config:
         orm_mode = True

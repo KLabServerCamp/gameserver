@@ -14,7 +14,7 @@ CREATE TABLE `room` (
   `owner_id` bigint NOT NULL,
   `live_id` int NOT NULL,
   PRIMARY KEY (`id`),
-  FOREIGN KEY `user_id` REFERENCES `user` (`id`)
+  FOREIGN KEY (`owner_id`) REFERENCES `user` (`id`)
 );
 
 DROP TABLE IF EXISTS `room_member`;
@@ -23,7 +23,9 @@ CREATE TABLE `room_member` (
   `room_id` bigint NOT NULL,
   `select_difficulty` int NOT NULL,
   UNIQUE(`user_id`, `room_id`),
-  FOREIGN KEY `user_id` REFERENCES `user` (`id`),
-  FOREIGN KEY `room_id` REFERENCES `room` (`id`)
+  FOREIGN KEY (`user_id`) REFERENCES `user` (`id`),
+  FOREIGN KEY (`room_id`) REFERENCES `room` (`id`)
 );
+
+
 

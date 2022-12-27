@@ -4,8 +4,9 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
-from . import model
+from . import model, room_model
 from .model import SafeUser
+from .room_model import LiveDifficulty, ResultUser, RoomInfo, RoomUser
 
 app = FastAPI()
 
@@ -65,3 +66,36 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
     # print(req)
     model.update_user(token, req.user_name, req.leader_card_id)
     return {}
+
+
+class RoomCreateRequest(BaseModel):
+    live_id: int
+    select_difficulty: LiveDifficulty
+
+
+class RoomCreateResponse(BaseModel):
+    room_id: int
+
+
+@app.post("/room/create", response_model=RoomCreateResponse)
+def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
+    """ルーム作成"""
+    # print(req)
+    room_id = room_model.create_room(req.live_id, req.select_difficulty, token)
+    return room_id
+
+
+# class RoomListRequest(BaseModel):
+#     live_id: int
+
+
+# class RoomListResPonse(BaseModel):
+#     room_info_list: list[RoomInfo]
+
+
+# @app.post("/room/list", response_model=RoomListResPonse)
+# def room_list(req: RoomListRequest, token: str = Depends(get_auth_token)):
+#     """ルームリストの取得"""
+#     # print(req)
+#     model.update_user(token, req.user_name, req.leader_card_id)
+#     return {}

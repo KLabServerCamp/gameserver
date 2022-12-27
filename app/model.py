@@ -77,6 +77,7 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
 
 if __name__ == "__main__":
     conn = engine.connect()
-    # update_user("RMKx", "honono", 50)
-    res = _get_user_by_token(conn, "RKMx")
+    token = create_user(name="honoka", leader_card_id=1)
+    update_user(token, "honono", 50)
+    res = _get_user_by_token(conn, token)
     print(res)

@@ -1,18 +1,29 @@
 # import json
 import uuid
 
-# from enum import Enum, IntEnum
+from enum import IntEnum
 from typing import Optional
 
 # from fastapi import HTTPException
 from pydantic import BaseModel
-from sqlalchemy import Column, ForeignKey, Integer, String, select, text, update
+from sqlalchemy import Column, ForeignKey, Integer, String, select, text, update, insert
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import declarative_base, relationship
 
 from .db import engine
 
 Base = declarative_base()
+
+# Enum
+
+
+class LiveDifficulty(IntEnum):
+
+    easy = 1
+    normal = 2
+
+
+# User
 
 
 class UserTable(Base):
@@ -91,13 +102,16 @@ def _update_user(conn, token: str, name: str, leader_card_id: int) -> None:
     return None
 
 
+# Room
+
+
 class RoomTable(Base):
     __tablename__ = "room"
 
-    # roomid, live_id, max_user_count
     id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(255), nullable=True)
-    owner_user_id = Column(Integer, nullable=False)
+    live_id = Column(Integer, nullable=False)
+    max_user_count = Column(Integer, nullable=False)
+    owner_user_id = Column(Integer, ForeignKey("room_user.id", onupdate="CASCADE", ondelete="CASCADE"))
 
     room_user = relationship("RoomUserTable", back_populates="room")
 
@@ -134,21 +148,13 @@ class RoomUser(BaseModel):
         orm_mode = True
 
 
-def create_room(name: str, owner_user_id: int) -> int:
-    with engine.begin() as conn:
-        result = conn.execute(
-            text(
-                """
-                    INSERT
-                        INTO
-                            `room` (name, owner_user_id)
-                        VALUES
-                            (:name, :owner_user_id)
-                """
-            ),
-            {"name": name, "owner_user_id": owner_user_id},
-        )
-        return result.lastrowid
+def create_room(token: str, live_id: int, select_difficalty: LiveDifficulty) -> int:
+    pass
+
+
+def _create_room(conn, token: str, live_id: int, select_difficalty: LiveDifficulty) -> int:
+    # _ = conn.execute(insert(RoomTable).values(name=name, owner_user_id=owner_user_id))
+    pass
 
 
 if __name__ == "__main__":

@@ -119,7 +119,13 @@ class ResultUser(BaseModel):
     score: int
 
 
-def _join_room(conn: Connection, token: str, room_id: int, is_host: bool):
+def _join_room(
+    conn: Connection,
+    token: str,
+    room_id: int,
+    select_difficulty: LiveDifficulty,
+    is_host: bool = False,
+):
     user = _get_user_by_token(conn, token)
     if user is None:
         raise InvalidToken
@@ -137,10 +143,15 @@ def _join_room(conn: Connection, token: str, room_id: int, is_host: bool):
     # room_memberをinsert
     result = conn.execute(
         text(
-            "INSERT INTO `room_member` (`user_id`, `room_id`, `is_host`) "
-            "VALUES (:user_id, :room_id, :is_host)"
+            "INSERT INTO `room_member` (`user_id`, `room_id`, `select_difficulty`, `is_host`) "
+            "VALUES (:user_id, :room_id, :select_difficulty, :is_host)"
         ),
-        {"user_id": user.id, "room_id": room_id, "is_host": is_host},
+        {
+            "user_id": user.id,
+            "room_id": room_id,
+            "select_difficulty": select_difficulty.value,
+            "is_host": is_host,
+        },
     )
 
 
@@ -152,19 +163,18 @@ def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty) -> 
         result = conn.execute(
             text(
                 "INSERT INTO `room` "
-                "(`live_id`, `select_difficulty`, `joined_user_count`, `max_user_count`, `wait_room_status`) "
-                "VALUES (:live_id, :select_difficulty, :joined_user_count, :max_user_count, :wait_room_status)"
+                "(`live_id`, `joined_user_count`, `max_user_count`, `wait_room_status`) "
+                "VALUES (:live_id, :joined_user_count, :max_user_count, :wait_room_status)"
             ),
             {
                 "live_id": live_id,
-                "select_difficulty": select_difficulty.value,
                 "joined_user_count": 0,
                 "max_user_count": 4,
                 "wait_room_status": WaitRoomStatus.WATING.value,
             },
         )
         room_id: int = result.lastrowid
-        _join_room(conn, token, room_id, True)
+        _join_room(conn, token, room_id, select_difficulty, True)
     return room_id
 
 

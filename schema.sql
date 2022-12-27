@@ -12,7 +12,6 @@ DROP TABLE IF EXISTS `room`;
 CREATE TABLE `room` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `live_id` int NOT NULL,
-  `select_difficulty` int NOT NULL DEFAULT 0,
   `joined_user_count` int NOT NULL DEFAULT 0,
   `max_user_count` int NOT NULL DEFAULT 0,
   `wait_room_status` int DEFAULT NULL,
@@ -22,6 +21,7 @@ CREATE TABLE `room_member` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `user_id` bigint NOT NULL,
   `room_id` bigint NOT NULL,
+  `select_difficulty` int DEFAULT NULL,
   `is_host` boolean NOT NULL DEFAULT false,
   FOREIGN KEY (`user_id`) REFERENCES `user` (`id`),
   FOREIGN KEY (`room_id`) REFERENCES `room` (`id`),

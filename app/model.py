@@ -8,7 +8,6 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
-from app.api import JoinRoomResult, LiveDifficulty
 
 from .db import engine
 
@@ -16,6 +15,15 @@ from .db import engine
 class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げる"""
 
+class JoinRoomResult(Enum):
+    Ok = 1  # 入場OK
+    RoomFull = 2  # 満員
+    Disbanded = 3  # 解散済み
+    OtherError = 4  # その他エラー
+
+class LiveDifficulty(Enum):
+    normal = 1
+    hard = 2
 
 class SafeUser(BaseModel):
     """token を含まないUser"""

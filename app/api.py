@@ -104,6 +104,7 @@ def room_list(req: RoomListRequest):
 
 class RoomJoinRequest(BaseModel):
     room_id: int  # 入るルーム
+    select_difficulty: LiveDifficulty  # 選択難易度
 
 
 class RoomJoinResponse(BaseModel):
@@ -113,5 +114,5 @@ class RoomJoinResponse(BaseModel):
 @app.post("/room/join", response_model=RoomListResponse)
 def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
     """ルーム入場リクエスト"""
-    join_room_result = model.join_room(token, req.room_id)
+    join_room_result = model.join_room(token, req.room_id, req.select_difficulty)
     return RoomJoinResponse(join_room_result=join_room_result)

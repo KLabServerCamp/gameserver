@@ -82,10 +82,10 @@ class LiveDifficulty(Enum):
 
 
 class JoinRoomResult(Enum):
-    OK = 1
-    ROOM_FULL = 2
-    DISBANDED = 3
-    OTHER_ERROR = 4
+    OK = 1  # 入場OK
+    ROOM_FULL = 2  # 満員
+    DISBANDED = 3  # 解散済み
+    OTHER_ERROR = 4  # その他エラー
 
 
 class WaitRoomStatus(Enum):
@@ -119,6 +119,18 @@ class ResultUser(BaseModel):
     score: int
 
 
+class RoomJoinException(Exception):
+    """入室時のエラー"""
+
+
+class RoomFullException(RoomJoinException):
+    """満室時のエラー"""
+
+
+class RoomDisbandedException(RoomJoinException):
+    """ルーム解散時のエラー"""
+
+
 def _join_room(
     conn: Connection,
     token: str,
@@ -129,17 +141,23 @@ def _join_room(
     user = _get_user_by_token(conn, token)
     if user is None:
         raise InvalidToken
+    room_row = conn.execute(
+        "SELECT * FROM `room` WHERE `id`=:room_id", {"room_id": room_id}
+    ).one()
+    status = WaitRoomStatus(room_row["wait_room_status"])
+    if status is not WaitRoomStatus.WATING:
+        raise RoomDisbandedException
+    room_info = RoomInfo.from_orm(room_row)
+    if room_info.joined_user_count >= room_info.max_user_count:
+        raise RoomFullException
+
     # joined_user_countをインクリメント
     update_result = conn.execute(
         text(
-            "UPDATE `room` SET `joined_user_count`=`joined_user_count`+1 "
-            "WHERE `id`=:room_id and `joined_user_count`<`max_user_count` and wait_room_status=1"
+            "UPDATE `room` SET `joined_user_count`=`joined_user_count`+1 WHERE `id`=:room_id"
         ),
         {"room_id": room_id},
     )
-    if update_result.rowcount != 1:
-        # TODO: 満員か存在しない
-        raise Exception
     # room_memberをinsert
     result = conn.execute(
         text(
@@ -193,5 +211,17 @@ def get_room_info_list(live_id: int) -> list[RoomInfo]:
         return list(map(RoomInfo.from_orm, result))
 
 
-def join_room(token: str, room_id: int) -> JoinRoomResult:
-    pass
+def join_room(
+    token: str, room_id: int, select_difficulty: LiveDifficulty
+) -> JoinRoomResult:
+    try:
+        with engine.begin() as conn:
+            conn: Connection
+            _join_room(conn, token, room_id, select_difficulty, False)
+    except RoomFullException:
+        return JoinRoomResult.ROOM_FULL
+    except RoomDisbandedException:
+        return JoinRoomResult.DISBANDED
+    except Exception:
+        return JoinRoomResult.OTHER_ERROR
+    return JoinRoomResult.OK

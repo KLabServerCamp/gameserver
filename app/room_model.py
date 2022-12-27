@@ -55,7 +55,7 @@ class ResultUser(BaseModel):
 
 
 def _create_room(
-    conn, live_id: int, select_difficulty: LiveDifficulty, user: SafeUser
+    conn, live_id: int, select_difficulty: LiveDifficulty, token: str
 ) -> int:
 
     with engine.begin() as conn:
@@ -67,6 +67,7 @@ def _create_room(
             },
         )
 
+        user = model._get_user_by_token(conn, token)
         result = conn.execute(
             text("SELECT `room_id` FROM `room` WHERE `token` = :token"),
             {"token": token},
@@ -92,12 +93,7 @@ def _create_room(
 
 def create_room(live_id: int, select_difficulty: LiveDifficulty, token: str) -> int:
     with engine.begin() as conn:
-        user = model._get_user_by_token(conn, token)
-
-        if user is None:
-            raise HTTPException(status_code=404)
-
-        return _create_room(conn, live_id, select_difficulty, user)
+        return _create_room(conn, live_id, select_difficulty, token)
 
 
 # RoomInfoの取得

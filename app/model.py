@@ -221,11 +221,19 @@ def get_room_list(live_id: int) -> list[RoomInfo]:
 
 
 def _get_room_list(conn, live_id: int) -> list[RoomInfo]:
+    if live_id == 0:
+        result = conn.execute(
+            text(
+                "SELECT `live_id`, `room_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `status` = :status AND `joined_user_count` < `max_user_count`"
+            ),
+            {"status": WaitRoomStatus.Waiting.value},
+        )
+    else:
     result = conn.execute(
         text(
-            "SELECT `live_id`, `room_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `live_id` = :live_id"
+            "SELECT `live_id`, `room_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `live_id` = :live_id AND `status` = :status AND `joined_user_count` < `max_user_count`"
         ),
-        {"live_id": live_id},
+        {"live_id": live_id, "status": WaitRoomStatus.Waiting.value},
     )
     try:
         rows = result.all()

@@ -49,6 +49,10 @@ class RoomWaitResponse(BaseModel):
     room_user_list: list[model.RoomUser]
 
 
+class RoomStartRequest(BaseModel):
+    room_id: int
+
+
 class Empty(BaseModel):
     pass
 
@@ -74,3 +78,9 @@ def room_join(req: RoomJoinRequest, token=Depends(get_auth_token)):
 def room_wait(req: RoomWaitRequest, token=Depends(get_auth_token)):
     status, room_user_list = model.get_room_wait(req.room_id, token)
     return RoomWaitResponse(status=status, room_user_list=room_user_list)
+
+
+@router.post("/room/start", tags=["room"], response_model=Empty)
+def room_start(req: RoomStartRequest):
+    model.start_room(req.room_id)
+    return {}

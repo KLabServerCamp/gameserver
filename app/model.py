@@ -398,3 +398,21 @@ def _get_room_status(conn, room_id: int) -> WaitRoomStatus:
     except NoResultFound:
         return WaitRoomStatus.OtherError
     return WaitRoomStatus(row[0])
+
+
+def start_room(room_id: int) -> None:
+    with engine.begin() as conn:
+        _start_room(conn, room_id)
+
+
+def _start_room(conn, room_id: int) -> None:
+    _ = conn.execute(
+        text(
+            "UPDATE `room` SET `status` = :status WHERE `room_id` = :room_id"
+        ),
+        {
+            "status": WaitRoomStatus.LiveStart.value,
+            "room_id": room_id,
+        },
+    )
+    return

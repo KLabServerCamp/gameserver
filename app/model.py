@@ -125,3 +125,22 @@ class RoomUser(BaseModel):
         orm_mode = True
 
 
+# TODO: create_room 
+def create_room(live_id: int, select_difficulty: LiveDifficulty, token: str, ) -> int:
+    """Create new room and returns their room_id"""
+    # NOTE: tokenが衝突したらリトライする必要がある.
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "INSERT INTO `room` (live_id, joined_user_count, status) VALUES (:live_id, :joined_user_count, :room_status)"
+            ),
+            {
+                "live_id": live_id, 
+                "joined_user_count": 0,
+                "room_status": WaitRoomStatus.Waiting.value,
+                },
+        )
+    # TODO: room定義時にidを割り振る
+    print(f"{result=}")
+    print(f"{result.lastrowid=}")
+    return result.lastrowid

@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
@@ -6,6 +7,25 @@ from pydantic import BaseModel
 
 from . import model
 from .model import SafeUser
+
+
+class LiveDifficulty(Enum):
+    normal = 1
+    hard = 2
+
+
+class JoinRoomResult(Enum):
+    Ok = 1  # 入場OK
+    RoomFull = 2  # 満員
+    Disbanded = 3  # 解散済み
+    OtherError = 4  # その他エラー
+
+
+class WaitRoomStatus(Enum):
+    Waiting = 1  # ホストがライブ開始ボタン押すのを待っている
+    LiveStart = 2  # ライブ画面遷移OK
+    Dissolution = 3  # 解放された
+
 
 app = FastAPI()
 
@@ -27,6 +47,15 @@ class UserCreateRequest(BaseModel):
 
 class UserCreateResponse(BaseModel):
     user_token: str
+
+
+class RoomCreateRequest(BaseModel):
+    live_id: int
+    select_difficulty: LiveDifficulty
+
+
+class RoomCreateResponse(BaseModel):
+    room_id: int
 
 
 @app.post("/user/create", response_model=UserCreateResponse)
@@ -65,3 +94,11 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
     # print(req)
     model.update_user(token, req.user_name, req.leader_card_id)
     return {}
+
+
+@app.post("/room/create", response_model=RoomCreateResponse)
+def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
+    user = model.get_user_by_token(token)
+    room_id = model.create_room(user.id, req.live_id, req.select_difficulty)
+
+    return RoomCreateResponse(room_id=room_id)

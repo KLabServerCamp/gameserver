@@ -1,12 +1,14 @@
 import json
 import uuid
 from enum import Enum, IntEnum
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
+
+from app.api import JoinRoomResult, LiveDifficulty
 
 from .db import engine
 
@@ -26,6 +28,28 @@ class SafeUser(BaseModel):
         orm_mode = True
 
 
+class RoomInfo(BaseModel):
+    room_id: int
+    live_id: Optional[int]
+    joined_user_count: Optional[int]
+    max_user_count: Optional[int]
+
+
+class RoomUser(BaseModel):
+    user_id: int
+    name: str
+    leader_card_id: int
+    select_difficulty: LiveDifficulty
+    is_me: bool
+    is_host: bool
+
+
+class ResultUser(BaseModel):
+    user_id: int
+    judge_count_list: List[int]
+    score: int
+
+
 def create_user(name: str, leader_card_id: int) -> str:
     """Create new user and returns their token"""
     token = str(uuid.uuid4())
@@ -37,7 +61,7 @@ def create_user(name: str, leader_card_id: int) -> str:
             ),
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
-        # print(f"create_user(): id={result.lastrowid} {token=}")
+        print(f"create_user(): id={result.lastrowid}")
     return token
 
 
@@ -73,3 +97,40 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
         )
         print(f"result.lastrowid={result.lastrowid}")
     return None
+
+
+def _join_room(
+    conn, user_id: int, room_id: int, select_difficulty: LiveDifficulty
+) -> JoinRoomResult:
+    result = conn.execute(
+        text(
+            "INSERT INTO `room_member` (user_id, room_id, select_difficulty) VALUES (:user_id, :room_id, :select_difficulty)"
+        ),
+        {
+            "user_id": user_id,
+            "room_id": room_id,
+            "select_difficulty": select_difficulty.value,
+        },
+    )
+    return JoinRoomResult(1)
+
+
+def join_room(
+    user_id: int, room_id: int, select_difficulty: LiveDifficulty
+) -> JoinRoomResult:
+    with engine.begin() as conn:
+        return _join_room(conn, user_id, room_id, select_difficulty)
+
+
+def create_room(user_id: int, live_id: int, select_difficulty: LiveDifficulty) -> int:
+    with engine.begin() as conn:
+
+        result = conn.execute(
+            text("INSERT INTO `room` (owner_id, live_id) VALUES (:owner_id, :live_id)"),
+            {"owner_id": user_id, "live_id": live_id},
+        )
+        room_id = result.lastrowid
+
+        _join_room(conn, user_id, room_id, select_difficulty)
+
+    return room_id

@@ -69,3 +69,59 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
             ),
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
+
+##################
+# ここからroomの実装
+##################
+
+
+MAX_USER_COUNT = 4
+
+
+class LiveDifficulty(IntEnum):
+    normal: int = 1
+    hard: int = 2
+
+
+class JoinRoomResult(IntEnum):
+    Ok: int = 1
+    RoomFull: int = 2
+    Disbanded: int = 3
+    OhterError: int = 4
+
+
+class WaitRoomStatus(IntEnum):
+    Waiting = 1  
+    LiveStart = 2
+    Dissolution = 3
+
+
+class RoomStatus(BaseModel):
+    room_id: int
+    status: WaitRoomStatus
+
+    class Config:
+        orm_mode = True
+
+
+class RoomInfo(BaseModel):
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int = max_user_count
+
+    class Config:
+        orm_mode = True
+
+
+class RoomUser(BaseModel):
+    room_id: int
+    user_id: int
+    live_difficulty: int
+    is_me: bool = False
+    is_host: bool
+
+    class Config:
+        orm_mode = True
+
+

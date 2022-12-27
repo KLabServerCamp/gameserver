@@ -15,7 +15,7 @@ from .db import engine
 Base = declarative_base()
 
 
-class User(Base):
+class UserTable(Base):
     __tablename__ = "user"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -30,6 +30,8 @@ class InvalidToken(Exception):
 
 class SafeUser(BaseModel):
     """token を含まないUser"""
+
+    # 外部に見られてもいいもの
 
     id: int
     name: str
@@ -61,13 +63,13 @@ def create_user(name: str, leader_card_id: int) -> str:
 
 
 def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
-    res = conn.execute(select(User).where(User.token == token))
+    res = conn.execute(select(UserTable).where(UserTable.token == token))
     try:
         row = res.one()
     except NoResultFound:
         return None
     # return row
-    return SafeUser(id=row.id, name=row.name, leader_card_id=row.leader_card_id)
+    return SafeUser.from_orm(row)
 
 
 def get_user_by_token(token: str) -> Optional[SafeUser]:
@@ -78,16 +80,10 @@ def get_user_by_token(token: str) -> Optional[SafeUser]:
 def update_user(token: str, name: str, leader_card_id: int) -> None:
     # このコードを実装してもらう
     with engine.begin() as conn:
-        return _update_user(
-            conn=conn, token=token, name=name, leader_card_id=leader_card_id
-        )
+        return _update_user(conn=conn, token=token, name=name, leader_card_id=leader_card_id)
 
 
 def _update_user(conn, token: str, name: str, leader_card_id: int) -> None:
-    _ = conn.execute(
-        update(User)
-        .where(User.token == token)
-        .values(name=name, leader_card_id=leader_card_id)
-    )
+    _ = conn.execute(update(UserTable).where(UserTable.token == token).values(name=name, leader_card_id=leader_card_id))
 
     return None

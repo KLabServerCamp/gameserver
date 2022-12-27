@@ -6,8 +6,10 @@ from pydantic import BaseModel
 
 from . import model
 from .model import SafeUser
+from .routers import room_api
 
 app = FastAPI()
+app.include_router(room_api.router)
 
 # Sample APIs
 

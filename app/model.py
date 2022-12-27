@@ -1,4 +1,5 @@
 import json
+import random
 import uuid
 from enum import Enum, IntEnum
 from typing import Optional
@@ -9,6 +10,14 @@ from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
 from .db import engine
+
+"""
+Constants
+"""
+
+
+MAX_USER_COUNT = 4
+
 
 """
 Enums
@@ -27,7 +36,7 @@ class JoinRoomResult(Enum):
     OtherError = 4
 
 
-class WaitRoomStatus(Enum):
+class WaitRoomStatus(IntEnum):
     Waiting = 1
     LiveStart = 2
     Dissolution = 3
@@ -56,6 +65,7 @@ class RoomInfo(BaseModel):
         joined_user_count(int): 部屋に入っている人数
         max_user_count(int): 部屋の最大人数
     """
+
     room_id: int
     live_id: int
     joined_user_count: int
@@ -72,6 +82,7 @@ class RoomUser(BaseModel):
         is_me(bool): リクエスト投げたユーザーと同じか
         is_host(bool): 部屋を立てた人か
     """
+
     user_id: int
     name: str
     leader_card_id: int
@@ -87,6 +98,7 @@ class ResultUser(BaseModel):
         judge_count_list(list[int]): 各判定数（良い判定から昇順）
         score(int): 獲得スコア
     """
+
     user_id: int
     judge_count_list: list[int]
     score: int
@@ -143,3 +155,36 @@ def _update_user(conn, token: str, name: str, leader_card_id: int) -> None:
     )
     print(result)
     return
+
+
+def create_room(live_id: int, select_difficulty: LiveDifficulty, token: str) -> int:
+    with engine.begin() as conn:
+        return _create_room(conn, live_id, select_difficulty, token)
+
+
+def _create_room(
+    conn, live_id: int, select_difficulty: LiveDifficulty, token: str
+) -> int:
+    room_id = random.randint(0, 1000000000)
+
+    _ = conn.execute(
+        text(
+            "INSERT INTO `room` (live_id, room_id, joined_user_count, max_user_count, status) VALUES (:live_id, :room_id, :joined_user_count, :max_user_count, :status)"
+        ),
+        {
+            "live_id": live_id,
+            "room_id": room_id,
+            "joined_user_count": 1,
+            "max_user_count": MAX_USER_COUNT,
+            "status": WaitRoomStatus.Waiting.value,
+        },
+    )
+
+    user = _get_user_by_token(conn, token)
+    _ = conn.execute(
+        text(
+            "INSERT INTO `room_member` (name, room_id, is_host) VALUES (:name, :room_id, :is_host)"
+        ),
+        {"name": user.name, "room_id": room_id, "is_host": True},
+    )
+    return room_id

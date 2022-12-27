@@ -118,6 +118,8 @@ def create_user(name: str, leader_card_id: int) -> str:
     token = str(uuid.uuid4())
     # NOTE: tokenが衝突したらリトライする必要がある.
     with engine.begin() as conn:
+        while not (_get_user_by_token(conn, token) is None):
+            token = str(uuid.uuid4())
         result = conn.execute(
             text(
                 "INSERT INTO `user` (name, token, leader_card_id) VALUES (:name, :token, :leader_card_id)"
@@ -174,7 +176,10 @@ def create_room(live_id: int, select_difficulty: LiveDifficulty, token: str) -> 
 def _create_room(
     conn, live_id: int, select_difficulty: LiveDifficulty, token: str
 ) -> int:
+    # room_idも衝突を回避する必要がある
     room_id = random.randint(0, 1000000000)
+    while not (_get_room_by_room_id(conn, room_id) is None):
+        room_id = random.randint(0, 1000000000)
 
     _ = conn.execute(
         text(
@@ -216,3 +221,17 @@ def _get_room_list(conn, live_id: int) -> list[RoomInfo]:
     except NoResultFound:
         return None
     return [RoomInfo.from_orm(row) for row in rows]
+
+
+def _get_room_by_room_id(conn, room_id: int) -> Optional[RoomInfo]:
+    result = conn.execute(
+        text(
+            "SELECT `live_id`, `room_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `room_id` = :room_id"
+        ),
+        {"room_id": room_id},
+    )
+    try:
+        row = result.one()
+    except NoResultFound:
+        return None
+    return RoomInfo.from_orm(row)

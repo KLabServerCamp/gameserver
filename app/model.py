@@ -100,6 +100,9 @@ class RoomInfo(BaseModel):
     joined_user_count: int
     max_user_count: int
 
+    class Config:
+        orm_mode = True
+
 
 class RoomUser(BaseModel):
     user_id: int
@@ -141,7 +144,7 @@ def _join_room(conn: Connection, token: str, room_id: int, is_host: bool):
     )
 
 
-def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty):
+def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty) -> int:
 
     # TODO: すでに部屋に入ってるかバリテーションする
     with engine.begin() as conn:
@@ -160,6 +163,21 @@ def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty):
                 "wait_room_status": WaitRoomStatus.WATING.value,
             },
         )
-        room_id = result.lastrowid
+        room_id: int = result.lastrowid
         _join_room(conn, token, room_id, True)
     return room_id
+
+
+def get_room_info_list(live_id: int) -> list[RoomInfo]:
+    with engine.begin() as conn:
+        conn: Connection
+        result = conn.execute(
+            text(
+                "SELECT `id` as `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` "
+                "WHERE `joined_user_count`<`max_user_count` and wait_room_status=1"
+                f"{' and `live_id`=:live_id' if live_id else ''}"
+            ),
+            {"live_id": live_id},
+        )
+
+        return list(map(RoomInfo.from_orm, result))

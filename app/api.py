@@ -5,7 +5,7 @@ from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from . import model
-from .model import LiveDifficulty, SafeUser
+from .model import LiveDifficulty, RoomInfo, RoomUser, SafeUser
 
 app = FastAPI()
 
@@ -71,12 +71,12 @@ def user_update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
 
 
 class RoomCreateRequest(BaseModel):
-    live_id: int
-    select_difficulty: LiveDifficulty
+    live_id: int  # ルームで遊ぶ楽曲のID
+    select_difficulty: LiveDifficulty  # 選択難易度
 
 
 class RoomCreateResponse(BaseModel):
-    room_id: int
+    room_id: int  # 発行されたルームのID（以後の通信はこのiDを添える）
 
 
 @app.post("/room/create", response_model=RoomCreateResponse)
@@ -84,3 +84,19 @@ def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
     """ルーム作成リクエスト"""
     room_id = model.create_room(token, req.live_id, req.select_difficulty)
     return RoomCreateResponse(room_id=room_id)
+
+
+class RoomListRequest(BaseModel):
+    live_id: int  # ルームで遊ぶ楽曲のID（※0はワイルドカード。全てのルームを対象とする）
+
+
+class RoomListResponse(BaseModel):
+    room_info_list: list[RoomInfo]  # 入場可能なルーム一覧
+
+
+@app.post("/room/list", response_model=RoomListResponse)
+def room_create(req: RoomListRequest):
+    """入場可能なルーム一覧を取得"""
+    live_id = req.live_id
+    room_info_list = model.get_room_info_list(live_id)
+    return RoomListResponse(room_info_list=room_info_list)

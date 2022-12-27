@@ -10,6 +10,28 @@ from sqlalchemy.exc import NoResultFound
 
 from .db import engine
 
+"""
+Enums
+"""
+
+
+class LiveDifficulty(Enum):
+    normal = 1
+    hard = 2
+
+
+class JoinRoomResult(Enum):
+    Ok = 1
+    RoomFull = 2
+    Disbanded = 3
+    OtherError = 4
+
+
+class WaitRoomStatus(Enum):
+    Waiting = 1
+    LiveStart = 2
+    Dissolution = 3
+
 
 class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げる"""
@@ -24,6 +46,50 @@ class SafeUser(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class RoomInfo(BaseModel):
+    """
+    Attributes:
+        room_id(int): 部屋識別子
+        live_id(int): プレイ対象の楽曲識別子
+        joined_user_count(int): 部屋に入っている人数
+        max_user_count(int): 部屋の最大人数
+    """
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int
+
+
+class RoomUser(BaseModel):
+    """
+    Attributes
+        user_id(int): ユーザー識別子
+        name(str): ユーザー名
+        leader_card_id(int): 設定アバター
+        select_difficulty(LiveDifficulty): 選択難易度
+        is_me(bool): リクエスト投げたユーザーと同じか
+        is_host(bool): 部屋を立てた人か
+    """
+    user_id: int
+    name: str
+    leader_card_id: int
+    select_difficulty: LiveDifficulty
+    is_me: bool
+    is_host: bool
+
+
+class ResultUser(BaseModel):
+    """
+    Attributes
+        user_id(int): ユーザー識別子
+        judge_count_list(list[int]): 各判定数（良い判定から昇順）
+        score(int): 獲得スコア
+    """
+    user_id: int
+    judge_count_list: list[int]
+    score: int
 
 
 def create_user(name: str, leader_card_id: int) -> str:

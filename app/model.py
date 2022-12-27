@@ -126,7 +126,7 @@ def _join_room(conn: Connection, token: str, room_id: int, is_host: bool):
             "UPDATE `room` SET `joined_user_count`=`joined_user_count`+1 "
             "WHERE `id`=:room_id and `joined_user_count`<`max_user_count` and wait_room_status=1"
         ),
-        {"room_id": room_id}
+        {"room_id": room_id},
     )
     if update_result.rowcount != 1:
         # TODO: 満員か存在しない
@@ -137,7 +137,7 @@ def _join_room(conn: Connection, token: str, room_id: int, is_host: bool):
             "INSERT INTO `room_member` (`user_id`, `room_id`, `is_host`) "
             "VALUES (:user_id, :room_id, :is_host)"
         ),
-        {"user_id": user.id, "room_id": room_id, "is_host": is_host}
+        {"user_id": user.id, "room_id": room_id, "is_host": is_host},
     )
 
 
@@ -157,7 +157,7 @@ def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty):
                 "select_difficulty": select_difficulty.value,
                 "joined_user_count": 0,
                 "max_user_count": 4,
-                "wait_room_status": WaitRoomStatus.WATING.value
+                "wait_room_status": WaitRoomStatus.WATING.value,
             },
         )
         room_id = result.lastrowid

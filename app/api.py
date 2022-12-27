@@ -5,7 +5,7 @@ from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from . import model
-from .model import SafeUser, LiveDifficulty
+from .model import LiveDifficulty, SafeUser
 
 app = FastAPI()
 
@@ -69,6 +69,7 @@ def user_update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
 
 # Room API
 
+
 class RoomCreateRequest(BaseModel):
     live_id: int
     select_difficulty: LiveDifficulty
@@ -83,5 +84,3 @@ def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
     """ルーム作成リクエスト"""
     room_id = model.create_room(token, req.live_id, req.select_difficulty)
     return RoomCreateResponse(room_id=room_id)
-
-

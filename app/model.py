@@ -118,6 +118,7 @@ class RoomUserTable(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     room_id = Column(Integer, ForeignKey("room.id", onupdate="CASCADE", ondelete="CASCADE"))
     user_token = Column(String(255), ForeignKey("user.token", onupdate="CASCADE", ondelete="CASCADE"))
+    select_difficulty = Column(Integer, nullable=True)
 
     room = relationship("RoomTable", back_populates="room_user")
     user = relationship("User", back_populates="room_user")
@@ -127,9 +128,27 @@ class RoomUser(BaseModel):
     id: int
     room_id: int
     user_token: str
+    select_difficulty: int
 
     class Config:
         orm_mode = True
+
+
+def create_room(name: str, owner_user_id: int) -> int:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                """
+                    INSERT
+                        INTO
+                            `room` (name, owner_user_id)
+                        VALUES
+                            (:name, :owner_user_id)
+                """
+            ),
+            {"name": name, "owner_user_id": owner_user_id},
+        )
+        return result.lastrowid
 
 
 if __name__ == "__main__":

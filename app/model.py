@@ -73,3 +73,93 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
         )
         if result.rowcount != 1:
             raise InvalidToken
+
+
+# Room API
+class LiveDifficulty(Enum):
+    NORMAL = 1
+    HARD = 2
+
+
+class JoinRoomResult(Enum):
+    OK = 1
+    ROOM_FULL = 2
+    DISBANDED = 3
+    OTHER_ERROR = 4
+
+
+class WaitRoomStatus(Enum):
+    WATING = 1
+    LIVE_START = 2
+    DISSOLUTION = 3
+
+
+class RoomInfo(BaseModel):
+    room_id: str
+    live_id: str
+    joined_user_count: int
+    max_user_count: int
+
+
+class RoomUser(BaseModel):
+    user_id: int
+    name: str
+    leader_card_id: int
+    select_difficulty: LiveDifficulty
+    is_me: bool
+    is_host: bool
+
+
+class ResultUser(BaseModel):
+    user_id: int
+    judge_count_list: list[int]
+    score: int
+
+
+def _join_room(conn: Connection, token: str, room_id: int, is_host: bool):
+    user = _get_user_by_token(conn, token)
+    if user is None:
+        raise InvalidToken
+    # joined_user_countをインクリメント
+    update_result = conn.execute(
+        text(
+            "UPDATE `room` SET `joined_user_count`=`joined_user_count`+1 "
+            "WHERE `id`=:room_id and `joined_user_count`<`max_user_count` and wait_room_status=1"
+        ),
+        {"room_id": room_id}
+    )
+    if update_result.rowcount != 1:
+        # TODO: 満員か存在しない
+        raise Exception
+    # room_memberをinsert
+    result = conn.execute(
+        text(
+            "INSERT INTO `room_member` (`user_id`, `room_id`, `is_host`) "
+            "VALUES (:user_id, :room_id, :is_host)"
+        ),
+        {"user_id": user.id, "room_id": room_id, "is_host": is_host}
+    )
+
+
+def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty):
+
+    # TODO: すでに部屋に入ってるかバリテーションする
+    with engine.begin() as conn:
+        conn: Connection
+        result = conn.execute(
+            text(
+                "INSERT INTO `room` "
+                "(`live_id`, `select_difficulty`, `joined_user_count`, `max_user_count`, `wait_room_status`) "
+                "VALUES (:live_id, :select_difficulty, :joined_user_count, :max_user_count, :wait_room_status)"
+            ),
+            {
+                "live_id": live_id,
+                "select_difficulty": select_difficulty.value,
+                "joined_user_count": 0,
+                "max_user_count": 4,
+                "wait_room_status": WaitRoomStatus.WATING.value
+            },
+        )
+        room_id = result.lastrowid
+        _join_room(conn, token, room_id, True)
+    return room_id

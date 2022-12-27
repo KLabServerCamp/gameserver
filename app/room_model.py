@@ -78,7 +78,7 @@ def _create_room(
         try:
             row = result.one()
         except NoResultFound:
-            return None
+            return -1
 
         conn.execute(
             text(

@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from . import model, room_model
 from .model import SafeUser
-from .room_model import LiveDifficulty, ResultUser, RoomInfo, RoomUser
+from .room_model import JoinRoomResult, LiveDifficulty, ResultUser, RoomInfo, RoomUser
 
 app = FastAPI()
 
@@ -82,6 +82,9 @@ def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
     """ルーム作成"""
     # print(req)
     room_id = room_model.create_room(req.live_id, req.select_difficulty, token)
+
+    # if room_id == -1:
+    #     raise HTTPException(status_code=)
     return room_id
 
 
@@ -89,29 +92,26 @@ class RoomListRequest(BaseModel):
     live_id: int
 
 
-class RoomListResponse(BaseModel):
-    room_info_list: list[RoomInfo]
-
-
-@app.post("/room/list", response_model=RoomListResponse)
+@app.post("/room/list", response_model=list[RoomInfo])
 def room_list(req: RoomListRequest):
     """ルームリストの取得"""
     # print(req)
     room_info_list = room_model.get_room_list(req.live_id)
+
+    if room_info_list is None:
+        raise HTTPException(status_code=404)
+
     return room_info_list
 
 
-# class RoomListRequest(BaseModel):
-#     live_id: int
+# class RoomJoinRequest(BaseModel):
+#     room_id: int
+#     select_difficulty: LiveDifficulty
 
 
-# class RoomListResponse(BaseModel):
-#     room_info_list: list[RoomInfo]
-
-
-# @app.post("/room/join", response_model=RoomListResponse)
-# def room_join(req: RoomListRequest):
+# @app.post("/room/join", response_model=JoinRoomResult)
+# def room_join(req: RoomJoinRequest):
 #     """ルームリストの取得"""
 #     # print(req)
-#     room_info_list = room_model.get_room_list(req.live_id)
+#     room_info_list = room_model.get_room_list(req.room_id, req.select_difficulty)
 #     return room_info_list

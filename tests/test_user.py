@@ -6,9 +6,7 @@ client = TestClient(app)
 
 
 def test_create_user():
-    response = client.post(
-        "/user/create", json={"user_name": "test1", "leader_card_id": 1000}
-    )
+    response = client.post("/user/create", json={"user_name": "test1", "leader_card_id": 1000})
     assert response.status_code == 200
 
     response_data = response.json()

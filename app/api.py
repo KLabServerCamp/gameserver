@@ -59,6 +59,7 @@ class Empty(BaseModel):
     pass
 
 
+# response_model で Type Hintをつけるのは、空のDictを返すときに便利
 @app.post("/user/update", response_model=Empty)
 def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
     """Update user attributes"""

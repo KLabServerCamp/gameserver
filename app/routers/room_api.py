@@ -23,6 +23,21 @@ class RoomCreateResponse(BaseModel):
     room_id: int
 
 
+class RoomListRequest(BaseModel):
+    live_id: int
+
+
+class RoomListResponse(BaseModel):
+    room_list: list[model.RoomInfo]
+
+
 @router.post("/room/create", tags=["room"], response_model=RoomCreateResponse)
-def room_list(req: RoomCreateRequest, token=Depends(get_auth_token)):
-    return RoomCreateResponse(room_id=model.create_room(req.live_id, req.select_difficulty, token))
+def room_create(req: RoomCreateRequest, token=Depends(get_auth_token)):
+    return RoomCreateResponse(
+        room_id=model.create_room(req.live_id, req.select_difficulty, token)
+    )
+
+
+@router.post("/room/list", tags=["room"], response_model=RoomListResponse)
+def room_list(req: RoomListRequest):
+    return RoomListResponse(room_list=model.get_room_list(req.live_id))

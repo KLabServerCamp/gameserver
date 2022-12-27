@@ -71,6 +71,9 @@ class RoomInfo(BaseModel):
     joined_user_count: int
     max_user_count: int
 
+    class Config:
+        orm_mode = True
+
 
 class RoomUser(BaseModel):
     """
@@ -90,6 +93,9 @@ class RoomUser(BaseModel):
     is_me: bool
     is_host: bool
 
+    class Config:
+        orm_mode = True
+
 
 class ResultUser(BaseModel):
     """
@@ -102,6 +108,9 @@ class ResultUser(BaseModel):
     user_id: int
     judge_count_list: list[int]
     score: int
+
+    class Config:
+        orm_mode = True
 
 
 def create_user(name: str, leader_card_id: int) -> str:
@@ -188,3 +197,22 @@ def _create_room(
         {"name": user.name, "room_id": room_id, "is_host": True},
     )
     return room_id
+
+
+def get_room_list(live_id: int) -> list[RoomInfo]:
+    with engine.begin() as conn:
+        return _get_room_list(conn, live_id)
+
+
+def _get_room_list(conn, live_id: int) -> list[RoomInfo]:
+    result = conn.execute(
+        text(
+            "SELECT `live_id`, `room_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `live_id` = :live_id"
+        ),
+        {"live_id": live_id},
+    )
+    try:
+        rows = result.all()
+    except NoResultFound:
+        return None
+    return [RoomInfo.from_orm(row) for row in rows]

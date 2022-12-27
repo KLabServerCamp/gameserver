@@ -1,7 +1,7 @@
 import json
 import uuid
 from enum import Enum, IntEnum
-from typing import Optional
+from typing import Optional, List
 
 from fastapi import HTTPException
 from pydantic import BaseModel
@@ -125,7 +125,7 @@ class RoomUser(BaseModel):
         orm_mode = True
 
 
-# TODO: create_room 
+
 def create_room(live_id: int, select_difficulty: LiveDifficulty, token: str, ) -> int:
     """Create new room and returns their room_id"""
     # NOTE: tokenが衝突したらリトライする必要がある.
@@ -136,7 +136,7 @@ def create_room(live_id: int, select_difficulty: LiveDifficulty, token: str, ) -
             ),
             {
                 "live_id": live_id, 
-                "joined_user_count": 0,
+                "joined_user_count": 1,
                 "room_status": WaitRoomStatus.Waiting.value,
                 },
         )
@@ -144,3 +144,26 @@ def create_room(live_id: int, select_difficulty: LiveDifficulty, token: str, ) -
     print(f"{result=}")
     print(f"{result.lastrowid=}")
     return result.lastrowid
+
+
+# TODO: get_room_list
+
+def _get_room_list(conn, live_id: int) -> list[RoomInfo]:
+    result = conn.execute(
+        text(
+            "SELECT `room_id`, `live_id`, `joined_user_count` FROM `room` WHERE `live_id`=:live_id"
+        ),
+        {
+            "live_id": live_id
+        },
+    )
+    try:
+        rows = result.all()
+    except NoResultFound:
+        return None
+    return [RoomInfo.from_orm(row) for row in rows]
+
+
+def get_room_list(live_id: int) -> list[RoomInfo]:
+    with engine.begin() as conn:
+        return _get_room_list(conn, live_id)

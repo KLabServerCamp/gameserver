@@ -102,6 +102,15 @@ class RoomTable(Base):
     room_user = relationship("RoomUserTable", back_populates="room")
 
 
+class Room(BaseModel):
+    id: int
+    name: str
+    owner_user_id: int
+
+    class Config:
+        orm_mode = True
+
+
 class RoomUserTable(Base):
     __tablename__ = "room_user"
 
@@ -112,6 +121,15 @@ class RoomUserTable(Base):
 
     room = relationship("RoomTable", back_populates="room_user")
     user = relationship("User", back_populates="room_user")
+
+
+class RoomUser(BaseModel):
+    id: int
+    room_id: int
+    user_token: str
+
+    class Config:
+        orm_mode = True
 
 
 if __name__ == "__main__":

@@ -75,7 +75,10 @@ def _create_room(
             text("SELECT `room_id` FROM `room` WHERE `token` = :token"),
             {"token": token},
         )
-        row = result.one()
+        try:
+            row = result.one()
+        except NoResultFound:
+            return None
 
         conn.execute(
             text(
@@ -89,10 +92,7 @@ def _create_room(
             },
         )
 
-        try:
-            return row
-        except NoResultFound:
-            return None
+        return row
 
 
 def create_room(live_id: int, live_difficulty: LiveDifficulty, token: str) -> int:
@@ -130,9 +130,10 @@ def _get_room_list(conn, live_id: int) -> Optional[list[RoomInfo]]:
                 {"live_id": live_id},
             )
         try:
-            return list(get_room_info(conn, row.room_id, live_id) for row in result)
+            rows = result.all()
         except NoResultFound:
             return None
+        return [get_room_info(conn, row.room_id, live_id) for row in rows]
 
 
 def get_room_list(live_id: int) -> Optional[list[RoomInfo]]:

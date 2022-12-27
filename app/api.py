@@ -99,3 +99,19 @@ def room_list(req: RoomListRequest):
     # print(req)
     room_info_list = room_model.get_room_list(req.live_id)
     return room_info_list
+
+
+# class RoomListRequest(BaseModel):
+#     live_id: int
+
+
+# class RoomListResponse(BaseModel):
+#     room_info_list: list[RoomInfo]
+
+
+# @app.post("/room/join", response_model=RoomListResponse)
+# def room_join(req: RoomListRequest):
+#     """ルームリストの取得"""
+#     # print(req)
+#     room_info_list = room_model.get_room_list(req.live_id)
+#     return room_info_list

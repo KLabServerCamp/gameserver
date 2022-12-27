@@ -48,7 +48,7 @@ def test_room_1():
         "/room/start", headers=_auth_header(), json={"room_id": room_id}
     )
     assert response.status_code == 200
-    print("room/wait response:", response.json())
+    print("room/start response:", response.json())
 
     response = client.post(
         "/room/end",

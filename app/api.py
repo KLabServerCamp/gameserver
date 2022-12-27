@@ -66,3 +66,17 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
     # print(req)
     model.update_user(token, req.user_name, req.leader_card_id)
     return {}
+
+
+# room APIs
+
+
+class RoomCreateResponse(BaseModel):
+    room_id: int
+
+
+@app.post("/room/create", response_model=Empty)
+def room_create(token: str = Depends(get_auth_token)):
+    """Create a new room"""
+    model.create_room(token)
+    return {}

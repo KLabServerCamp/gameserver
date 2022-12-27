@@ -6,9 +6,9 @@ from typing import Optional
 
 # from fastapi import HTTPException
 from pydantic import BaseModel
-from sqlalchemy import Column, Integer, String, select, text, update
+from sqlalchemy import Column, ForeignKey, Integer, String, select, text, update
 from sqlalchemy.exc import NoResultFound
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import declarative_base, relationship
 
 from .db import engine
 
@@ -22,6 +22,8 @@ class UserTable(Base):
     name = Column(String(255), nullable=True)
     token = Column(String(255), nullable=True, unique=True)
     leader_card_id = Column(Integer, nullable=True)
+
+    room_user = relationship("RoomUserTable", back_populates="user")
 
 
 class InvalidToken(Exception):
@@ -87,3 +89,30 @@ def _update_user(conn, token: str, name: str, leader_card_id: int) -> None:
     _ = conn.execute(update(UserTable).where(UserTable.token == token).values(name=name, leader_card_id=leader_card_id))
 
     return None
+
+
+class RoomTable(Base):
+    __tablename__ = "room"
+
+    # roomid, live_id, max_user_count
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(255), nullable=True)
+    owner_user_id = Column(Integer, nullable=False)
+
+    room_user = relationship("RoomUserTable", back_populates="room")
+
+
+class RoomUserTable(Base):
+    __tablename__ = "room_user"
+
+    # token, room_id
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    room_id = Column(Integer, ForeignKey("room.id", onupdate="CASCADE", ondelete="CASCADE"))
+    user_token = Column(String(255), ForeignKey("user.token", onupdate="CASCADE", ondelete="CASCADE"))
+
+    room = relationship("RoomTable", back_populates="room_user")
+    user = relationship("User", back_populates="room_user")
+
+
+if __name__ == "__main__":
+    Base.metadata.create_all(engine)

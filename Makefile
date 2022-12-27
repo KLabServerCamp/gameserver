@@ -7,3 +7,6 @@ format:
 
 test:
 	pytest -sv tests
+
+migration:
+	python -m app.model

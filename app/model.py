@@ -1,7 +1,7 @@
 import json
 import uuid
 from enum import Enum, IntEnum
-from typing import Optional, List
+from typing import List, Optional
 
 from fastapi import HTTPException
 from pydantic import BaseModel
@@ -70,6 +70,7 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
 
+
 ##################
 # ここからroomの実装
 ##################
@@ -91,7 +92,7 @@ class JoinRoomResult(IntEnum):
 
 
 class WaitRoomStatus(IntEnum):
-    Waiting = 1  
+    Waiting = 1
     LiveStart = 2
     Dissolution = 3
 
@@ -125,8 +126,11 @@ class RoomUser(BaseModel):
         orm_mode = True
 
 
-
-def create_room(live_id: int, select_difficulty: LiveDifficulty, token: str, ) -> int:
+def create_room(
+    live_id: int,
+    select_difficulty: LiveDifficulty,
+    token: str,
+) -> int:
     """Create new room and returns their room_id"""
     # NOTE: tokenが衝突したらリトライする必要がある.
     with engine.begin() as conn:
@@ -135,10 +139,10 @@ def create_room(live_id: int, select_difficulty: LiveDifficulty, token: str, ) -
                 "INSERT INTO `room` (live_id, joined_user_count, status) VALUES (:live_id, :joined_user_count, :room_status)"
             ),
             {
-                "live_id": live_id, 
+                "live_id": live_id,
                 "joined_user_count": 1,
                 "room_status": WaitRoomStatus.Waiting.value,
-                },
+            },
         )
     # TODO: room定義時にidを割り振る
     print(f"{result=}")
@@ -148,14 +152,13 @@ def create_room(live_id: int, select_difficulty: LiveDifficulty, token: str, ) -
 
 # TODO: get_room_list
 
+
 def _get_room_list(conn, live_id: int) -> list[RoomInfo]:
     result = conn.execute(
         text(
             "SELECT `room_id`, `live_id`, `joined_user_count` FROM `room` WHERE `live_id`=:live_id"
         ),
-        {
-            "live_id": live_id
-        },
+        {"live_id": live_id},
     )
     try:
         rows = result.all()

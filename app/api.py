@@ -5,9 +5,9 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
-
 from . import model
 from .model import SafeUser
+
 app = FastAPI()
 
 # Sample APIs

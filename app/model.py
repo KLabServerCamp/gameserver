@@ -108,7 +108,7 @@ class RoomInfo(BaseModel):
     room_id: int
     live_id: int
     joined_user_count: int
-    max_user_count: int = max_user_count
+    max_user_count: int = MAX_USER_COUNT
 
     class Config:
         orm_mode = True

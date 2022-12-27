@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
+
 from .. import model
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 
@@ -82,5 +84,5 @@ def room_wait(req: RoomWaitRequest, token=Depends(get_auth_token)):
 
 @router.post("/room/start", tags=["room"], response_model=Empty)
 def room_start(req: RoomStartRequest):
-    model.start_room(req.room_id)
+    model.room_start(req.room_id)
     return {}

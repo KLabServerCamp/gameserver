@@ -386,9 +386,7 @@ def _get_room_status(conn, room_id: int) -> WaitRoomStatus:
         return WaitRoomStatus.Dissolution
 
     result = conn.execute(
-        text(  
-            "SELECT `status` FROM `room` WHERE `room_id` = :room_id"
-        ),
+        text("SELECT `status` FROM `room` WHERE `room_id` = :room_id"),
         {
             "room_id": room_id,
         },
@@ -400,16 +398,14 @@ def _get_room_status(conn, room_id: int) -> WaitRoomStatus:
     return WaitRoomStatus(row[0])
 
 
-def start_room(room_id: int) -> None:
+def room_start(room_id: int) -> None:
     with engine.begin() as conn:
-        _start_room(conn, room_id)
+        _room_start(conn, room_id)
 
 
-def _start_room(conn, room_id: int) -> None:
+def _room_start(conn, room_id: int) -> None:
     _ = conn.execute(
-        text(
-            "UPDATE `room` SET `status` = :status WHERE `room_id` = :room_id"
-        ),
+        text("UPDATE `room` SET `status` = :status WHERE `room_id` = :room_id"),
         {
             "status": WaitRoomStatus.LiveStart.value,
             "room_id": room_id,

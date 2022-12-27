@@ -104,14 +104,14 @@ def room_list(req: RoomListRequest):
     return room_info_list
 
 
-# class RoomJoinRequest(BaseModel):
-#     room_id: int
-#     select_difficulty: LiveDifficulty
+class RoomJoinRequest(BaseModel):
+    room_id: int
+    select_difficulty: LiveDifficulty
 
 
-# @app.post("/room/join", response_model=JoinRoomResult)
-# def room_join(req: RoomJoinRequest):
-#     """ルームリストの取得"""
-#     # print(req)
-#     room_info_list = room_model.get_room_list(req.room_id, req.select_difficulty)
-#     return room_info_list
+@app.post("/room/join", response_model=JoinRoomResult)
+def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
+    """ルームリストの取得"""
+    # print(req)
+    room_info_list = room_model.get_room_list(req.room_id, req.select_difficulty, token)
+    return room_info_list

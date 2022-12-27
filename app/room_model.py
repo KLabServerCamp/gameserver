@@ -2,15 +2,14 @@ import json
 from enum import Enum, IntEnum
 from typing import Optional
 
-# import model
-# from db import engine
 from fastapi import HTTPException
+
+# from model import SafeUser
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
-from . import model
-from .db import engine  # データベースの管理をしている
+from .model import SafeUser
 
 max_user_count = 4
 
@@ -56,48 +55,49 @@ class ResultUser(BaseModel):
 
 
 def _create_room(
-    conn, live_id: int, live_difficulty: LiveDifficulty, token: str
+    conn, live_id: int, select_difficulty: LiveDifficulty, user: SafeUser
 ) -> int:
+
     with engine.begin() as conn:
         conn.execute(
-            text(
-                "INSERT INTO `room` (live_id, live_difficulty, token) VALUES (:live_id, :live_difficulty, :token)"
-            ),
+            text("INSERT INTO `room` (live_id, token) VALUES (:live_id, :token)"),
             {
                 "live_id": live_id,
-                "live_difficulty": live_difficulty.value,
                 "token": token,
             },
         )
 
-        user = model._get_user_by_token(conn, token)
         result = conn.execute(
             text("SELECT `room_id` FROM `room` WHERE `token` = :token"),
             {"token": token},
         )
-        try:
-            row = result.one()
-        except NoResultFound:
-            return -1
+        row = result.one()
 
         conn.execute(
             text(
-                "INSERT INTO `room_member` (room_id, id, name, leader_card_id) VALUES (:room_id, :id, :name, :leader_card_id)"
+                "INSERT INTO `room_member` (room_id, id, name, leader_card_id, select_difficulty) "
+                "VALUES (:room_id, :id, :name, :leader_card_id, :select_difficulty)"
             ),
             {
                 "room_id": row.room_id,
                 "id": user.id,
                 "name": user.name,
                 "leader_card_id": user.leader_card_id,
+                "select_difficulty": select_difficulty.value,
             },
         )
 
         return row
 
 
-def create_room(live_id: int, live_difficulty: LiveDifficulty, token: str) -> int:
+def create_room(live_id: int, select_difficulty: LiveDifficulty, token: str) -> int:
     with engine.begin() as conn:
-        return _create_room(conn, live_id, live_difficulty, token)
+        user = model._get_user_by_token(conn, token)
+
+        if user is None:
+            raise HTTPException(status_code=404)
+
+        return _create_room(conn, live_id, select_difficulty, user)
 
 
 # RoomInfoの取得
@@ -121,19 +121,21 @@ def _get_room_list(conn, live_id: int) -> Optional[list[RoomInfo]]:
     with engine.begin() as conn:
         if live_id == 0:
             result = conn.execute(
-                text("SELECT `room_id` FROM `room`"),
+                text("SELECT `room_id`, `live_id` FROM `room`"),
                 {},
             )
         else:
             result = conn.execute(
-                text("SELECT `room_id` FROM `room` WHERE `live_id` = :live_id"),
+                text(
+                    "SELECT `room_id`, `live_id` FROM `room` WHERE `live_id` = :live_id"
+                ),
                 {"live_id": live_id},
             )
         try:
             rows = result.all()
         except NoResultFound:
             return None
-        return [get_room_info(conn, row.room_id, live_id) for row in rows]
+        return [get_room_info(conn, row.room_id, row.live_id) for row in rows]
 
 
 def get_room_list(live_id: int) -> Optional[list[RoomInfo]]:
@@ -141,24 +143,65 @@ def get_room_list(live_id: int) -> Optional[list[RoomInfo]]:
         return _get_room_list(conn, live_id)
 
 
+# ルームに入場する
+# def _room_join(
+#     conn, room_id: int, select_difficulty: LiveDifficulty, user: SafeUser
+# ) -> Optional[JoinRoomResult]:
+
+#     with engine.begin() as conn:
+#         result = conn.execute(
+#             text(
+#                 "INSERT INTO `room_member` (room_id, id, name, leader_card_id, select_difficulty) "
+#                 "VALUES (:room_id, :id, :name, :leader_card_id, :select_difficulty)"
+#             ),
+#             {
+#                 "room_id": room_id,
+#                 "id": user.id,
+#                 "name": user.name,
+#                 "leader_card_id": user.leader_card_id,
+#                 "select_difficulty": select_difficulty.value,
+#             },
+#         )
+
+#         print(result)
+
+
+# def room_join(
+#     room_id: int, select_difficulty: LiveDifficulty, token: str
+# ) -> Optional[JoinRoomResult]:
+
+#     with engine.begin() as conn:
+#         user = model._get_user_by_token(conn, token)
+#         if user is None:
+#             raise HTTPException(status_code=404)
+
+#         return _room_join(conn, room_id, select_difficulty, user)
+
+
 if __name__ == "__main__":
+    import model
+    from db import engine
+
     conn = engine.connect()
     token = model.create_user(name="honoka", leader_card_id=1)
     model.update_user(token, "honono", 50)
     res = model._get_user_by_token(conn, token)
-    print(res)
+    print("user:", res)
 
     result1 = _create_room(
         conn,
         live_id=1,
-        live_difficulty=LiveDifficulty.normal,
-        token=token,
+        select_difficulty=LiveDifficulty.normal,
+        user=res,
     )
-    print(result1)
-
-    roominfo = get_room_info(conn, 1, 1)
-    print(roominfo)
+    print("room_id:", result1)
 
     result2 = get_room_list(1)
-    print(list[RoomInfo])
-    print(result2)
+    print("roomlist:", result2)
+
+    result3 = _room_join(conn, 1, LiveDifficulty.normal, res)
+    print("join_result:", result3)
+
+else:
+    from . import model
+    from .db import engine  # データベースの管理をしている

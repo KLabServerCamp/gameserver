@@ -10,9 +10,8 @@ CREATE TABLE `user` (
 
 DROP TABLE IF EXISTS `room`;
 CREATE TABLE `room` (
-  `room_id` bigint NOT NULL AUTO_INCREMENT,
+  `room_id` int NOT NULL AUTO_INCREMENT,
   `live_id` int DEFAULT NULL,
-  `live_difficulty` int DEFAULT NULL,
   `token` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`room_id`),
   UNIQUE KEY `token` (`token`)
@@ -20,9 +19,10 @@ CREATE TABLE `room` (
 
 DROP TABLE IF EXISTS `room_member`;
 CREATE TABLE `room_member` (
-  `room_id` bigint NOT NULL,
+  `room_id` int NOT NULL,
   `id` bigint DEFAULT NULL,
   `name` varchar(255) DEFAULT NULL,
   `leader_card_id` int DEFAULT NULL,
+  `select_difficulty` int DEFAULT NULL,
   PRIMARY KEY (`room_id`)
 );

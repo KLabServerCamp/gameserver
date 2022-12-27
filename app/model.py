@@ -6,8 +6,7 @@ from typing import Optional
 
 # from fastapi import HTTPException
 from pydantic import BaseModel
-from sqlalchemy import select, update, text
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, Integer, String, select, text, update
 from sqlalchemy.exc import NoResultFound
 from sqlalchemy.orm import declarative_base
 
@@ -79,14 +78,16 @@ def get_user_by_token(token: str) -> Optional[SafeUser]:
 def update_user(token: str, name: str, leader_card_id: int) -> None:
     # このコードを実装してもらう
     with engine.begin() as conn:
-        return _update_user(conn=conn, token=token, name=name, leader_card_id=leader_card_id)
+        return _update_user(
+            conn=conn, token=token, name=name, leader_card_id=leader_card_id
+        )
 
 
 def _update_user(conn, token: str, name: str, leader_card_id: int) -> None:
     _ = conn.execute(
-        update(User).
-        where(User.token == token).
-        values(name=name, leader_card_id=leader_card_id)
+        update(User)
+        .where(User.token == token)
+        .values(name=name, leader_card_id=leader_card_id)
     )
 
     return None

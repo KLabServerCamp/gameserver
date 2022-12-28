@@ -142,7 +142,11 @@ def _join_room(
     if user is None:
         raise InvalidToken
     room_row = conn.execute(
-        "SELECT * FROM `room` WHERE `id`=:room_id", {"room_id": room_id}
+        text(
+            "SELECT `id` as `room_id`, `live_id`, `joined_user_count`, `max_user_count`, `wait_room_status` "
+            "FROM `room` WHERE `id`=:room_id FOR UPDATE"
+        ),
+        {"room_id": room_id},
     ).one()
     status = WaitRoomStatus(room_row["wait_room_status"])
     if status is not WaitRoomStatus.WATING:

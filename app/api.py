@@ -179,3 +179,14 @@ def room_result(req: RoomResultRequest, token: str = Depends(get_auth_token)):
     """ルームのライブ終了後。end 叩いたあとにこれをポーリングする。 クライアントはn秒間隔で投げる想定。"""
     result_user_list = model.get_room_result(token, req.room_id)
     return RoomResultResponse(result_user_list=result_user_list)
+
+
+class RoomLeaveRequest(BaseModel):
+    room_id: int  # 対象ルーム
+
+
+@app.post("/room/leave", response_model=Empty)
+def room_start(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
+    """ルーム退出リクエスト。オーナーも /room/join で参加した参加者も実行できる"""
+    model.leave_room(token, req.room_id)
+    return Empty()

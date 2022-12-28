@@ -4,7 +4,7 @@ from enum import Enum, IntEnum
 from typing import Optional
 
 from fastapi import HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Json
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import NoResultFound
@@ -122,8 +122,11 @@ class RoomUser(BaseModel):
 
 class ResultUser(BaseModel):
     user_id: int
-    judge_count_list: list[int]
+    judge_count_list: Json[list[int]]
     score: int
+
+    class Config:
+        orm_mode = True
 
 
 class RoomJoinException(Exception):
@@ -317,4 +320,61 @@ def end_room(token: str, room_id: int, judge_count_list: list[int], score: int):
 
 
 def get_room_result(token: str, room_id: int) -> list[ResultUser]:
-    pass
+    with engine.begin() as conn:
+        conn: Connection
+        user = _get_user_by_token_strict(conn, token)
+        joined_user_count = conn.execute(
+            text(
+                "SELECT `joined_user_count` from `room` "
+                "WHERE `room_id`=:room_id and `wait_room_status`=:start"
+            ),
+            {"room_id": room_id, "start": WaitRoomStatus.LIVE_START},
+        ).one()["joined_user_count"]
+        result = conn.execute(
+            text(
+                "SELECT `user_id`, `judge_count_list`, `score` FROM `room_member` "
+                "WHERE `room_id`=:room_id and `judge_count_list` IS NOT NULL and `score` IS NOT NULL"
+            ),
+            {"room_id": room_id},
+        )
+        result_user_list = list(map(ResultUser.from_orm, result))
+        if len(result_user_list) < joined_user_count:
+            return []
+        if not any(ru.user_id == user.id for ru in result_user_list):
+            return []
+        return result_user_list
+
+
+# TODO: host移譲
+def leave_room(token: str, room_id: int):
+    with engine.begin() as conn:
+        conn: Connection
+        user = _get_user_by_token_strict(conn, token)
+        room_row = conn.execute(
+            text(
+                "SELECT `joined_user_count`, `wait_room_status` from `room` WHERE `id`=:room_id FOR UPDATE"
+            ),
+            {"room_id": room_id},
+        ).one()
+        joined_user_count = room_row["joined_user_count"]
+        status = WaitRoomStatus(room_row["wait_room_status"])
+        conn.execute(
+            text(
+                "DELETE FROM `room_member` WHERE `room_id`=:room_id and `user_id`=:user_id"
+            ),
+            {"room_id": room_id, "user_id": user.id},
+        )
+        joined_user_count -= 1
+        if joined_user_count < 1:
+            status = WaitRoomStatus.DISSOLUTION
+        conn.execute(
+            text(
+                "UPDATE `room` SET `joined_user_count`=:joined_user_count, `wait_room_status`=:status "
+                "WHERE `id`=:room_id"
+            ),
+            {
+                "room_id": room_id,
+                "joined_user_count": joined_user_count,
+                "status": status.value,
+            },
+        )

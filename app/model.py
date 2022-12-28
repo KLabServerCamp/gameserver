@@ -145,9 +145,15 @@ def list_room(live_id: int):
                 {"live_id": live_id},
             )
 
-        for row in result.all():
+        try:
+            rows = result.all()
+        except NoResultFound:
+            return None
+
+        for row in rows:
             room_info = RoomInfo.from_orm(row)
             room_info_list.append(room_info)
+        return room_info_list
 
             # room_id: int = row["id"]
             # live_id: int = row["live_id"]
@@ -170,7 +176,7 @@ def list_room(live_id: int):
             # )
             # room_info_list.append(room_info)
 
-    return room_info_list
+    # return room_info_list
 
 
 def _join_room(

@@ -114,8 +114,8 @@ class RoomListResponse(BaseModel):
 
 @app.post("/room/list", response_model=RoomListResponse)
 def room_list(req: RoomListRequest):
-    r = model.list_room(req.live_id)
-    return RoomListResponse(room_info_list=r)
+    room_info_list = model.list_room(req.live_id)
+    return RoomListResponse(room_info_list=room_info_list)
 
 
 class RoomJoinRequest(BaseModel):

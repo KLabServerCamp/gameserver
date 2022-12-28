@@ -60,6 +60,14 @@ class RoomEndRequest(BaseModel):
     score: int
 
 
+class RoomResultResponse(BaseModel):
+    result_user_list: list(model.ResultUser)
+
+
+class RoomResultRequest(BaseModel):
+    room_id: int
+
+
 class Empty(BaseModel):
     pass
 
@@ -97,3 +105,10 @@ def room_start(req: RoomStartRequest, token=Depends(get_auth_token)):
 def room_end(req: RoomEndRequest, token=Depends(get_auth_token)):
     model.room_end(req.room_id, req.judge_count_list, req.score, token)
     return {}
+
+
+@router.post("/room/result", tags=["room"], response_model=RoomResultResponse)
+def room_result(req: RoomResultRequest, token=Depends(get_auth_token)):
+    return RoomResultResponse(
+        result_user_list=model.get_room_result(req.room_id, token)
+    )

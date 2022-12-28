@@ -456,3 +456,12 @@ def _room_end(
     query = query1 + query2
     _ = conn.execute(text(query), d1)
     return
+
+
+def get_room_score(room_id: int, token: str) -> list[ResultUser]:
+    with engine.begin() as conn:
+        return _get_room_score(conn, room_id, token)
+
+
+def _get_room_score(conn, room_id: int, token: str) -> list[ResultUser]:
+    return []

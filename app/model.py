@@ -114,6 +114,9 @@ class RoomUser(BaseModel):
     is_me: bool
     is_host: bool
 
+    class Config:
+        orm_mode = True
+
 
 class ResultUser(BaseModel):
     user_id: int
@@ -252,3 +255,36 @@ def join_room(
 
         return _join_room(conn, user.id, room_id, select_difficulty)
 
+
+def _get_room_user_list(conn: Connection, me_id: int, room_id: int) -> list[RoomUser]:
+    res: CursorResult = conn.execute(
+        text(
+            "SELECT "
+            "`user_id`, `name`, `leader_card_id`, `select_difficulty`, "
+            "`user_id` = :me_id AS `is_me`, `user_id` = `host_id` AS `is_host` "
+            "FROM `user` "
+            "INNER JOIN `room_member` ON `user`.`id` = `user_id` "
+            "INNER JOIN `room` ON `room_id` = `room`.`id` "
+            "WHERE `room_id` = :room_id"
+        ),
+        {"me_id": me_id, "room_id": room_id},
+    )
+    return [RoomUser(**row) for row in res]
+
+
+def wait_room(
+    token: str, room_id: int
+) -> Optional[tuple[WaitRoomStatus, list[RoomUser]]]:
+    with engine.begin() as conn:
+        conn = cast(Connection, conn)
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            return None
+
+        status = _get_room_status(conn, room_id)
+        if status is None:
+            return None
+
+        room_user_list = _get_room_user_list(conn, user.id, room_id)
+
+        return status, room_user_list

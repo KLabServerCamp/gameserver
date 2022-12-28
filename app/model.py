@@ -144,9 +144,10 @@ def create_room(
                 "room_status": WaitRoomStatus.Waiting.value,
             },
         )
-        _create_room_member(conn, token, result.lastrowid, select_difficulty, is_host=True)
+        _create_room_member(
+            conn, token, result.lastrowid, select_difficulty, is_host=True
+        )
     return result.lastrowid
-
 
 
 def _get_room_list(conn, live_id: int) -> list[RoomInfo]:
@@ -170,18 +171,14 @@ def get_room_list(live_id: int) -> list[RoomInfo]:
 
 # TODO: join_room
 def join_room(
-    token: str,
-    room_id: int, 
-    select_difficulty: LiveDifficulty,
-    is_host: bool = False) -> JoinRoomResult:
+    token: str, room_id: int, select_difficulty: LiveDifficulty, is_host: bool = False
+) -> JoinRoomResult:
     with engine.begin() as conn:
         # get num of joined user in a room
         # and return JoinRoomResult except for Ok if exceeds
         result = conn.execute(
-            text(
-                "SELECT joined_user_count FROM `room` WHERE `room_id`=:room_id"
-            ),
-            {"room_id": room_id}
+            text("SELECT joined_user_count FROM `room` WHERE `room_id`=:room_id"),
+            {"room_id": room_id},
         )
         try:
             row = result.one()
@@ -191,25 +188,23 @@ def join_room(
                 return JoinRoomResult.Disbanded
         except NoResultFound:
             return JoinRoomResult.OhterError
-        
+
         # update room_member talbe
         conn.excete(
-            text(
-                "SELECT * FROM `room` WHERE `room_id`=:room_id FOR UPDATE"
-            ),
-            {"room_id": room_id}
+            text("SELECT * FROM `room` WHERE `room_id`=:room_id FOR UPDATE"),
+            {"room_id": room_id},
         )
 
         _create_room_member(conn, token, room_id, select_difficulty, is_host)
         _update_room_joined_user_count(conn, room_id)
 
-        conn.execute(
-            text("COMMIT")
-        )
+        conn.execute(text("COMMIT"))
     return JoinRoomResult.Ok
 
 
-def _create_room_member(conn, token, room_id:int, select_difficulty: LiveDifficulty, is_host: bool) -> None:
+def _create_room_member(
+    conn, token, room_id: int, select_difficulty: LiveDifficulty, is_host: bool
+) -> None:
     user = get_user_by_token(token)
     with engine.begin() as conn:
         result = conn.execute(
@@ -220,20 +215,19 @@ def _create_room_member(conn, token, room_id:int, select_difficulty: LiveDifficu
                 VALUES (:room_id, :user_id, :user_name, :leader_card_id, :select_difficulty, :is_host)
                 """
             ),
-            {"room_id": room_id, 
-            "user_id": user.id, 
-            "user_name": user.name,
-            "leader_card_id": user.leader_card_id,
-            "select_difficulty": select_difficulty.value, 
-            "is_host": is_host},
+            {
+                "room_id": room_id,
+                "user_id": user.id,
+                "user_name": user.name,
+                "leader_card_id": user.leader_card_id,
+                "select_difficulty": select_difficulty.value,
+                "is_host": is_host,
+            },
         )
 
 
 def _update_room_joined_user_count(conn, room_id: int) -> None:
     result = conn.execute(
-        text(
-            "UPDATE `room` SET joined_user_count=1 WHERE `room_id`=:room_id"
-        ),
-        {"room_id": room_id}
+        text("UPDATE `room` SET joined_user_count=1 WHERE `room_id`=:room_id"),
+        {"room_id": room_id},
     )
-

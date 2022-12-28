@@ -118,7 +118,11 @@ class RoomListRequest(BaseModel):
     live_id: int
 
 
-@app.post("/room/list", response_model=list[RoomInfo])
+class RoomListResponse(BaseModel):
+    room_info_list: list[RoomInfo]
+
+
+@app.post("/room/list", response_model=RoomListResponse)
 def room_list(req: RoomListRequest):
     """List all rooms"""
     rooms = model.get_room_list(req.live_id)
@@ -131,7 +135,7 @@ def room_list(req: RoomListRequest):
         res.append(
             RoomInfo(room_id=r.id, live_id=r.live_id, joined_user_count=len(users), max_user_count=MAX_USER_COUNT)
         )
-    return res
+    return RoomListResponse(room_info_list=res)
 
 
 class RoomJoinRequest(BaseModel):
@@ -139,11 +143,15 @@ class RoomJoinRequest(BaseModel):
     select_difficulty: model.LiveDifficulty
 
 
-@app.post("/room/join", response_model=model.JoinRoomResult)
+class RoomJoinResponse(BaseModel):
+    join_room_result: model.JoinRoomResult
+
+
+@app.post("/room/join", response_model=RoomJoinResponse)
 def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
     """Join a room"""
     res = model.join_room(token, req.room_id, req.select_difficulty)
-    return res
+    return RoomJoinResponse(join_room_result=res)
 
 
 class RoomWaitRequest(BaseModel):
@@ -230,7 +238,11 @@ class RoomResultRequest(BaseModel):
     room_id: int
 
 
-@app.post("/room/result", response_model=list[ResultUser])
+class RoomResultResponse(BaseModel):
+    result_user_list: list[ResultUser]
+
+
+@app.post("/room/result", response_model=RoomResultResponse)
 def room_result(req: RoomResultRequest):
     """Get result of a room"""
 
@@ -238,4 +250,6 @@ def room_result(req: RoomResultRequest):
     if res is None:
         raise HTTPException(status_code=404)
 
-    return [ResultUser(user_id=r.user_id, judge_count_list=json.loads(r.judge_count_list), score=r.score) for r in res]
+    res = [ResultUser(user_id=r.user_id, judge_count_list=json.loads(r.judge_count_list), score=r.score) for r in res]
+
+    return RoomResultResponse(result_user_list=res)

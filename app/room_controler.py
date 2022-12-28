@@ -64,7 +64,7 @@ def room_list(live_id: int):
                 {"live_id": live_id},
             )
         rows = result.fetchall()
-        rooms = [SafeRoom.from_orm(rows[n]) for n in range(len(rows))]
+        rooms = [SafeRoom.from_orm(r) for r in rows]
         return rooms
 
 

@@ -409,12 +409,20 @@ def _get_room_status(conn, room_id: int) -> WaitRoomStatus:
     return WaitRoomStatus(row[0])
 
 
-def room_start(room_id: int) -> None:
+def room_start(room_id: int, token: str) -> None:
     with engine.begin() as conn:
-        _room_start(conn, room_id)
+        _room_start(conn, room_id, token)
 
 
-def _room_start(conn, room_id: int) -> None:
+def _room_start(conn, room_id: int, token: str) -> None:
+    member = _get_room_member_by_room_id_and_token(conn, room_id, token)
+
+    if member is None:
+        return
+    
+    if not member.is_host:
+        return
+
     _ = conn.execute(
         text("UPDATE `room` SET `status` = :status WHERE `room_id` = :room_id"),
         {

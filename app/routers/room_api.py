@@ -88,7 +88,7 @@ def room_wait(req: RoomWaitRequest, token=Depends(get_auth_token)):
 
 
 @router.post("/room/start", tags=["room"], response_model=Empty)
-def room_start(req: RoomStartRequest):
+def room_start(req: RoomStartRequest, token=Depends(get_auth_token)):
     model.room_start(req.room_id)
     return {}
 

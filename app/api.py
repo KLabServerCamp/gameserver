@@ -4,6 +4,8 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
+from app.config import MAX_USER_COUNT
+
 from . import model
 from .model import SafeUser
 
@@ -107,5 +109,19 @@ def room_list(req: RoomListRequest):
     res = []
     for r in rooms:
         users = model.get_room_members(r.id)
-        res.append(RoomInfo(room_id=r.id, live_id=r.live_id, joined_user_count=len(users), max_user_count=r.max_user_count))
+        res.append(
+            RoomInfo(room_id=r.id, live_id=r.live_id, joined_user_count=len(users), max_user_count=MAX_USER_COUNT)
+        )
+    return res
+
+
+class RoomJoinRequest(BaseModel):
+    room_id: int
+    select_difficulty: model.LiveDifficulty
+
+
+@app.post("/room/join", response_model=model.JoinRoomResult)
+def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
+    """Join a room"""
+    res = model.join_room(token, req.room_id, req.select_difficulty)
     return res

@@ -199,8 +199,6 @@ def _get_room_wait(
     conn, room_id: int, token: str
 ) -> tuple[model.WaitRoomStatus, list[model.RoomUser]]:
     status = _get_room_status(conn, room_id)
-    if status != model.WaitRoomStatus.Waiting.value:
-        return status, []
 
     result = conn.execute(
         text(
@@ -213,7 +211,7 @@ def _get_room_wait(
     try:
         rows = result.all()
     except NoResultFound:
-        return model.WaitRoomStatus.Dissolution, []
+        return status, []
     room_user_list = []
     for row in rows:
         this_member = model.RoomMember.from_orm(row)
@@ -222,7 +220,7 @@ def _get_room_wait(
         )
         room_user_list.append(this_user)
 
-    return model.WaitRoomStatus.Waiting, room_user_list
+    return status, room_user_list
 
 
 def convert_room_member_to_room_user(
@@ -364,7 +362,6 @@ def _get_room_result(conn, room_id: int, token: str) -> list[model.ResultUser]:
             else:
                 user.judge_count_list.append(row[i + 2])
         result_user_list.append(user)
-    print(result_user_list)
     return result_user_list
 
 
@@ -383,9 +380,11 @@ def _leave_room(conn, room_id: int, token: str) -> None:
     room = _get_room_by_room_id(conn, room_id)
     if room is None:
         return
-    
+
     _ = conn.execute(
-        text("DELETE FROM `room_member` WHERE `room_id` = :room_id AND `user_id` = :user_id"),
+        text(
+            "DELETE FROM `room_member` WHERE `room_id` = :room_id AND `user_id` = :user_id"
+        ),
         {
             "room_id": room_id,
             "token": user.id,
@@ -393,7 +392,9 @@ def _leave_room(conn, room_id: int, token: str) -> None:
     )
 
     _ = conn.execute(
-        text("DELETE FROM `room_score` WHERE `room_id` = :room_id AND `user_id` = :user_id"),
+        text(
+            "DELETE FROM `room_score` WHERE `room_id` = :room_id AND `user_id` = :user_id"
+        ),
         {
             "room_id": room_id,
             "user_id": user.id,
@@ -401,7 +402,9 @@ def _leave_room(conn, room_id: int, token: str) -> None:
     )
 
     _ = conn.execute(
-        text("UPDATE `room` SET `joined_user_count` = `joined_user_count` - 1 WHERE `room_id` = :room_id"),
+        text(
+            "UPDATE `room` SET `joined_user_count` = `joined_user_count` - 1 WHERE `room_id` = :room_id"
+        ),
         {
             "room_id": room_id,
         },

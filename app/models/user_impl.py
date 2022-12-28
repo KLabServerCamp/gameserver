@@ -59,5 +59,4 @@ def _update_user(conn, token: str, name: str, leader_card_id: int) -> None:
         ),
         {"name": name, "leader_card_id": leader_card_id, "token": token},
     )
-    print(result)
     return

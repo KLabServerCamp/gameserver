@@ -219,6 +219,18 @@ def create_room(
         return room_id
 
 
+def _get_room_list_all(conn: Connection) -> list[RoomInfo]:
+    res: CursorResult = conn.execute(
+        text(
+            "SELECT `room_id`, `live_id`, COUNT(*) AS `joined_user_count` "
+            "FROM room "
+            "INNER JOIN room_member ON room.id = room_id "
+            "GROUP BY `room_id`, `live_id`"
+        )
+    )
+    return [RoomInfo(**row) for row in res]
+
+
 def _get_room_list_by_live_id(conn: Connection, live_id: int) -> list[RoomInfo]:
     res: CursorResult = conn.execute(
         text(
@@ -238,7 +250,10 @@ def get_room_list(live_id: int) -> list[RoomInfo]:
     with engine.begin() as conn:
         conn = cast(Connection, conn)
 
-        return _get_room_list_by_live_id(conn, live_id)
+        if live_id == 0:
+            return _get_room_list_all(conn)
+        else:
+            return _get_room_list_by_live_id(conn, live_id)
 
 
 def join_room(

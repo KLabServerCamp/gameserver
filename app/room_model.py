@@ -132,11 +132,13 @@ def _get_room_list(conn, live_id: int) -> Optional[list[RoomInfo]]:
                 ),
                 {"live_id": live_id},
             )
+
         try:
             rows = result.all()
         except NoResultFound:
             return None
-        return [get_room_info(conn, row.room_id, row.live_id) for row in rows]
+        room_info_list = [get_room_info(conn, row.room_id, row.live_id) for row in rows]
+        return room_info_list
 
 
 def get_room_list(live_id: int) -> Optional[list[RoomInfo]]:

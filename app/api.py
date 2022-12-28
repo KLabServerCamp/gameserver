@@ -165,3 +165,25 @@ def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
     # print(req)
     room_model.room_end(req.judge_count_list, req.score, token)
     return {}
+
+
+class RoomEndRequest(BaseModel):
+    room_id: int
+    score: int
+    judge_count_list: list[int]
+
+
+@app.post("/room/end", response_model=Empty)
+def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
+    """ルーム内の全ユーザのスコアを取得"""
+    # print(req)
+    room_model.room_end(req.judge_count_list, req.score, token)
+    return {}
+
+
+# @app.post("/room/result", response_model=Empty)
+# def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
+#     """ルーム内の全ユーザのスコアを取得"""
+#     # print(req)
+#     room_model.room_end(req.judge_count_list, req.score, token)
+#     return {}

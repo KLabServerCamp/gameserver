@@ -34,7 +34,7 @@ def test_room_1():
     room_id = response.json()["room_id"]
     print(f"room/create {room_id=}")
 
-    response = client.post("/room/list", json={"live_id": 1001})
+    response = client.post("/room/list", json={"live_id": 200})
     assert response.status_code == 200
     print("room/list response:", response.json())
 

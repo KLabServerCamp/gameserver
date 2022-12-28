@@ -13,8 +13,9 @@ CREATE TABLE `user` (
 DROP TABLE IF EXISTS `room`;
 CREATE TABLE `room` (
   `id` bigint NOT NULL AUTO_INCREMENT,
-  `owner_id` bigint NOT NULL,
   `live_id` int NOT NULL,
+  `joined_user_count` int NOT NULL,
+  `max_user_count` int NOT NULL,
   PRIMARY KEY (`id`)
 );
 
@@ -22,5 +23,6 @@ CREATE TABLE `room_member` (
   `user_id` bigint NOT NULL,
   `room_id` bigint NOT NULL,
   `select_difficulty` int NOT NULL,
+  `is_host` tinyint NOT NULL,
   PRIMARY KEY (`room_id`, `user_id`)
 );

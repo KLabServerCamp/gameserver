@@ -118,7 +118,7 @@ class RoomJoinRequest(BaseModel):
 
 @app.post("/room/join", response_model=JoinRoomResult)
 def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
-    """ルームリストの取得"""
+    """ルームへの参加"""
     # print(req)
     room_info_list = room_model.room_join(req.room_id, req.select_difficulty, token)
     return room_info_list
@@ -135,7 +135,7 @@ class RoomWaitResponse(BaseModel):
 
 @app.post("/room/wait", response_model=RoomWaitResponse)
 def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
-    """ルームリストの取得"""
+    """ルーム内待機"""
     # print(req)
     (status, room_user_list) = room_model.room_wait(req.room_id, token)
     return RoomWaitResponse(status=status, room_user_list=room_user_list)
@@ -147,7 +147,21 @@ class RoomStartRequest(BaseModel):
 
 @app.post("/room/start", response_model=Empty)
 def room_start(req: RoomStartRequest):
-    """ルームリストの取得"""
+    """ライブモードへの遷移OK"""
     # print(req)
     room_model.room_start(req.room_id)
+    return {}
+
+
+class RoomEndRequest(BaseModel):
+    room_id: int
+    score: int
+    judge_count_list: list[int]
+
+
+@app.post("/room/end", response_model=Empty)
+def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
+    """ライブが終了し、データベースに結果を登録する"""
+    # print(req)
+    room_model.room_end(req.judge_count_list, req.score, token)
     return {}

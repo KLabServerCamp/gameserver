@@ -22,7 +22,11 @@ CREATE TABLE `room_member` (
   `room_id` bigint NOT NULL,
   `user_id` bigint NOT NULL,
   `select_difficulty` int,
-  `score` int,
-  `judge` varchar(255),
+  `score` int DEFAULT 0,
+  `just` int DEFAULT 0,
+  `great` int DEFAULT 0,
+  `good` int DEFAULT 0,
+  `bad` int DEFAULT 0,
+  `miss` int DEFAULT 0,
   PRIMARY KEY (`room_id`, `user_id`)
 );

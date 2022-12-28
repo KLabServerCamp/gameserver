@@ -79,15 +79,13 @@ def _create_room(
 
         conn.execute(
             text(
-                "INSERT INTO `room_member` (room_id, user_id, select_difficulty, score, judge) "
-                "VALUES (:room_id, :user_id, :select_difficulty, :score, :judge)"
+                "INSERT INTO `room_member` (room_id, user_id, select_difficulty) "
+                "VALUES (:room_id, :user_id, :select_difficulty)"
             ),
             {
                 "room_id": row.room_id,
                 "user_id": user.id,
                 "select_difficulty": select_difficulty.value,
-                "score": None,
-                "judge": None,
             },
         )
 
@@ -180,15 +178,13 @@ def _room_join(
 
         result = conn.execute(
             text(
-                "INSERT INTO `room_member` (room_id, user_id, select_difficulty, score, judge) "
-                "VALUES (:room_id, :user_id, :select_difficulty, :score, :judge)"
+                "INSERT INTO `room_member` (room_id, user_id, select_difficulty) "
+                "VALUES (:room_id, :user_id, :select_difficulty)"
             ),
             {
                 "room_id": room_id,
                 "user_id": user_id,
                 "select_difficulty": select_difficulty.value,
-                "score": None,
-                "judge": None,
             },
         )
 
@@ -289,6 +285,27 @@ def room_start(room_id: int) -> None:
         conn.execute(
             text("UPDATE `room` SET `status`= :status WHERE `room_id`= :room_id"),
             {"status": WaitRoomStatus.LiveStart.value, "room_id": room_id},
+        )
+
+
+# ライブの終了
+def room_end(judge_count_list: list[int], score: int, token: str) -> None:
+    with engine.begin() as conn:
+        user = model._get_user_by_token(conn, token)
+        conn.execute(
+            text(
+                "UPDATE `room_member` SET `score`= :score, `just`= :just, `great`= :great, "
+                "`good`= :good, `bad`= :bad, `miss`= :miss WHERE `user_id`= :user_id"
+            ),
+            {
+                "score": score,
+                "just": judge_count_list[0],
+                "great": judge_count_list[1],
+                "good": judge_count_list[2],
+                "bad": judge_count_list[3],
+                "miss": judge_count_list[4],
+                "user_id": user.id,
+            },
         )
 
 

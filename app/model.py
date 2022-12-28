@@ -135,11 +135,12 @@ class RoomUserTable(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     room_id = Column(Integer, ForeignKey("room.id", onupdate="CASCADE", ondelete="CASCADE"))
-    user_token = Column(String(255), ForeignKey("user.token", onupdate="CASCADE", ondelete="CASCADE"))
+    user_id = Column(Integer, ForeignKey("user.id", onupdate="CASCADE", ondelete="CASCADE"))
     select_difficulty = Column(Integer, nullable=True)
+    is_host = Column(Integer, nullable=True)
 
     room = relationship("RoomTable", back_populates="room_user", foreign_keys=[room_id])
-    user = relationship("UserTable", back_populates="room_user", foreign_keys=[user_token])
+    user = relationship("UserTable", back_populates="room_user", foreign_keys=[user_id])
 
 
 class RoomUser(BaseModel):
@@ -154,23 +155,23 @@ class RoomUser(BaseModel):
 
 def create_room(token: str, live_id: int, select_difficalty: LiveDifficulty) -> Optional[int]:
     with engine.begin() as conn:
-        return _create_room(conn, token, live_id, select_difficalty)
+        user_id = _get_user_by_token(conn, token).id
+        return _create_room(conn, user_id, live_id, select_difficalty)
 
 
-def _create_room(conn, token: str, live_id: int, select_difficalty: LiveDifficulty) -> Optional[int]:
-    user = _get_user_by_token(conn, token)
+# TODO: 人数確認
 
-    if user is None:
-        raise InvalidToken()
+
+def _create_room(conn, user_id: int, live_id: int, select_difficalty: LiveDifficulty) -> Optional[int]:
 
     res = conn.execute(insert(RoomTable).values(live_id=live_id, max_user_count=MAX_USER_COUNT))
 
     try:
-        id = res.inserted_primary_key[0]
+        id = res.lastrowid
     except NoResultFound:
         return None
 
-    _ = conn.execute(insert(RoomUserTable).values(room_id=id, user_token=token, select_difficulty=select_difficalty))
+    _ = conn.execute(insert(RoomUserTable).values(room_id=id, user_id=user_id, select_difficulty=select_difficalty))
     return id
 
 

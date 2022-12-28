@@ -25,7 +25,7 @@ CREATE TABLE `room_member` (
   `user_id` bigint NOT NULL,
   `room_id` bigint NOT NULL,
   `select_difficulty` int NOT NULL,
-  PRIMARY KEY (`user_id`, `room_id`),
+  PRIMARY KEY (`room_id`, `user_id`),
   FOREIGN KEY (`user_id`) REFERENCES user (`id`),
   FOREIGN KEY (`room_id`) REFERENCES room (`id`)
 );

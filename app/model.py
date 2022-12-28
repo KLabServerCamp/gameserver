@@ -127,7 +127,11 @@ def _create_room(conn: Connection, user_id: int, live_id: int) -> Optional[int]:
             "INSERT INTO `room` (`host_id`, `live_id`, `status`) "
             "VALUES (:host_id, :live_id, :status) "
         ),
-        {"host_id": user_id, "live_id": live_id, "status": WaitRoomStatus.WAITING},
+        {
+            "host_id": user_id,
+            "live_id": live_id,
+            "status": WaitRoomStatus.WAITING.value,
+        },
     )
 
     return cast(int, res.lastrowid)
@@ -188,7 +192,7 @@ def _join_room(
         {
             "user_id": user_id,
             "room_id": room_id,
-            "select_difficulty": select_difficulty,
+            "select_difficulty": select_difficulty.value,
         },
     )
     return JoinRoomResult.OK
@@ -234,4 +238,4 @@ def get_room_list(token: str, live_id: int) -> Optional[list[RoomInfo]]:
         if user is None:
             return None
 
-        _get_room_list_by_live_id(conn, live_id)
+        return _get_room_list_by_live_id(conn, live_id)

@@ -28,9 +28,19 @@ class UserCreateRequest(BaseModel):
 class UserCreateResponse(BaseModel):
     user_token: str
 
-class RoomCreateRequest(BaseModel):
-    room_id: int
 
+class RoomCreateRequest(BaseModel):
+    live_id:int
+    select_difficulty: int
+
+class RoomCreateResponse(BaseModel):
+    room_id:int
+
+class RoomListRequest(BaseModel):
+    live_id:int
+
+class RoomListResponse(BaseModel):
+    room_id_list:list
 
 @app.post("/user/create", response_model=UserCreateResponse)
 def user_create(req: UserCreateRequest):
@@ -69,11 +79,14 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
     model.update_user(token, req.user_name, req.leader_card_id)
     return {}
 
-#ルーム作成
-@app.get("/room/create", response_model=RoomCreateRequest)
-def room_create(token: str = Depends(get_auth_token)):
-    user = model.
-    if user is None:
-        raise HTTPException(status_code=404)
-    # print(f"user_me({token=}, {user=})")
-    return user
+
+# ルーム作成
+@app.post("/room/create", response_model=RoomCreateRequest)
+def room_create(req:RoomCreateRequest,token: str = Depends(get_auth_token)):
+    user = model.create_room(token, req.live_id, req.elect_difficulty)
+
+#ルーム検索
+@app.post("/room/list", response_model=RoomListRequest)
+def room_create(req:RoomListRequest,token: str = Depends(get_auth_token)):
+    room_list = model.search_room(req.live_id)
+    return room_list

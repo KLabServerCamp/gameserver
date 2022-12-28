@@ -68,34 +68,35 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
 
-#live_id user_idからroom_idを得る
-def get_room_id_by_live_id_and_user_id(live_id: int, user_id int):
-    result = conn.execute(
-        text("SELECT `id` FROM `room` WHERE `live_id`=:live_id AND `user_id`=:user_id"),
-        {"live_id": live_id,"user_id":user_id},
-    )
-    try:
-        row = result.one()
-    except NoResultFpund:
-        return None
-    return SafeUser.from_orm(row)
 
-#ルーム作成DB操作
-def create_room(token: str,live_id: int, select_difficulty: int) -> int:
+# live_id user_idからroom_idを得る
+# def get_room_id_by_live_id_and_user_id(live_id: int, user_id int):
+#     result = conn.execute(
+#         text("SELECT `id` FROM `room` WHERE `live_id`=:live_id AND `user_id`=:user_id"),
+#         {"live_id": live_id,"user_id":user_id},
+#     )
+#     try:
+#         row = result.one()
+#     except NoResultFpund:
+#         return None
+#     return SafeUser.from_orm(row)
+
+# ルーム作成DB操作
+def create_room(token: str, live_id: int, select_difficulty: int) -> int:
     """Create new room and returns room id"""
     user_id = get_user_by_token(token)
-    #roomにユーザを登録する
+    # roomにユーザを登録する
     with engine.begin() as conn:
         result = conn.execute(
             text(
                 "INSERT INTO `room` (live_id,owner) VALUES (:live_id, :user_id) RETURNING id"
             ),
-            {"live_id": live_id,"owner":user_id},
+            {"live_id": live_id, "owner": user_id},
         )
     print(result)
-    
+
     # #作成したルームのIDを得る
-    # room_id 
+    # room_id
     # #作成したルームのIDと同じカラムをroom_memberテーブルに作る
     # with engine.begin() as conn:
     #     result = conn.execute(
@@ -105,4 +106,25 @@ def create_room(token: str,live_id: int, select_difficulty: int) -> int:
     #         {"live_id": live_id},
     #     )
 
-    
+# ルーム検索DB操作
+def search_room(live_id: int) -> list:
+    """Returns room id list"""
+    response = []
+    if live_id == 0:
+        with engine.begin() as conn:
+            result = conn.execute(
+                text(
+                    "SELECT * FROM `room`"
+                )
+            )
+    else:
+        with engine.begin() as conn:
+            result = conn.execute(
+                text(
+                    "SELECT * FROM `room` WHERE `live_id` =: live_id"
+                ),
+                {"live_id": live_id},
+            )
+    for (id,live_id,owner,status) in result:
+        response.append(id)
+    return response

@@ -116,7 +116,7 @@ class RoomListRequest(BaseModel):
 
 
 class RoomListResponse(BaseModel):
-    room_info_list = List[RoomInfo]
+    room_info_list = list[RoomInfo]
 
 
 @app.post("/room/list", response_model=RoomListResponse)

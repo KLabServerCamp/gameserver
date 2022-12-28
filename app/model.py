@@ -58,7 +58,7 @@ class RoomUser(BaseModel):
 
 class ResultUser(BaseModel):
     user_id: int
-    judge_count_list: List[int]
+    judge_count_list: list[int]
     score: int
 
 

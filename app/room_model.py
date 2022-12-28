@@ -1,6 +1,6 @@
 import json
 from enum import Enum, IntEnum
-from typing import Optional
+from typing import Optional, Tuple
 
 from fastapi import HTTPException
 
@@ -146,8 +146,8 @@ def get_room_list(live_id: int) -> Optional[list[RoomInfo]]:
         return _get_room_list(conn, live_id)
 
 
-# ルームを探す
-def room_search(conn, room_id: int):
+# ルームの状態を確認
+def room_status_check(conn, room_id: int) -> Optional[WaitRoomStatus]:
     with engine.begin() as conn:
         result = conn.execute(
             text("SELECT `status` FROM `room` WHERE `room_id` = :room_id FOR UPDATE"),
@@ -175,7 +175,7 @@ def _room_join(
             {"room_id": room_id},
         )
 
-        if len(result.all()) > 3:
+        if len(result.all()) > max_user_count - 1:
             return JoinRoomResult.RoomFull
 
         result = conn.execute(
@@ -204,7 +204,7 @@ def room_join(
 ) -> Optional[JoinRoomResult]:
 
     with engine.begin() as conn:
-        if room_search(conn, room_id) == WaitRoomStatus.Dissolution:
+        if room_status_check(conn, room_id) == WaitRoomStatus.Dissolution:
             return JoinRoomResult.Disbanded
 
         user = model._get_user_by_token(conn, token)
@@ -212,6 +212,78 @@ def room_join(
             return JoinRoomResult.OtherError
 
         return _room_join(conn, room_id, select_difficulty, user.id)
+
+
+# ルーム内のユーザの確認
+def user_check(
+    conn,
+    room_id: int,
+    req_user_id: int,
+    user_id: int,
+    select_difficulty: LiveDifficulty,
+) -> Optional[RoomUser]:
+    with engine.begin() as conn:
+        is_host = False
+        is_me = False
+
+        result = conn.execute(
+            text("SELECT `owner_id` FROM `room` WHERE `room_id` = :room_id"),
+            {"room_id": room_id},
+        )
+        row = result.one()
+        if user_id == row.owner_id:
+            is_host = True
+
+        result = conn.execute(
+            text("SELECT `name`, `leader_card_id` FROM `user` WHERE `id` = :user_id"),
+            {"user_id": user_id},
+        )
+        row = result.one()
+        if req_user_id == user_id:
+            is_me = True
+
+        return RoomUser(
+            user_id=user_id,
+            name=row.name,
+            leader_card_id=row.leader_card_id,
+            select_difficulty=select_difficulty,
+            is_me=is_me,
+            is_host=is_host,
+        )
+
+
+# ルーム待機
+def _room_wait(
+    conn, room_id: int, user: SafeUser
+) -> Tuple[WaitRoomStatus, list[RoomUser]]:
+
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT `user_id`, `select_difficulty` FROM `room_member` WHERE `room_id` = :room_id FOR UPDATE"
+            ),
+            {"room_id": room_id},
+        )
+        try:
+            rows = result.all()
+        except NoResultFound:
+            return (WaitRoomStatus.Dissolution, None)
+
+        user_list = [
+            user_check(conn, room_id, user.id, row.user_id, row.select_difficulty)
+            for row in rows
+        ]
+
+        if len(rows) < max_user_count:
+            return (WaitRoomStatus.Wating, user_list)
+
+        return (WaitRoomStatus.LiveStart, user_list)
+
+
+def room_wait(room_id: int, token: str) -> Tuple[WaitRoomStatus, list[RoomUser]]:
+    with engine.begin() as conn:
+        user = model._get_user_by_token(conn, token)
+        return _room_wait(conn, room_id, user)
 
 
 if __name__ == "__main__":

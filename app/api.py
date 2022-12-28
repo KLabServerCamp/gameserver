@@ -6,7 +6,14 @@ from pydantic import BaseModel
 
 from . import model, room_model
 from .model import SafeUser
-from .room_model import JoinRoomResult, LiveDifficulty, ResultUser, RoomInfo, RoomUser
+from .room_model import (
+    JoinRoomResult,
+    LiveDifficulty,
+    ResultUser,
+    RoomInfo,
+    RoomUser,
+    WaitRoomStatus,
+)
 
 app = FastAPI()
 
@@ -115,3 +122,20 @@ def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
     # print(req)
     room_info_list = room_model.room_join(req.room_id, req.select_difficulty, token)
     return room_info_list
+
+
+class RoomWaitRequest(BaseModel):
+    room_id: int
+
+
+class RoomWaitResponse(BaseModel):
+    status: WaitRoomStatus
+    room_user_list: list[RoomUser]
+
+
+@app.post("/room/wait", response_model=RoomWaitResponse)
+def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
+    """ルームリストの取得"""
+    # print(req)
+    (status, room_user_list) = room_model.room_wait(req.room_id, token)
+    return RoomWaitResponse(status=status, room_user_list=room_user_list)

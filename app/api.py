@@ -69,6 +69,13 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
 
 
 # room APIs
+class RoomInfo(BaseModel):
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int
+
+
 class RoomCreateRequest(BaseModel):
     live_id: int
     select_difficulty: int
@@ -87,3 +94,18 @@ def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
         raise HTTPException(status_code=404)
 
     return RoomCreateResponse(room_id=id)
+
+
+class RoomListRequest(BaseModel):
+    live_id: int
+
+
+@app.post("/room/list", response_model=list[RoomInfo])
+def room_list(req: RoomListRequest):
+    """List all rooms"""
+    rooms = model.get_room_list(req.live_id)
+    res = []
+    for r in rooms:
+        users = model.get_room_members(r.id)
+        res.append(RoomInfo(room_id=r.id, live_id=r.live_id, joined_user_count=len(users), max_user_count=r.max_user_count))
+    return res

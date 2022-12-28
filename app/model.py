@@ -2,7 +2,7 @@
 import uuid
 
 from enum import IntEnum
-from typing import Optional
+from typing import  Optional
 
 # from fastapi import HTTPException
 from pydantic import BaseModel
@@ -36,7 +36,7 @@ class UserTable(Base):
     token = Column(String(255), nullable=True, unique=True)
     leader_card_id = Column(Integer, nullable=True)
 
-    room_user = relationship("RoomUserTable", back_populates="user")
+    room_member = relationship("RoomMemberTable", back_populates="user")
 
 
 class InvalidToken(Exception):
@@ -118,7 +118,7 @@ class RoomTable(Base):
     live_id = Column(Integer, nullable=True)
     max_user_count = Column(Integer, nullable=True)
 
-    room_user = relationship("RoomUserTable")
+    room_member = relationship("RoomMemberTable")
 
 
 class Room(BaseModel):
@@ -130,8 +130,8 @@ class Room(BaseModel):
         orm_mode = True
 
 
-class RoomUserTable(Base):
-    __tablename__ = "room_user"
+class RoomMemberTable(Base):
+    __tablename__ = "room_member"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     room_id = Column(Integer, ForeignKey("room.id", onupdate="CASCADE", ondelete="CASCADE"))
@@ -139,14 +139,14 @@ class RoomUserTable(Base):
     select_difficulty = Column(Integer, nullable=True)
     is_host = Column(Integer, nullable=True)
 
-    room = relationship("RoomTable", back_populates="room_user", foreign_keys=[room_id])
-    user = relationship("UserTable", back_populates="room_user", foreign_keys=[user_id])
+    room = relationship("RoomTable", back_populates="room_member", foreign_keys=[room_id])
+    user = relationship("UserTable", back_populates="room_member", foreign_keys=[user_id])
 
 
-class RoomUser(BaseModel):
+class RoomMember(BaseModel):
     id: int
     room_id: int
-    user_token: str
+    user_id: int
     select_difficulty: int
 
     class Config:
@@ -171,8 +171,24 @@ def _create_room(conn, user_id: int, live_id: int, select_difficalty: LiveDiffic
     except NoResultFound:
         return None
 
-    _ = conn.execute(insert(RoomUserTable).values(room_id=id, user_id=user_id, select_difficulty=select_difficalty))
+    _ = conn.execute(insert(RoomMemberTable).values(room_id=id, user_id=user_id, select_difficulty=select_difficalty))
     return id
+
+
+# room 一覧
+def get_room_list(live_id: int) -> list[Room]:
+    with engine.begin() as conn:
+        if live_id == 0:
+            res = conn.execute(select(RoomTable))
+        else:
+            res = conn.execute(select(RoomTable).where(RoomTable.live_id == live_id))
+        return [Room.from_orm(row) for row in res]
+
+
+def get_room_members(room_id: int) -> list[RoomMember]:
+    with engine.begin() as conn:
+        res = conn.execute(select(RoomMemberTable).where(RoomMemberTable.room_id == room_id))
+        return [RoomMember.from_orm(row) for row in res]
 
 
 if __name__ == "__main__":

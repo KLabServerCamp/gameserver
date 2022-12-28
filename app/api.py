@@ -80,7 +80,7 @@ class RoomInfo(BaseModel):
 
 class RoomCreateRequest(BaseModel):
     live_id: int
-    select_difficulty: int
+    select_difficulty: model.LiveDifficulty
 
 
 class RoomCreateResponse(BaseModel):

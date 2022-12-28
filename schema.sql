@@ -5,6 +5,7 @@ DROP TABLE IF EXISTS `user`;
 CREATE TABLE `room` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `live_id` bigint DEFAULT NULL,
+  `live_status` int DEFAULT NULL,
   PRIMARY KEY (`id`)
 );
 

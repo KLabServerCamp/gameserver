@@ -29,6 +29,12 @@ class JoinRoomResult(IntEnum):
     OtherError = 4
 
 
+class WaitRoomStatus(IntEnum):
+    Waiting = 1
+    LiveStart = 2
+    Dissolution = 3
+
+
 # User
 
 
@@ -129,6 +135,7 @@ def _update_user(conn, token: str, name: str, leader_card_id: int) -> None:
 class Room(BaseModel):
     id: int
     live_id: int
+    live_status: WaitRoomStatus
 
     class Config:
         orm_mode = True
@@ -159,12 +166,12 @@ def _create_room(conn, user_id: int, live_id: int, select_difficulty: LiveDiffic
             """
             INSERT
                 INTO
-                    `room` (`live_id`)
+                    `room` (`live_id`, `live_status`)
                 VALUES
-                    (:live_id)
+                    (:live_id, :live_status)
             """
         ),
-        {"live_id": live_id},
+        {"live_id": live_id, "live_status": WaitRoomStatus.Waiting.value},
     )
 
     try:
@@ -194,7 +201,8 @@ def get_room_list(live_id: int) -> list[Room]:
         stmt = """
             SELECT
                 `id`,
-                `live_id`
+                `live_id`,
+                `live_status`
             FROM
                 `room`
             """
@@ -247,6 +255,29 @@ def join_room(token: str, room_id: int, select_difficulty: LiveDifficulty) -> Jo
         users = [RoomMember.from_orm(row) for row in res]
         if len(users) >= MAX_USER_COUNT:
             return JoinRoomResult.RoomFull
+
+        res = conn.execute(
+            text(
+                """
+                    SELECT
+                        `live_status`
+                    FROM
+                        `room`
+                    WHERE
+                        `id` = :room_id
+                    """
+            ),
+            {"room_id": room_id},
+        )
+
+        try:
+            room = res.one()
+        except Exception:
+            return JoinRoomResult.OtherError
+
+        live_status = room["live_status"]
+        if live_status == WaitRoomStatus.Dissolution:
+            return JoinRoomResult.Disbanded
 
         # TODO :エラーハンドリング
         try:

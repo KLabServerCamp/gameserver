@@ -132,13 +132,12 @@ def create_user(name: str, leader_card_id: int) -> str:
     with engine.begin() as conn:
         while not (_get_user_by_token(conn, token) is None):
             token = str(uuid.uuid4())
-        result = conn.execute(
+        _ = conn.execute(
             text(
                 "INSERT INTO `user` (name, token, leader_card_id) VALUES (:name, :token, :leader_card_id)"
             ),
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
-        # print(f"create_user(): id={result.lastrowid} {token=}")
     return token
 
 

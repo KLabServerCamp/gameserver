@@ -61,7 +61,7 @@ class RoomEndRequest(BaseModel):
 
 
 class RoomResultResponse(BaseModel):
-    result_user_list: list(model.ResultUser)
+    result_user_list: list[model.ResultUser]
 
 
 class RoomResultRequest(BaseModel):

@@ -442,6 +442,22 @@ def _room_end(
     conn, room_id: int, judge_count_list: list[int], score: int, token: str
 ) -> None:
     user = _get_user_by_token(conn, token)
+    
+    result = conn.execute(
+        text(
+            "SELECT `score` FROM `room_score` WHERE `room_id` = :room_id AND `user_id` = :user_id"
+        ),
+        {
+            "room_id": room_id,
+            "user_id": user.id,
+        },
+    )
+
+    # すでにスコアが登録されている場合はreturn(一人を保証)
+    # UPDATE実装でも良い
+    if result.rowcount > 0:
+        return
+
     query1 = "INSERT INTO `room_score` (`score`, `room_id`, `user_id`"
     query2 = "VALUES (:score, :room_id, :user_id"
     d1 = {"score": score, "room_id": room_id, "user_id": user.id}

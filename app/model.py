@@ -329,6 +329,32 @@ def start_room(room_id: int) -> None:
         _start_room(conn, room_id)
 
 
+# room/end
+def _end_room(
+    conn, token: str, room_id: int, judge_count_list: list[int], score: int
+) -> None:
+    user = _get_user_by_token(conn=conn, token=token)
+    if user is None:
+        raise InvalidToken
+
+    judge_count_str = ""
+    for _, judge in enumerate(judge_count_list):
+        judge_count_str += str(judge) + ","
+    judge_count_str = judge_count_str.rstrip(",")
+
+    result = conn.execute(
+        text(
+            "UPDATE `room_user` SET `judge_count_list`=:judge_count_str, `score`=:score WHERE `user_id`=:user_id"
+        ),
+        {"judge_count_str": judge_count_str, "score": score, "user_id": user.id},
+    )
+
+
+def end_room(token: str, room_id: int, judge_count_list: list[int], score: int) -> None:
+    with engine.begin() as conn:
+        _end_room(conn, token, room_id, judge_count_list, score)
+
+
 class ResultUser(BaseModel):
     user_id: int
     judge_count_list: list[int]  # 各判定数(良い判定から昇順)

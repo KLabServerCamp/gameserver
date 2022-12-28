@@ -26,7 +26,7 @@ CREATE TABLE `room_user` (
   `user_id` bigint NOT NULL,
   `select_difficulty` int NOT NULL,
   `is_host` boolean NOT NULL,
-  `judge_count_list` int DEFAULT NULL,
+  `judge_count_list` varchar(255) DEFAULT NULL,
   `score` int DEFAULT 0,
   PRIMARY KEY (`room_id`, `user_id`)
 );

@@ -122,6 +122,7 @@ class RoomListResponse(BaseModel):
     room_info_list: list[RoomInfo]
 
 
+# FIXME: 開始済みのルームを排除、ルームの最大人数を超えているルームを排除、参加済みのルームを排除
 @app.post("/room/list", response_model=RoomListResponse)
 def room_list(req: RoomListRequest):
     """List all rooms"""
@@ -250,6 +251,7 @@ def room_result(req: RoomResultRequest):
     if res is None:
         raise HTTPException(status_code=404)
 
+    # FIXME : json.loads で壊れる
     res = [ResultUser(user_id=r.user_id, judge_count_list=json.loads(r.judge_count_list), score=r.score) for r in res]
 
     return RoomResultResponse(result_user_list=res)

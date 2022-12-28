@@ -103,6 +103,10 @@ class CreateRoomRequest(BaseModel):
     select_difficulty: LiveDifficulty
 
 
+class CreateRoomResponse(BaseModel):
+    room_id: int
+
+
 class RoomJoinRequest(BaseModel):
     room_id: int
     select_difficulty: LiveDifficulty
@@ -114,7 +118,7 @@ class ResultUser(BaseModel):
     score: int
 
 
-@app.post("/room/create")
+@app.post("/room/create", response_model=CreateRoomResponse)
 def room_create(req: CreateRoomRequest):
     room_id = room.create_room(req.live_id, req.select_difficulty)
     return room_id

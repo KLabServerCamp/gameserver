@@ -17,9 +17,9 @@ class SafeRoom(BaseModel):
     player: list[str] = []
 
 
-def create_room(live_id: int, difficulty: int):
+def create_room(live_id: int, difficulty: int, player_id: int):
     with engine.begin() as conn:
-        room_id = rand.getrandbits(64)
+        room_id = rand.getrandbits(10)
         _ = conn.execute(
             text(
                 "INSERT INTO `room` (`live_id`,`select_difficulty`,`room_id`) VALUES (:live_id, :select_difficulty, :room_id)"
@@ -30,18 +30,15 @@ def create_room(live_id: int, difficulty: int):
                 "room_id": room_id
             },
         )
-        # NOTE: joinに入れるべき内容
-        '''
         result = conn.execute(
             text(
-                "INSERT INTO `room_member` (`room_id`, `player1_name`) VALUE(:room_id, :player_name)"
+                "INSERT INTO `room_member` (`room_id`, `player_id`) VALUE(:room_id, :player_id)"
             ),
             {
                 "room_id": room_id,
-                "player_id": player_name
+                "player_id": player_id
             },
         )
         print(result)
-        '''
         return room_id
 

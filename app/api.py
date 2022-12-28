@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from . import model
 from .model import SafeUser
 from . import room_controler as room
+from .room_controler import LiveDifficulty
 
 app = FastAPI()
 
@@ -69,10 +70,6 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
 
 
 # NOTE:ROOM category
-class LiveDifficulty(Enum):
-    normal = 1
-    hard = 2
-
 
 class JoinRoomResult(Enum):
     Ok = 1
@@ -107,6 +104,10 @@ class CreateRoomResponse(BaseModel):
     room_id: int
 
 
+class RoomListRequest(BaseModel):
+    live_id: int
+
+
 class RoomJoinRequest(BaseModel):
     room_id: int
     select_difficulty: LiveDifficulty
@@ -122,3 +123,8 @@ class ResultUser(BaseModel):
 def room_create(req: CreateRoomRequest, token: str = Depends(get_auth_token)):
     room_id = room.create_room(req.live_id, req.select_difficulty, token)
     return CreateRoomResponse(room_id=room_id)
+
+@app.post("/room/list")
+def list_room(req: RoomListRequest, token: str = Depends(get_auth_token)):
+    rooms = room.room_list(req.live_id)
+    return rooms

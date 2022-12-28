@@ -5,14 +5,15 @@ CREATE TABLE `room` (
   `room_id` bigint NOT NULL,
   `live_id` int NOT NULL,
   `select_difficulty` int NOT NULL,
-  `room_num` int DEFAULT 1,
+  `joined_user_count` int DEFAULT 1,
+  `max_user_count` int DEFAULT 4,
   PRIMARY KEY (`id`),
   UNIQUE KEY `room_id` (`room_id`)
 );
 
 CREATE TABLE `room_member` (
   `room_id` bigint NOT NULL,
-  `room_num` int DEFAULT 0,
+  `joined_user_count` int DEFAULT 1,
   `owner` int DEFAULT 1,
   `player_id` int DEFAULT NULL,
   `player_score` int DEFAULT NULL,

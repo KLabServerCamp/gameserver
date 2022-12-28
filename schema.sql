@@ -14,13 +14,13 @@ CREATE TABLE `room` (
   `room_id` bigint NOT NULL AUTO_INCREMENT,
   `live_id` int NOT NULL,
   `joined_user_count` int DEFAULT NULL,
-  `status` int DEFAULT NULL,
+  `status` int DEFAULT 1,
   PRIMARY KEY (`room_id`)
 );
 
 
-DROP TABLE IF EXISTS `room_user`;
-CREATE TABLE `room_user` (
+DROP TABLE IF EXISTS `room_member`;
+CREATE TABLE `room_member` (
   `room_id` bigint NOT NULL,
   `user_id` bigint NOT NULL,
   `user_name` varchar(255) NOT NULL,

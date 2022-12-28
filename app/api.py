@@ -102,10 +102,10 @@ class RoomListResponse(BaseModel):
 
 
 @app.post("/room/list", response_model=RoomListResponse)
-def room_list(req: RoomListRequest):
+def room_list(req: RoomListRequest, token: str = Depends(get_auth_token)):
     """入場可能なルーム一覧を取得"""
     live_id = req.live_id
-    room_info_list = model.get_room_info_list(live_id)
+    room_info_list = model.get_room_info_list(token, live_id)
     return RoomListResponse(room_info_list=room_info_list)
 
 

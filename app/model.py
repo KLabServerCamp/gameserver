@@ -205,9 +205,10 @@ def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty) -> 
     return room_id
 
 
-def get_room_info_list(live_id: int) -> list[RoomInfo]:
+def get_room_info_list(token: str, live_id: int) -> list[RoomInfo]:
     with engine.begin() as conn:
         conn: Connection
+        _get_user_by_token_strict(conn, token)
         result = conn.execute(
             text(
                 "SELECT `id` as `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` "

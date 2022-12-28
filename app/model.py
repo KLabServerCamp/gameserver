@@ -260,3 +260,7 @@ def get_room_wait_status(
         )
         room_user_list = list(map(RoomUser.from_orm, member_result))
         return status, room_user_list
+
+
+def start_room(token: str, room_id: int):
+    pass

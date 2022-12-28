@@ -126,7 +126,7 @@ def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
 
 
 class RoomWaitRequest(BaseModel):
-    live_id: int  # 対象ルーム
+    room_id: int  # 対象ルーム
 
 
 class RoomWaitResponse(BaseModel):
@@ -137,6 +137,16 @@ class RoomWaitResponse(BaseModel):
 @app.post("/room/wait", response_model=RoomWaitResponse)
 def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
     """４人集まるのを待つ（ポーリング）。APIの結果でゲーム開始がわかる"""
-    live_id = req.live_id
-    status, room_user_list = model.get_room_wait_status(token, live_id)
+    status, room_user_list = model.get_room_wait_status(token, req.room_id)
     return RoomWaitResponse(status=status, room_user_list=room_user_list)
+
+
+class RoomStartRequest(BaseModel):
+    room_id: int  # 対象ルーム
+
+
+@app.post("/room/start", response_model=Empty)
+def room_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
+    """ルームのライブ開始リクエスト。部屋のオーナーが叩く"""
+    model.start_room(token, req.room_id)
+    return Empty

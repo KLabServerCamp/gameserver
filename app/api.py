@@ -52,7 +52,7 @@ def user_me(token: str = Depends(get_auth_token)):
     user = model.get_user_by_token(token)
     if user is None:
         raise HTTPException(status_code=404)
-    # print(f"user_me({token=}, {user=})")
+    print(f"user_me({token=}, {user=})")
     return user
 
 
@@ -119,6 +119,6 @@ class ResultUser(BaseModel):
 
 
 @app.post("/room/create", response_model=CreateRoomResponse)
-def room_create(req: CreateRoomRequest):
-    room_id = room.create_room(req.live_id, req.select_difficulty)
-    return room_id
+def room_create(req: CreateRoomRequest, token: str = Depends(get_auth_token)):
+    room_id = room.create_room(req.live_id, req.select_difficulty, token)
+    return CreateRoomResponse(room_id=room_id)

@@ -9,9 +9,8 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
-from .db import engine
 from .config import JUDGE_COLUMNS, MAX_USER_COUNT
-
+from .db import engine
 
 """
 Enums
@@ -442,7 +441,7 @@ def _room_end(
     conn, room_id: int, judge_count_list: list[int], score: int, token: str
 ) -> None:
     user = _get_user_by_token(conn, token)
-    
+
     result = conn.execute(
         text(
             "SELECT `score` FROM `room_score` WHERE `room_id` = :room_id AND `user_id` = :user_id"
@@ -479,12 +478,6 @@ def get_room_result(room_id: int, token: str) -> list[ResultUser]:
         return _get_room_result(conn, room_id, token)
 
 
-"""
-room_scoreについて、各判定ごとに数が分かれているのでそれぞれ取得してまとめる必要がある
-また、tokenがroom_memberじゃない場合にどうするかを考える必要がある(他の人が取得して問題ないのか)
-"""
-
-
 def _get_room_result(conn, room_id: int, token: str) -> list[ResultUser]:
     member = _get_room_member_by_room_id_and_token(conn, room_id, token)
     room = _get_room_by_room_id(conn, room_id)
@@ -495,9 +488,9 @@ def _get_room_result(conn, room_id: int, token: str) -> list[ResultUser]:
 
     for column in JUDGE_COLUMNS:
         query += ", `" + column + "`"
-    
+
     query += " FROM `room_score` WHERE `room_id` = :room_id"
-    
+
     result = conn.execute(
         text(query),
         {
@@ -512,7 +505,7 @@ def _get_room_result(conn, room_id: int, token: str) -> list[ResultUser]:
         rows = result.all()
     except NoResultFound:
         return []
-    
+
     result_user_list = []
     for row in rows:
         user = ResultUser(user_id=row[0], score=row[1], judge_count_list=[])
@@ -520,6 +513,6 @@ def _get_room_result(conn, room_id: int, token: str) -> list[ResultUser]:
             if row[i] is None:
                 user.judge_count_list.append(0)
             else:
-                user.judge_count_list.append(row[i+2])
+                user.judge_count_list.append(row[i + 2])
         result_user_list.append(user)
     return result_user_list

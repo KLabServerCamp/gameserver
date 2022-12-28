@@ -40,6 +40,14 @@ def test_room_1():
     print("room/list response:", response.json())
 
     response = client.post(
+        "/room/join",
+        headers=_auth_header(1),
+        json={"room_id": room_id, "select_difficulty": LiveDifficulty.Hard},
+    )
+    assert response.status_code == 200
+    print("room/join response:", response.json())
+
+    response = client.post(
         "/room/wait", headers=_auth_header(), json={"room_id": room_id}
     )
     assert response.status_code == 200

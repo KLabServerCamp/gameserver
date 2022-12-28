@@ -33,7 +33,7 @@ def create_user(name: str, leader_card_id: int) -> str:
     """Create new user and returns their token"""
     token = str(uuid.uuid4())
     # NOTE: tokenが衝突したらリトライする必要がある.
-    # todo: エラー時リトライ
+    # TODO: エラー時リトライ
     with engine.begin() as conn:
         result = conn.execute(
             text(
@@ -137,34 +137,23 @@ class RoomInfo(BaseModel):
 def _list_room(conn, live_id: int) -> list[RoomInfo]:
     """ルーム一覧を取得 live_id=LIVE_ID_NULLで全部屋"""
     if live_id == LIVE_ID_NULL:
-        res = conn.execute(
+        result = conn.execute(
             text(
                 "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `joined_user_count` < `max_user_count`"
             )
         )
     else:
-        res = conn.execute(
+        result = conn.execute(
             text(
                 "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `joined_user_count` < `max_user_count` AND live_id=:live_id"
             ),
             {"live_id": live_id},
         )
 
-    rows = res.fetchall()
+    rows = result.fetchall()
     room_list = []
     for _, row in enumerate(rows):
-        room_id = row["room_id"]
-        live_id = row["live_id"]
-        joined_user_count = row["joined_user_count"]
-        max_user_count = row["max_user_count"]
-        room_list.append(
-            RoomInfo(
-                room_id=room_id,
-                live_id=live_id,
-                joined_user_count=joined_user_count,
-                max_user_count=max_user_count,
-            )
-        )
+        room_list.append(RoomInfo.from_orm(row))
     return room_list
 
 
@@ -178,6 +167,67 @@ class JoinRoomResult(IntEnum):
     RoomFull = 2
     Disbanded = 3  # 解散
     OtherError = 4
+
+
+def _join_room(
+    conn, token: str, room_id: int, select_difficulty: LiveDifficulty
+) -> JoinRoomResult:
+    user = _get_user_by_token(conn=conn, token=token)
+    if user is None:
+        return JoinRoomResult.OtherError
+
+    # 空きがあるか確認
+    result = conn.execute(
+        text(
+            "SELECT `joined_user_count`, `max_user_count` FROM `room` WHERE room_id=:room_id FOR UPDATE"
+        ),
+        {"room_id": room_id},
+    )
+
+    try:
+        row = result.one()
+    except NoResultFound:
+        conn.rollback()
+        return JoinRoomResult.Disbanded
+
+    if row["joined_user_count"] >= row["max_user_count"]:
+        conn.rollback()
+        return JoinRoomResult.RoomFull
+
+    # 部屋に追加
+    result = conn.execute(
+        text(
+            "INSERT INTO `room_user` SET `room_id`=:room_id, `user_id`=:user_id, `select_difficulty`=:select_difficulty, `is_host`=false"
+        ),
+        {
+            "room_id": room_id,
+            "user_id": user.id,
+            "select_difficulty": int(select_difficulty),
+        },
+    )
+
+    # 多重joinチェック
+    result = conn.execute(
+        text("SELECT `user_id` FROM room_user WHERE `user_id`=:user_id"),
+        {"user_id": user.id},
+    )
+    try:
+        row = result.one()
+    except NoResultFound:  # 2件以上もNoResultFound
+        conn.rollback()
+        return JoinRoomResult.OtherError
+
+    conn.commit()
+    return JoinRoomResult.Ok
+
+
+def join_room(
+    token: str, room_id: int, select_difficulty: LiveDifficulty
+) -> JoinRoomResult:
+    with engine.begin() as conn:
+        return _join_room(
+            conn, token, room_id=room_id, select_difficulty=select_difficulty
+        )
 
 
 class WaitRoomStatus(IntEnum):

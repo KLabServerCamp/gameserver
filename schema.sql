@@ -28,9 +28,22 @@ CREATE TABLE `room_member` (
   `user_id` bigint NOT NULL,
   `room_id` bigint NOT NULL,
   `token` varchar(255) DEFAULT NULL,
-  `score` int DEFAULT NULL,
   `select_difficulty` int DEFAULT NULL,
   `is_host` boolean DEFAULT NULL,
-  PRIMARY KEY (`user_id`, `room_id`),
+  PRIMARY KEY (`room_id`, `user_id`),
   UNIQUE KEY `token` (`token`)
+);
+
+
+DROP TABLE IF EXISTS `room_score`;
+CREATE TABLE `room_score` (
+  `user_id` bigint NOT NULL,
+  `room_id` bigint NOT NULL,
+  `score` int DEFAULT NULL,
+  `perfect_count` int DEFAULT NULL,
+  `great_count` int DEFAULT NULL,
+  `good_count` int DEFAULT NULL,
+  `bad_count` int DEFAULT NULL,
+  `miss_count` int DEFAULT NULL,
+  PRIMARY KEY (`room_id`, `user_id`)
 );

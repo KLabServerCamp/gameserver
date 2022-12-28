@@ -10,13 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
 from .db import engine
-
-"""
-Constants
-"""
-
-
-MAX_USER_COUNT = 4
+from .config import JUDGE_COLUMNS, MAX_USER_COUNT
 
 
 """
@@ -125,19 +119,11 @@ class ResultUser(BaseModel):
 
 
 def commit(conn):
-    conn.execute(
-            text(
-                "COMMIT"
-            )
-        )
+    conn.execute(text("COMMIT"))
 
 
 def rollback(conn):
-    conn.execute(
-            text(
-                "ROLLBACK"
-            )
-        )
+    conn.execute(text("ROLLBACK"))
 
 
 def create_user(name: str, leader_card_id: int) -> str:
@@ -270,9 +256,7 @@ def _get_room_by_room_id(conn, room_id: int, rock: bool = False) -> Optional[Roo
     if rock:
         query += " FOR UPDATE"
     result = conn.execute(
-        text(
-            query
-        ),
+        text(query),
         {"room_id": room_id},
     )
     try:
@@ -446,26 +430,21 @@ def room_end(room_id: int, judge_count_list: list[int], score: int, token: str) 
         _room_end(conn, room_id, judge_count_list, score, token)
 
 
-def _room_end(conn, room_id: int, judge_count_list: list[int], score: int, token: str) -> None:
-    # 全員のscoreが揃ったら終わり->/room/waitで確認する
-    _ = conn.execute(
-        text("UPDATE `room_member` SET `score` = :score WHERE `room_id` = :room_id AND `token` =:token"),
-        {
-            "score": score,
-            "room_id": room_id,
-            "token": token,
-        },
-    )
-    for i, judge_count in enumerate(judge_count_list):
-        # 明らかに無駄に上書きされている->
-        _ = conn.execute(
-            text(
-                "UPDATE `room_member` SET `judge_count` = :judge_count WHERE `room_id` = :room_id AND `token` = :token"
-            ),
-            {
-                "judge_count": judge_count,
-                "room_id": room_id,
-                "token": token,
-            },
-        )
+def _room_end(
+    conn, room_id: int, judge_count_list: list[int], score: int, token: str
+) -> None:
+    user = _get_user_by_token(conn, token)
+    query1 = "INSERT INTO `room_score` (`score`, `room_id`, `user_id`"
+    query2 = "VALUES (:score, :room_id, :user_id"
+    d1 = {"score": score, "room_id": room_id, "user_id": user.id}
+
+    for column, judge_count in zip(JUDGE_COLUMNS, judge_count_list):
+        query1 += ", `" + column + "`"
+        query2 += ", :" + column
+        d1[column] = judge_count
+
+    query1 += ") "
+    query2 += ")"
+    query = query1 + query2
+    _ = conn.execute(text(query), d1)
     return

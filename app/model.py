@@ -316,6 +316,19 @@ def wait_room(token: str, room_id: int) -> WaitRoomResult:
         return _wait_room(conn, token, room_id)
 
 
+# room/start
+def _start_room(conn, room_id: int) -> None:
+    result = conn.execute(
+        text("UPDATE `room` SET `is_playing`=true WHERE `room_id`=:room_id"),
+        {"room_id": room_id},
+    )
+
+
+def start_room(room_id: int) -> None:
+    with engine.begin() as conn:
+        _start_room(conn, room_id)
+
+
 class ResultUser(BaseModel):
     user_id: int
     judge_count_list: list[int]  # 各判定数(良い判定から昇順)

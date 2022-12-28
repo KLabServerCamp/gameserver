@@ -29,5 +29,6 @@ CREATE TABLE `room_member` (
   `is_host` boolean NOT NULL,
   `score` int DEFAULT 0,
   `end_playing` boolean NOT NULL DEFAULT false,
+  `judge_count_list` json DEFAULT NULL,
   PRIMARY KEY (`room_id`, `user_id`)
 );

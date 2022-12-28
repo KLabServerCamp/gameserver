@@ -287,3 +287,27 @@ def start_room(token: str, room_id: int) -> None:
             text("UPDATE `room` SET status=:status WHERE room_id=:room_id"),
             {"status": WaitRoomStatus.LiveStart.value, "room_id": room_id},
         )
+
+
+def end_room(token: str, room_id: int, judge_count_list: list[int], score: int) -> None:
+    user = get_user_by_token(token)
+    if user is None:
+        raise InvalidToken
+    user_id = user.id
+    judge_count_list = json.dumps(judge_count_list)
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                """
+                UPDATE `room_member` SET 
+                judge_count_list:=judge_count_list, score=:score
+                WHERE room_id=:room_id AND user_id=:user_id
+                """
+            ),
+            {
+                "judge_count_list": judge_count_list,
+                "score": score,
+                "room_id": room_id,
+                "user_id": user_id,
+            },
+        )

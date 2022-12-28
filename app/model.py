@@ -2,19 +2,17 @@
 import uuid
 
 from enum import IntEnum
-from typing import  Optional
+from typing import Optional
 
 # from fastapi import HTTPException
 from pydantic import BaseModel
-from sqlalchemy import Column, ForeignKey, Integer, String, select, text, update, insert
+from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
-from sqlalchemy.orm import declarative_base, relationship
 
 from app.config import MAX_USER_COUNT
 
 from .db import engine
 
-Base = declarative_base()
 
 # Enum
 
@@ -28,23 +26,8 @@ class LiveDifficulty(IntEnum):
 # User
 
 
-class UserTable(Base):
-    __tablename__ = "user"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(255), nullable=True)
-    token = Column(String(255), nullable=True, unique=True)
-    leader_card_id = Column(Integer, nullable=True)
-
-    room_member = relationship("RoomMemberTable", back_populates="user")
-
-
 class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げる"""
-
-
-class UserNotFound(Exception):
-    """指定されたtokenに対応するユーザーが見つからなかったときに投げる"""
 
 
 class SafeUser(BaseModel):
@@ -68,11 +51,11 @@ def create_user(name: str, leader_card_id: int) -> str:
         _ = conn.execute(
             text(
                 """
-                    INSERT
-                        INTO
-                            `user` (name, token, leader_card_id)
-                        VALUES
-                            (:name, :token, :leader_card_id)
+                INSERT
+                    INTO
+                        `user` (`name`, `token`, `leader_card_id`)
+                    VALUES
+                        (:name, :token, :leader_card_id)
                 """
             ),
             {"name": name, "token": token, "leader_card_id": leader_card_id},
@@ -82,12 +65,25 @@ def create_user(name: str, leader_card_id: int) -> str:
 
 
 def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
-    res = conn.execute(select(UserTable).where(UserTable.token == token))
+    res = conn.execute(
+        text(
+            """
+            SELECT
+                `id`,
+                `name`,
+                `leader_card_id`
+            FROM
+                `user`
+            WHERE
+                `token` = :token
+            """
+        ),
+        {"token": token},
+    )
     try:
         row = res.one()
     except NoResultFound:
         return None
-    # return row
     return SafeUser.from_orm(row)
 
 
@@ -97,28 +93,31 @@ def get_user_by_token(token: str) -> Optional[SafeUser]:
 
 
 def update_user(token: str, name: str, leader_card_id: int) -> None:
-    # このコードを実装してもらう
     with engine.begin() as conn:
         return _update_user(conn=conn, token=token, name=name, leader_card_id=leader_card_id)
 
 
 def _update_user(conn, token: str, name: str, leader_card_id: int) -> None:
-    _ = conn.execute(update(UserTable).where(UserTable.token == token).values(name=name, leader_card_id=leader_card_id))
+    # TODO: エラーハンドリング
+    _ = conn.execute(
+        text(
+            """
+            UPDATE
+                `user`
+            SET
+                `name` = :name,
+                `leader_card_id` = :leader_card_id
+            WHERE
+                `token` = :token
+            """
+        ),
+        {"name": name, "leader_card_id": leader_card_id, "token": token}
+    )
 
     return None
 
 
 # Room
-
-
-class RoomTable(Base):
-    __tablename__ = "room"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    live_id = Column(Integer, nullable=True)
-    max_user_count = Column(Integer, nullable=True)
-
-    room_member = relationship("RoomMemberTable")
 
 
 class Room(BaseModel):
@@ -130,21 +129,7 @@ class Room(BaseModel):
         orm_mode = True
 
 
-class RoomMemberTable(Base):
-    __tablename__ = "room_member"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    room_id = Column(Integer, ForeignKey("room.id", onupdate="CASCADE", ondelete="CASCADE"))
-    user_id = Column(Integer, ForeignKey("user.id", onupdate="CASCADE", ondelete="CASCADE"))
-    select_difficulty = Column(Integer, nullable=True)
-    is_host = Column(Integer, nullable=True)
-
-    room = relationship("RoomTable", back_populates="room_member", foreign_keys=[room_id])
-    user = relationship("UserTable", back_populates="room_member", foreign_keys=[user_id])
-
-
 class RoomMember(BaseModel):
-    id: int
     room_id: int
     user_id: int
     select_difficulty: int
@@ -164,33 +149,83 @@ def create_room(token: str, live_id: int, select_difficalty: LiveDifficulty) -> 
 
 def _create_room(conn, user_id: int, live_id: int, select_difficalty: LiveDifficulty) -> Optional[int]:
 
-    res = conn.execute(insert(RoomTable).values(live_id=live_id, max_user_count=MAX_USER_COUNT))
+    res = conn.execute(
+        text(
+            """
+            INSERT
+                INTO
+                    `room` (`live_id`, `max_user_count`)
+                VALUES
+                    (:live_id, :max_user_count)
+            """
+        ),
+        {"live_id": live_id, "max_user_count": MAX_USER_COUNT}
+    )
 
     try:
         id = res.lastrowid
     except NoResultFound:
         return None
 
-    _ = conn.execute(insert(RoomMemberTable).values(room_id=id, user_id=user_id, select_difficulty=select_difficalty))
+    _ = conn.execute(
+        text(
+            """
+            INSERT
+                INTO
+                    `room_member` (`room_id`, `user_id`, `select_difficulty`)
+                VALUES
+                    (:room_id, :user_id, :select_difficulty)
+            """
+        ),
+        {"room_id": id, "user_id": user_id, "select_difficulty": select_difficalty}
+    )
     return id
 
 
 # room 一覧
 def get_room_list(live_id: int) -> list[Room]:
     with engine.begin() as conn:
-        if live_id == 0:
-            res = conn.execute(select(RoomTable))
-        else:
-            res = conn.execute(select(RoomTable).where(RoomTable.live_id == live_id))
+
+        stmt = \
+            """
+            SELECT
+                `id`,
+                `live_id`,
+                `max_user_count`
+            FROM
+                `room`
+            """
+
+        if live_id != 0:
+            stmt += \
+                """
+                WHERE
+                    `live_id` = :live_id
+                """
+
+        res = conn.execute(
+            text(stmt),
+            {"live_id": live_id}
+        )
+
         return [Room.from_orm(row) for row in res]
 
 
 def get_room_members(room_id: int) -> list[RoomMember]:
     with engine.begin() as conn:
-        res = conn.execute(select(RoomMemberTable).where(RoomMemberTable.room_id == room_id))
+        res = conn.execute(
+            text(
+                """
+                SELECT
+                    `room_id`,
+                    `user_id`,
+                    `select_difficulty`
+                FROM
+                    `room_member`
+                WHERE
+                    `room_id` = :room_id
+                """
+            ),
+            {"room_id": room_id}
+        )
         return [RoomMember.from_orm(row) for row in res]
-
-
-if __name__ == "__main__":
-    Base.metadata.drop_all(engine)
-    Base.metadata.create_all(engine)

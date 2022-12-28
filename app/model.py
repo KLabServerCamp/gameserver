@@ -288,3 +288,35 @@ def wait_room(
         room_user_list = _get_room_user_list(conn, user.id, room_id)
 
         return status, room_user_list
+
+
+def _leave_room(conn: Connection, user_id: int, room_id: int):
+    res: CursorResult = conn.execute(
+        text(
+            "DELETE FROM `room_member` WHERE `room_id` = :room_id AND `user_id` = :user_id"
+        ),
+        {"user_id": user_id, "room_id": room_id},
+    )
+
+    # disband room on host leaving
+    res: CursorResult = conn.execute(
+        text(
+            "UPDATE `room` SET `status` = :status "
+            "WHERE `id` = :room_id AND `host_id` = :user_id"
+        ),
+        {
+            "user_id": user_id,
+            "room_id": room_id,
+            "status": WaitRoomStatus.DISSOLUTION.value,
+        },
+    )
+
+
+def leave_room(token: str, room_id: int):
+    with engine.begin() as conn:
+        conn = cast(Connection, conn)
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            return
+
+        _leave_room(conn, user.id, room_id)

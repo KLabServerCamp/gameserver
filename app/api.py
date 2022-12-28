@@ -146,3 +146,11 @@ def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
     return RoomWaitResponse(status=status, room_user_list=room_user_list)
 
 
+class RoomLeaveRequest(BaseModel):
+    room_id: int
+
+
+@app.post("/room/leave", response_model=Empty)
+def room_leave(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
+    model.leave_room(token, req.room_id)
+    return {}

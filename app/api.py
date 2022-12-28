@@ -71,7 +71,7 @@ def user_update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
     """Update user attributes"""
     # print(req)
     model.update_user(token, req.user_name, req.leader_card_id)
-    return {}
+    return Empty()
 
 
 # Room API
@@ -149,4 +149,4 @@ class RoomStartRequest(BaseModel):
 def room_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
     """ルームのライブ開始リクエスト。部屋のオーナーが叩く"""
     model.start_room(token, req.room_id)
-    return Empty
+    return Empty()

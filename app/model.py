@@ -262,5 +262,22 @@ def get_room_wait_status(
         return status, room_user_list
 
 
+def _valitate_room_host(conn: Connection, user_id: int, room_id: int):
+    conn.execute(
+        text(
+            "SELECT * FROM `room_member` "
+            "WHERE `user_id`=:user_id and `room_id`=:room_id and is_host=true"
+        ), {"user_id": user_id, "room_id": room_id}
+    ).one()
+
+
 def start_room(token: str, room_id: int):
-    pass
+    with engine.begin() as conn:
+        conn: Connection
+        user = _get_user_by_token_strict(conn, token)
+        _valitate_room_host(conn, user.id, room_id)
+        conn.execute(
+            text("UPDATE `room` SET `wait_room_status`=:start WHERE `id`=:room_id and `wait_room_status`=:wait"),
+            {"room_id": room_id, "start": WaitRoomStatus.LIVE_START.value, "wait": WaitRoomStatus.WATING.value}
+        )
+

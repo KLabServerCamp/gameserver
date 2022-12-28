@@ -124,6 +124,22 @@ class ResultUser(BaseModel):
         orm_mode = True
 
 
+def commit(conn):
+    conn.execute(
+            text(
+                "COMMIT"
+            )
+        )
+
+
+def rollback(conn):
+    conn.execute(
+            text(
+                "ROLLBACK"
+            )
+        )
+
+
 def create_user(name: str, leader_card_id: int) -> str:
     """Create new user and returns their token"""
     token = str(uuid.uuid4())
@@ -208,11 +224,12 @@ def _create_room(
     user = _get_user_by_token(conn, token)
     _ = conn.execute(
         text(
-            "INSERT INTO `room_member` (name, room_id, token, is_host, select_difficulty) VALUES (:name, :room_id, :token, :is_host, :select_difficulty)"
+            "INSERT INTO `room_member` (name, room_id, user_id, token, is_host, select_difficulty) VALUES (:name, :room_id, :user_id, :token, :is_host, :select_difficulty)"
         ),
         {
             "name": user.name,
             "room_id": room_id,
+            "user_id": user.id,
             "token": token,
             "is_host": True,
             "select_difficulty": select_difficulty.value,
@@ -248,10 +265,13 @@ def _get_room_list(conn, live_id: int) -> list[RoomInfo]:
     return [RoomInfo.from_orm(row) for row in rows]
 
 
-def _get_room_by_room_id(conn, room_id: int) -> Optional[RoomInfo]:
+def _get_room_by_room_id(conn, room_id: int, rock: bool = False) -> Optional[RoomInfo]:
+    query = "SELECT `live_id`, `room_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `room_id` = :room_id"
+    if rock:
+        query += " FOR UPDATE"
     result = conn.execute(
         text(
-            "SELECT `live_id`, `room_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `room_id` = :room_id"
+            query
         ),
         {"room_id": room_id},
     )
@@ -272,28 +292,33 @@ def join_room(
 def _join_room(
     conn, room_id: int, select_difficulty: LiveDifficulty, token: str
 ) -> JoinRoomResult:
-    room = _get_room_by_room_id(conn, room_id)
+    room = _get_room_by_room_id(conn, room_id, rock=True)
     if room is None:
+        commit(conn)
         return JoinRoomResult.Disbanded
 
     if room.joined_user_count >= room.max_user_count:
+        commit(conn)
         return JoinRoomResult.RoomFull
 
     if room.status != WaitRoomStatus.Waiting.value:
+        commit(conn)
         return JoinRoomResult.OtherError
 
     # you are already in the room
     if not (_get_room_member_by_room_id_and_token(conn, room_id, token) is None):
+        commit(conn)
         return JoinRoomResult.OtherError
 
     user = _get_user_by_token(conn, token)
     _ = conn.execute(
         text(
-            "INSERT INTO `room_member` (name, room_id, token, is_host, select_difficulty) VALUES (:name, :room_id, :token, :is_host, :select_difficulty)"
+            "INSERT INTO `room_member` (name, room_id, user_id, token, is_host, select_difficulty) VALUES (:name, :room_id, :user_id, :token, :is_host, :select_difficulty)"
         ),
         {
             "name": user.name,
             "room_id": room_id,
+            "user_id": user.id,
             "token": token,
             "is_host": False,
             "select_difficulty": select_difficulty.value,
@@ -308,6 +333,8 @@ def _join_room(
             "room_id": room_id,
         },
     )
+
+    commit(conn)
 
     return JoinRoomResult.Ok
 

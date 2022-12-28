@@ -439,3 +439,33 @@ def _room_start(conn, room_id: int) -> None:
         },
     )
     return
+
+
+def room_end(room_id: int, judge_count_list: list[int], score: int, token: str) -> None:
+    with engine.begin() as conn:
+        _room_end(conn, room_id, judge_count_list, score, token)
+
+
+def _room_end(conn, room_id: int, judge_count_list: list[int], score: int, token: str) -> None:
+    # 全員のscoreが揃ったら終わり->/room/waitで確認する
+    _ = conn.execute(
+        text("UPDATE `room_member` SET `score` = :score WHERE `room_id` = :room_id AND `token` =:token"),
+        {
+            "score": score,
+            "room_id": room_id,
+            "token": token,
+        },
+    )
+    for i, judge_count in enumerate(judge_count_list):
+        # 明らかに無駄に上書きされている->
+        _ = conn.execute(
+            text(
+                "UPDATE `room_member` SET `judge_count` = :judge_count WHERE `room_id` = :room_id AND `token` = :token"
+            ),
+            {
+                "judge_count": judge_count,
+                "room_id": room_id,
+                "token": token,
+            },
+        )
+    return

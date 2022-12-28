@@ -3,7 +3,6 @@ from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from .. import model
-from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 
 router = APIRouter()
 bearer = HTTPBearer()
@@ -55,6 +54,12 @@ class RoomStartRequest(BaseModel):
     room_id: int
 
 
+class RoomEndRequest(BaseModel):
+    room_id: int
+    judge_count_list: list[int]
+    score: int
+
+
 class Empty(BaseModel):
     pass
 
@@ -85,4 +90,10 @@ def room_wait(req: RoomWaitRequest, token=Depends(get_auth_token)):
 @router.post("/room/start", tags=["room"], response_model=Empty)
 def room_start(req: RoomStartRequest):
     model.room_start(req.room_id)
+    return {}
+
+
+@router.post("/room/end", tags=["room"], response_model=Empty)
+def room_end(req: RoomEndRequest, token=Depends(get_auth_token)):
+    model.room_end(req.room_id, req.judge_count_list, req.score, token)
     return {}

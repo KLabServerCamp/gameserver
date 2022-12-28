@@ -458,3 +458,19 @@ def store_result(room_id: int, user_id: int, score: int, judge_count: list[int])
             return False
 
         return True
+
+
+def get_result(room_id: int) -> Optional[RoomMember]:
+    with engine.begin() as conn:
+        room = _get_room(conn, room_id)
+        if room is None:
+            return None
+
+        if room.live_status != WaitRoomStatus.LiveStart:
+            return None
+
+        members = _get_room_members(conn, room_id)
+        if members is None:
+            return None
+
+        return members

@@ -1,5 +1,6 @@
 # from enum import Enum
 
+import json
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
@@ -223,3 +224,18 @@ def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
         raise HTTPException(status_code=404)
 
     return {}
+
+
+class RoomResultRequest(BaseModel):
+    room_id: int
+
+
+@app.post("/room/result", response_model=list[ResultUser])
+def room_result(req: RoomResultRequest):
+    """Get result of a room"""
+
+    res = model.get_result(req.room_id)
+    if res is None:
+        raise HTTPException(status_code=404)
+
+    return [ResultUser(user_id=r.user_id, judge_count_list=json.loads(r.judge_count_list), score=r.score) for r in res]

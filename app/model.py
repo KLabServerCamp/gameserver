@@ -257,3 +257,33 @@ def get_room_users(room_id: int):
     except NoResultFound:
         return None
     return [RoomUser.from_orm(row) for row in rows]
+
+
+def _validate_user_host(token: str, room_id: int) -> bool:
+    user = get_user_by_token(token)
+    if user is None:
+        raise InvalidToken
+    user_id = user.id
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT `is_host` FROM `room_member` WHERE `room_id`=:room_id AND `user_id`=:user_id"
+            ),
+            {"room_id": room_id, "user_id": user_id},
+        )
+    try:
+        return result.one().is_host
+    except NoResultFound:
+        return False
+
+
+def start_room(token: str, room_id: int) -> None:
+    # hostでなければInvalidTokenを返す
+    if not _validate_user_host(token, room_id):
+        raise InvalidToken
+
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("UPDATE `room` SET status=:status WHERE room_id=:room_id"),
+            {"status": WaitRoomStatus.LiveStart.value, "room_id": room_id},
+        )

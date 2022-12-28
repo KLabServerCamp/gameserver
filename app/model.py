@@ -132,7 +132,6 @@ def create_room(
     token: str,
 ) -> int:
     """Create new room and returns their room_id"""
-    # NOTE: tokenが衝突したらリトライする必要がある.
     with engine.begin() as conn:
         result = conn.execute(
             text(
@@ -169,7 +168,6 @@ def get_room_list(live_id: int) -> list[RoomInfo]:
         return _get_room_list(conn, live_id)
 
 
-# TODO: join_room
 def join_room(
     token: str, room_id: int, select_difficulty: LiveDifficulty, is_host: bool = False
 ) -> JoinRoomResult:
@@ -177,7 +175,9 @@ def join_room(
         # get num of joined user in a room
         # and return JoinRoomResult except for Ok if exceeds
         result = conn.execute(
-            text("SELECT joined_user_count FROM `room` WHERE `room_id`=:room_id"),
+            text(
+                "SELECT joined_user_count, status FROM `room` WHERE `room_id`=:room_id"
+            ),
             {"room_id": room_id},
         )
         try:
@@ -206,24 +206,23 @@ def _create_room_member(
     conn, token, room_id: int, select_difficulty: LiveDifficulty, is_host: bool
 ) -> None:
     user = get_user_by_token(token)
-    with engine.begin() as conn:
-        result = conn.execute(
-            text(
-                """
-                INSERT INTO `room_member`
-                (room_id, user_id, user_name, leader_card_id, select_difficulty, is_host)
-                VALUES (:room_id, :user_id, :user_name, :leader_card_id, :select_difficulty, :is_host)
-                """
-            ),
-            {
-                "room_id": room_id,
-                "user_id": user.id,
-                "user_name": user.name,
-                "leader_card_id": user.leader_card_id,
-                "select_difficulty": select_difficulty.value,
-                "is_host": is_host,
-            },
-        )
+    result = conn.execute(
+        text(
+            """
+            INSERT INTO `room_member`
+            (room_id, user_id, user_name, leader_card_id, select_difficulty, is_host)
+            VALUES (:room_id, :user_id, :user_name, :leader_card_id, :select_difficulty, :is_host)
+            """
+        ),
+        {
+            "room_id": room_id,
+            "user_id": user.id,
+            "user_name": user.name,
+            "leader_card_id": user.leader_card_id,
+            "select_difficulty": select_difficulty.value,
+            "is_host": is_host,
+        },
+    )
 
 
 def _update_room_joined_user_count(conn, room_id: int) -> None:

@@ -22,10 +22,11 @@ CREATE TABLE `room` (
 DROP TABLE IF EXISTS `room_user`;
 CREATE TABLE `room_user` (
   `room_id` bigint NOT NULL,
-  `id` bigint NOT NULL,
+  `user_id` bigint NOT NULL,
   `select_difficulty` int NOT NULL,
   `is_host` boolean NOT NULL,
-  PRIMARY KEY (`room_id`),
-  UNIQUE KEY `id` (`id`)
+  `judge_count_list` int DEFAULT NULL,
+  `score` int DEFAULT 0,
+  PRIMARY KEY (`room_id`, `user_id`)
 );
 

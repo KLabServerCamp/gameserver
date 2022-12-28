@@ -99,14 +99,18 @@ def _create_room(
     )
 
     room_id = result.lastrowid
-    id = user.id
+    user_id = user.id
 
     # room_userテーブルにユーザー追加
     result = conn.execute(
         text(
-            "INSERT INTO `room_user` SET `room_id`=:room_id, `id`=:id, `select_difficulty`=:select_difficulty, `is_host`=true"
+            "INSERT INTO `room_user` SET `room_id`=:room_id, `user_id`=:user_id, `select_difficulty`=:select_difficulty, `is_host`=true"
         ),
-        {"room_id": room_id, "id": id, "select_difficulty": int(select_difficulty)},
+        {
+            "room_id": room_id,
+            "user_id": user_id,
+            "select_difficulty": int(select_difficulty),
+        },
     )
     return room_id
 
@@ -130,7 +134,7 @@ class RoomInfo(BaseModel):
         orm_mode = True
 
 
-def _list_room(conn, token: str, live_id: int) -> list[RoomInfo]:
+def _list_room(conn, live_id: int) -> list[RoomInfo]:
     """ルーム一覧を取得 live_id=LIVE_ID_NULLで全部屋"""
     if live_id == LIVE_ID_NULL:
         res = conn.execute(
@@ -143,7 +147,7 @@ def _list_room(conn, token: str, live_id: int) -> list[RoomInfo]:
             text(
                 "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `joined_user_count` < `max_user_count` AND live_id=:live_id"
             ),
-            {"live_id", live_id},
+            {"live_id": live_id},
         )
 
     rows = res.fetchall()
@@ -164,9 +168,9 @@ def _list_room(conn, token: str, live_id: int) -> list[RoomInfo]:
     return room_list
 
 
-def list_room(token: str, live_id: int) -> list[RoomInfo]:
+def list_room(live_id: int) -> list[RoomInfo]:
     with engine.begin() as conn:
-        return _list_room(conn, token=token, live_id=live_id)
+        return _list_room(conn, live_id=live_id)
 
 
 class JoinRoomResult(IntEnum):

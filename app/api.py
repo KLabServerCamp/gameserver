@@ -104,8 +104,8 @@ class RoomListResponse(BaseModel):
 
 
 @app.post("/room/list", response_model=RoomListResponse)
-def room_list(req: RoomListRequest, token: str = Depends(get_auth_token)):
-    room_info_list = model.list_room(token=token, live_id=req.live_id)
+def room_list(req: RoomListRequest):
+    room_info_list = model.list_room(live_id=req.live_id)
     return RoomListResponse(room_info_list=room_info_list)
 
 

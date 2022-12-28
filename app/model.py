@@ -115,17 +115,15 @@ class RoomTable(Base):
     __tablename__ = "room"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    live_id = Column(Integer, nullable=False)
-    max_user_count = Column(Integer, nullable=False)
-    owner_user_id = Column(Integer, ForeignKey("room_user.id", onupdate="CASCADE", ondelete="CASCADE"))
+    live_id = Column(Integer, nullable=True)
+    max_user_count = Column(Integer, nullable=True)
 
-    room_user = relationship("RoomUserTable", back_populates="room")
+    room_user = relationship("RoomUserTable")
 
 
 class Room(BaseModel):
     id: int
     live_id: int
-    owner_user_id: int
     max_user_count: int
 
     class Config:
@@ -135,14 +133,13 @@ class Room(BaseModel):
 class RoomUserTable(Base):
     __tablename__ = "room_user"
 
-    # token, room_id
     id = Column(Integer, primary_key=True, autoincrement=True)
     room_id = Column(Integer, ForeignKey("room.id", onupdate="CASCADE", ondelete="CASCADE"))
     user_token = Column(String(255), ForeignKey("user.token", onupdate="CASCADE", ondelete="CASCADE"))
     select_difficulty = Column(Integer, nullable=True)
 
-    room = relationship("RoomTable", back_populates="room_user")
-    user = relationship("User", back_populates="room_user")
+    room = relationship("RoomTable", back_populates="room_user", foreign_keys=[room_id])
+    user = relationship("UserTable", back_populates="room_user", foreign_keys=[user_token])
 
 
 class RoomUser(BaseModel):
@@ -155,26 +152,28 @@ class RoomUser(BaseModel):
         orm_mode = True
 
 
-def create_room(token: str, live_id: int, select_difficalty: LiveDifficulty) -> int:
-    return _create_room(engine, token, live_id, select_difficalty)
+def create_room(token: str, live_id: int, select_difficalty: LiveDifficulty) -> Optional[int]:
+    with engine.begin() as conn:
+        return _create_room(conn, token, live_id, select_difficalty)
 
 
-def _create_room(conn, token: str, live_id: int, select_difficalty: LiveDifficulty) -> int:
+def _create_room(conn, token: str, live_id: int, select_difficalty: LiveDifficulty) -> Optional[int]:
     user = _get_user_by_token(conn, token)
 
-    # TODO: Error handling
     if user is None:
-        pass
-        # raise UserNotFound()
-    res = conn.execute(insert(RoomTable).values(live_id=live_id, owner_user_id=user.id, max_user_count=MAX_USER_COUNT))
+        raise InvalidToken()
 
-    room = Room.from_orm(res)
-    _ = conn.execute(
-        insert(RoomUserTable).values(room_id=room.id, user_token=token, select_difficulty=select_difficalty)
-    )
+    res = conn.execute(insert(RoomTable).values(live_id=live_id, max_user_count=MAX_USER_COUNT))
 
-    return room.id
+    try:
+        id = res.inserted_primary_key[0]
+    except NoResultFound:
+        return None
+
+    _ = conn.execute(insert(RoomUserTable).values(room_id=id, user_token=token, select_difficulty=select_difficalty))
+    return id
 
 
 if __name__ == "__main__":
+    Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)

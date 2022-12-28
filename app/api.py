@@ -5,7 +5,14 @@ from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from . import model
-from .model import JoinRoomResult, LiveDifficulty, RoomInfo, RoomUser, SafeUser
+from .model import (
+    JoinRoomResult,
+    LiveDifficulty,
+    RoomInfo,
+    RoomUser,
+    SafeUser,
+    WaitRoomStatus,
+)
 
 app = FastAPI()
 
@@ -116,3 +123,20 @@ def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
     """ルーム入場リクエスト"""
     join_room_result = model.join_room(token, req.room_id, req.select_difficulty)
     return RoomJoinResponse(join_room_result=join_room_result)
+
+
+class RoomWaitRequest(BaseModel):
+    live_id: int  # 対象ルーム
+
+
+class RoomWaitResponse(BaseModel):
+    status: WaitRoomStatus  # 結果
+    room_user_list: list[RoomUser]  # ルームに居るプレイヤー一覧
+
+
+@app.post("/room/wait", response_model=RoomWaitResponse)
+def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
+    """４人集まるのを待つ（ポーリング）。APIの結果でゲーム開始がわかる"""
+    live_id = req.live_id
+    status, room_user_list = model.get_room_wait_status(token, live_id)
+    return RoomWaitResponse(status=status, room_user_list=room_user_list)

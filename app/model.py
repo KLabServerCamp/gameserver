@@ -50,11 +50,15 @@ def _get_user_by_token(conn: Connection, token: str) -> Optional[SafeUser]:
         text("SELECT `id`, `name`, `leader_card_id` FROM `user` WHERE `token`=:token"),
         {"token": token},
     )
-    try:
-        row = result.one()
-    except NoResultFound:
-        return None
-    return SafeUser.from_orm(row)
+    row = result.one_or_none()
+    return row and SafeUser.from_orm(row)
+
+
+def _get_user_by_token_strict(conn: Connection, token: str) -> SafeUser:
+    user = _get_user_by_token(conn, token)
+    if user is None:
+        raise InvalidToken
+    return user
 
 
 def get_user_by_token(token: str) -> Optional[SafeUser]:
@@ -112,6 +116,9 @@ class RoomUser(BaseModel):
     is_me: bool
     is_host: bool
 
+    class Config:
+        orm_mode = True
+
 
 class ResultUser(BaseModel):
     user_id: int
@@ -133,14 +140,11 @@ class RoomDisbandedException(RoomJoinException):
 
 def _join_room(
     conn: Connection,
-    token: str,
+    user_id: int,
     room_id: int,
     select_difficulty: LiveDifficulty,
     is_host: bool = False,
 ):
-    user = _get_user_by_token(conn, token)
-    if user is None:
-        raise InvalidToken
     room_row = conn.execute(
         text(
             "SELECT `id` as `room_id`, `live_id`, `joined_user_count`, `max_user_count`, `wait_room_status` "
@@ -169,7 +173,7 @@ def _join_room(
             "VALUES (:user_id, :room_id, :select_difficulty, :is_host)"
         ),
         {
-            "user_id": user.id,
+            "user_id": user_id,
             "room_id": room_id,
             "select_difficulty": select_difficulty.value,
             "is_host": is_host,
@@ -182,6 +186,7 @@ def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty) -> 
     # TODO: すでに部屋に入ってるかバリテーションする
     with engine.begin() as conn:
         conn: Connection
+        user = _get_user_by_token_strict(conn, token)
         result = conn.execute(
             text(
                 "INSERT INTO `room` "
@@ -196,7 +201,7 @@ def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty) -> 
             },
         )
         room_id: int = result.lastrowid
-        _join_room(conn, token, room_id, select_difficulty, True)
+        _join_room(conn, user.id, room_id, select_difficulty, True)
     return room_id
 
 
@@ -221,11 +226,36 @@ def join_room(
     try:
         with engine.begin() as conn:
             conn: Connection
-            _join_room(conn, token, room_id, select_difficulty, False)
+            user = _get_user_by_token_strict(conn, token)
+            _join_room(conn, user.id, room_id, select_difficulty, False)
     except RoomFullException:
         return JoinRoomResult.ROOM_FULL
     except RoomDisbandedException:
         return JoinRoomResult.DISBANDED
-    except Exception:
+    except RoomJoinException:
         return JoinRoomResult.OTHER_ERROR
     return JoinRoomResult.OK
+
+
+def get_room_wait_status(
+    token: str, room_id: int
+) -> tuple[WaitRoomStatus, list[RoomUser]]:
+    with engine.begin() as conn:
+        conn: Connection
+        status_result = conn.execute(
+            text("SELECT `wait_room_status` FROM `room` WHERE `id`=:room_id"),
+            {"room_id": room_id},
+        )
+        user = _get_user_by_token_strict(conn, token)
+        status = WaitRoomStatus(status_result.one()["wait_room_status"])
+        member_result = conn.execute(
+            text(
+                "SELECT `user_id`, `name`, `leader_card_id`, `select_difficulty`, "
+                "`user_id`=:user_id as `is_me`, `is_host` "
+                "FROM `room_member` INNER JOIN `user` "
+                "ON `room_id`=:room_id and `room_member`.`user_id` = `user`.`id`"
+            ),
+            {"room_id": room_id, "user_id": user.id},
+        )
+        room_user_list = list(map(RoomUser.from_orm, member_result))
+        return status, room_user_list

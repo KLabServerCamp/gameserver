@@ -15,7 +15,7 @@ CREATE TABLE `room` (
   `live_id` int DEFAULT NULL,
   `joined_user_count` int DEFAULT NULL,
   `max_user_count` int DEFAULT NULL,
-  `is_playing` boolean DEFAULT 0
+  `is_playing` boolean DEFAULT 0,
   PRIMARY KEY (`room_id`)
 );
 

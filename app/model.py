@@ -18,6 +18,10 @@ class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げる"""
 
 
+class InvalidId(Exception):
+    """指定されたIdが不正だったときに投げる"""
+
+
 class SafeUser(BaseModel):
     """token を含まないUser"""
 
@@ -88,7 +92,7 @@ def _create_room(
 ) -> Optional[int]:
     user = _get_user_by_token(conn=conn, token=token)
     if user is None:
-        return None
+        raise InvalidToken
 
     # roomテーブルに部屋追加
     result = conn.execute(
@@ -139,13 +143,13 @@ def _list_room(conn, live_id: int) -> list[RoomInfo]:
     if live_id == LIVE_ID_NULL:
         result = conn.execute(
             text(
-                "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `joined_user_count` < `max_user_count`"
+                "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `joined_user_count` < `max_user_count` AND `is_playing`=false"
             )
         )
     else:
         result = conn.execute(
             text(
-                "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `joined_user_count` < `max_user_count` AND live_id=:live_id"
+                "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `joined_user_count` < `max_user_count` AND live_id=:live_id AND `is_playing`=false"
             ),
             {"live_id": live_id},
         )
@@ -174,12 +178,12 @@ def _join_room(
 ) -> JoinRoomResult:
     user = _get_user_by_token(conn=conn, token=token)
     if user is None:
-        return JoinRoomResult.OtherError
+        raise InvalidToken
 
     # 空きがあるか確認
     result = conn.execute(
         text(
-            "SELECT `joined_user_count`, `max_user_count` FROM `room` WHERE room_id=:room_id FOR UPDATE"
+            "SELECT `joined_user_count`, `max_user_count` FROM `room` WHERE room_id=:room_id AND `is_playing`=false FOR UPDATE"
         ),
         {"room_id": room_id},
     )
@@ -246,6 +250,70 @@ class RoomUser(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class WaitRoomResult(BaseModel):
+    status: WaitRoomStatus
+    room_user_list: list[RoomUser]
+
+
+def _wait_room(conn, token: str, room_id: int) -> WaitRoomResult:
+    user = _get_user_by_token(conn=conn, token=token)
+    if user is None:
+        raise InvalidToken
+
+    result = conn.execute(
+        text("SELECT `is_playing` FROM `room` WHERE `room_id`=:room_id "),
+        {"room_id": room_id},
+    )
+    try:
+        row = result.one()
+    except NoResultFound:
+        conn.rollback()
+        return WaitRoomResult(status=WaitRoomStatus.Dissolution, room_user_list=[])
+
+    is_playing = row["is_playing"]
+
+    result = conn.execute(
+        text(
+            "SELECT `user_id`, `select_difficulty`, `is_host` FROM `room_user` WHERE `room_id`=:room_id"
+        ),
+        {
+            "room_id": room_id,
+        },
+    )
+    rows = result.fetchall()
+
+    room_user_list = []
+    for _, row in enumerate(rows):
+        is_me = row["user_id"] == user.id
+
+        result = conn.execute(
+            text("SELECT `name`, `leader_card_id` FROM `user` WHERE `id`=:user_id"),
+            {
+                "user_id": room_id,
+            },
+        )
+        u = result.one()
+        name = u["name"]
+        leader_card_id = u["leader_card_id"]
+        room_user_list.append(
+            RoomUser(**row, name=name, leader_card_id=leader_card_id, is_me=is_me)
+        )
+
+    if is_playing:
+        return WaitRoomResult(
+            status=WaitRoomStatus.LiveStart, room_user_list=room_user_list
+        )
+    else:
+        return WaitRoomResult(
+            status=WaitRoomStatus.Waiting, room_user_list=room_user_list
+        )
+
+
+def wait_room(token: str, room_id: int) -> WaitRoomResult:
+    with engine.begin() as conn:
+        return _wait_room(conn, token, room_id)
 
 
 class ResultUser(BaseModel):

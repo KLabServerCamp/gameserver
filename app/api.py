@@ -10,9 +10,8 @@ from .model import (
     LiveDifficulty,
     ResultUser,
     RoomInfo,
-    RoomUser,
     SafeUser,
-    WaitRoomStatus,
+    WaitRoomResult,
 )
 
 app = FastAPI()
@@ -129,12 +128,12 @@ def room_list(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
 
 #   room/wait
 class RoomWaitRequest(BaseModel):
-    live_id: int
+    room_id: int
 
 
-class RoomWaitResponse(BaseModel):
-    status: WaitRoomStatus
-    room_user_list: list[RoomUser]
+@app.post("/room/wait", response_model=WaitRoomResult)
+def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
+    return model.wait_room(token=token, room_id=req.room_id)
 
 
 #    room/start

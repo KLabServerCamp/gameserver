@@ -121,3 +121,19 @@ def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
         select_difficulty=req.select_difficulty,
     )
     return RoomJoinResponse(join_room_result=join_room_result)
+
+
+class RoomWaitRequest(BaseModel):
+    room_id: int
+
+
+class RoomWaitResponse(BaseModel):
+    status: model.WaitRoomStatus
+    room_user_list: list[model.RoomUser]
+
+
+@app.post("/room/wait", response_model=RoomWaitResponse)
+def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
+    status: model.RoomStatus = model.get_room_status(room_id=req.room_id)
+    room_user_list: list[RoomUser] = model.get_room_users(room_id=req.room_id)
+    return RoomWaitResponse(status=status, room_user_list=room_user_list)

@@ -118,7 +118,7 @@ class RoomInfo(BaseModel):
 class RoomUser(BaseModel):
     room_id: int
     user_id: int
-    live_difficulty: int
+    select_difficulty: int
     is_me: bool = False
     is_host: bool
 
@@ -231,3 +231,30 @@ def _update_room_joined_user_count(conn, room_id: int) -> None:
         text("UPDATE `room` SET joined_user_count=1 WHERE `room_id`=:room_id"),
         {"room_id": room_id},
     )
+
+
+def get_room_status(room_id: int):
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("SELECT `status` FROM `room` WHERE `room_id`=:room_id"),
+            {"room_id": room_id},
+        )
+    return WaitRoomStatus(result.one().status)
+
+
+def get_room_users(room_id: int):
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                """
+                SELECT `room_id`, `user_id`, `select_difficulty`, `is_host`
+                FROM `room_member` WHERE `room_id`=:room_id
+                """
+            ),
+            {"room_id": room_id},
+        )
+    try:
+        rows = result.all()
+    except NoResultFound:
+        return None
+    return [RoomUser.from_orm(row) for row in rows]

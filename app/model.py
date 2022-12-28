@@ -262,12 +262,15 @@ def get_room_wait_status(
         return status, room_user_list
 
 
-def _valitate_room_host(conn: Connection, user_id: int, room_id: int):
+def _valitate_room_member(
+    conn: Connection, user_id: int, room_id: int, is_host: bool = False
+):
     conn.execute(
         text(
-            "SELECT * FROM `room_member` "
-            "WHERE `user_id`=:user_id and `room_id`=:room_id and is_host=true"
-        ), {"user_id": user_id, "room_id": room_id}
+            "SELECT * FROM `room_member` WHERE `user_id`=:user_id and `room_id`=:room_id "
+            f"{'and is_host=true' if is_host else ''}"
+        ),
+        {"user_id": user_id, "room_id": room_id},
     ).one()
 
 
@@ -275,9 +278,43 @@ def start_room(token: str, room_id: int):
     with engine.begin() as conn:
         conn: Connection
         user = _get_user_by_token_strict(conn, token)
-        _valitate_room_host(conn, user.id, room_id)
-        conn.execute(
-            text("UPDATE `room` SET `wait_room_status`=:start WHERE `id`=:room_id and `wait_room_status`=:wait"),
-            {"room_id": room_id, "start": WaitRoomStatus.LIVE_START.value, "wait": WaitRoomStatus.WATING.value}
+        _valitate_room_member(conn, user.id, room_id, True)
+        result = conn.execute(
+            text(
+                "UPDATE `room` SET `wait_room_status`=:start WHERE `id`=:room_id and `wait_room_status`=:wait"
+            ),
+            {
+                "room_id": room_id,
+                "start": WaitRoomStatus.LIVE_START.value,
+                "wait": WaitRoomStatus.WATING.value,
+            },
         )
+        if result.rowcount != 1:
+            raise Exception
 
+
+# TODO: これメンバーが強制終了したらライブが終わらなくない?
+
+
+def end_room(token: str, room_id: int, judge_count_list: list[int], score: int):
+    with engine.begin() as conn:
+        conn: Connection
+        user = _get_user_by_token_strict(conn, token)
+        result = conn.execute(
+            text(
+                "UPDATE `room_member` SET `judge_count_list`=:judge_count_list, `score`=:score "
+                "WHERE `user_id`=:user_id and `room_id`=:room_id"
+            ),
+            {
+                "judge_count_list": json.dumps(judge_count_list),
+                "score": score,
+                "user_id": user.id,
+                "room_id": room_id,
+            },
+        )
+        if result.rowcount != 1:
+            raise Exception
+
+
+def get_room_result(token: str, room_id: int) -> list[ResultUser]:
+    pass

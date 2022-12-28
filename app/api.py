@@ -8,6 +8,7 @@ from . import model
 from .model import (
     JoinRoomResult,
     LiveDifficulty,
+    ResultUser,
     RoomInfo,
     RoomUser,
     SafeUser,
@@ -150,3 +151,31 @@ def room_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
     """ルームのライブ開始リクエスト。部屋のオーナーが叩く"""
     model.start_room(token, req.room_id)
     return Empty()
+
+
+class RoomEndtRequest(BaseModel):
+    room_id: int  # 対象ルーム
+    judge_count_list: list[int]  # 各判定数
+    score: int  # スコア
+
+
+@app.post("/room/end", response_model=Empty)
+def room_end(req: RoomEndtRequest, token: str = Depends(get_auth_token)):
+    """ルームのライブ終了時リクエスト。ゲームが終わったら各人が叩く。"""
+    model.end_room(token, req.room_id, req.judge_count_list, req.score)
+    return Empty()
+
+
+class RoomResultRequest(BaseModel):
+    room_id: int  # 対象ルーム
+
+
+class RoomResultResponse(BaseModel):
+    result_user_list: list[ResultUser]  # 自身を含む各ユーザーの結果。※全員揃っていない待機中は[]が返却される想定
+
+
+@app.post("/room/result", response_model=RoomResultResponse)
+def room_result(req: RoomResultRequest, token: str = Depends(get_auth_token)):
+    """ルームのライブ終了後。end 叩いたあとにこれをポーリングする。 クライアントはn秒間隔で投げる想定。"""
+    result_user_list = model.get_room_result(token, req.room_id)
+    return RoomResultResponse(result_user_list=result_user_list)

@@ -23,6 +23,8 @@ CREATE TABLE `room_member` (
   `room_id` bigint NOT NULL,
   `select_difficulty` int DEFAULT NULL,
   `is_host` boolean NOT NULL DEFAULT false,
+  `judge_count_list` json DEFAULT NULL,
+  `score` int DEFAULT NULL,
   FOREIGN KEY (`user_id`) REFERENCES `user` (`id`),
   FOREIGN KEY (`room_id`) REFERENCES `room` (`id`),
   PRIMARY KEY (`user_id`, `room_id`)

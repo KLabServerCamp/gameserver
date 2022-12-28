@@ -4,8 +4,8 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
-from . import model
-from .model import SafeUser
+from .models import user_impl
+from .models.model import SafeUser
 from .routers import room_api
 
 app = FastAPI()
@@ -34,7 +34,7 @@ class UserCreateResponse(BaseModel):
 @app.post("/user/create", response_model=UserCreateResponse)
 def user_create(req: UserCreateRequest):
     """新規ユーザー作成"""
-    token = model.create_user(req.user_name, req.leader_card_id)
+    token = user_impl.create_user(req.user_name, req.leader_card_id)
     return UserCreateResponse(user_token=token)
 
 
@@ -50,7 +50,7 @@ def get_auth_token(cred: HTTPAuthorizationCredentials = Depends(bearer)) -> str:
 
 @app.get("/user/me", response_model=SafeUser)
 def user_me(token: str = Depends(get_auth_token)):
-    user = model.get_user_by_token(token)
+    user = user_impl.get_user_by_token(token)
     if user is None:
         raise HTTPException(status_code=404)
     # print(f"user_me({token=}, {user=})")
@@ -65,5 +65,5 @@ class Empty(BaseModel):
 def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
     """Update user attributes"""
     # print(req)
-    model.update_user(token, req.user_name, req.leader_card_id)
+    user_impl.update_user(token, req.user_name, req.leader_card_id)
     return {}

@@ -103,10 +103,8 @@ class RoomListResponse(BaseModel):
 
 
 @app.post("/room/list", response_model=RoomListResponse)
-def room_list(req: RoomListRequest, token: str = Depends(get_auth_token)):
-    room_info_list = model.get_room_list(token, req.live_id)
-    if room_info_list is None:
-        raise HTTPException(status_code=404)
+def room_list(req: RoomListRequest):
+    room_info_list = model.get_room_list(req.live_id)
     return RoomListResponse(room_info_list=room_info_list)
 
 

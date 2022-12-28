@@ -234,12 +234,9 @@ def _get_room_list_by_live_id(conn: Connection, live_id: int) -> list[RoomInfo]:
     return [RoomInfo(**row) for row in res]
 
 
-def get_room_list(token: str, live_id: int) -> Optional[list[RoomInfo]]:
+def get_room_list(live_id: int) -> list[RoomInfo]:
     with engine.begin() as conn:
         conn = cast(Connection, conn)
-        user = _get_user_by_token(conn, token)
-        if user is None:
-            return None
 
         return _get_room_list_by_live_id(conn, live_id)
 

@@ -15,7 +15,7 @@ CREATE TABLE `room` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `owner_id` bigint NOT NULL,
   `live_id` int NOT NULL,
-  PRIMARY KEY (`id`),
+  PRIMARY KEY (`id`)
 );
 
 CREATE TABLE `room_member` (
@@ -24,6 +24,3 @@ CREATE TABLE `room_member` (
   `select_difficulty` int NOT NULL,
   PRIMARY KEY (`room_id`, `user_id`)
 );
-
-
-

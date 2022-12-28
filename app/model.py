@@ -10,6 +10,8 @@ from sqlalchemy.exc import NoResultFound
 
 from .db import engine
 
+MAX_USER_COUNT = 4
+
 
 class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げる"""
@@ -40,9 +42,9 @@ class SafeUser(BaseModel):
 
 class RoomInfo(BaseModel):
     room_id: int
-    live_id: Optional[int]
-    joined_user_count: Optional[int]
-    max_user_count: Optional[int]
+    live_id: int
+    joined_user_count: int
+    max_user_count: int
 
 
 class RoomUser(BaseModel):
@@ -144,3 +146,26 @@ def create_room(user_id: int, live_id: int, select_difficulty: LiveDifficulty) -
         _join_room(conn, user_id, room_id, select_difficulty)
 
     return room_id
+
+
+def list_room(live_id: int) -> List[RoomInfo]:
+    with engine.begin() as conn:
+        results = conn.execute(
+            text("SELECT * FROM `room` WHERE live_id=:live_id"), {"live_id": live_id}
+        )
+        room_info_list = List[RoomInfo]
+        for row in results:
+            room_id = row["id"]
+            result = conn.execute(
+                text("SELECT COUNT(1) FROM `room_member` WHERE `room_id`=:room_id"),
+                {"room_id": room_id},
+            )
+            joined_user_count = result.one()[0]
+            room_info = RoomInfo.from_orm(
+                room_id=room_id,
+                live_id=live_id,
+                joined_user_count=joined_user_count,
+                max_user_count=MAX_USER_COUNT,
+            )
+            room_info_list.append(room_info)
+    return room_info_list

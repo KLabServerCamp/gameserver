@@ -18,9 +18,15 @@ from .db import engine
 
 
 class LiveDifficulty(IntEnum):
-
     easy = 1
     normal = 2
+
+
+class JoinRoomResult(IntEnum):
+    Ok = 1
+    RoomFull = 2
+    Disbanded = 3
+    OtherError = 4
 
 
 # User
@@ -111,7 +117,7 @@ def _update_user(conn, token: str, name: str, leader_card_id: int) -> None:
                 `token` = :token
             """
         ),
-        {"name": name, "leader_card_id": leader_card_id, "token": token}
+        {"name": name, "leader_card_id": leader_card_id, "token": token},
     )
 
     return None
@@ -123,7 +129,6 @@ def _update_user(conn, token: str, name: str, leader_card_id: int) -> None:
 class Room(BaseModel):
     id: int
     live_id: int
-    max_user_count: int
 
     class Config:
         orm_mode = True
@@ -138,28 +143,28 @@ class RoomMember(BaseModel):
         orm_mode = True
 
 
-def create_room(token: str, live_id: int, select_difficalty: LiveDifficulty) -> Optional[int]:
+def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty) -> Optional[int]:
     with engine.begin() as conn:
         user_id = _get_user_by_token(conn, token).id
-        return _create_room(conn, user_id, live_id, select_difficalty)
+        return _create_room(conn, user_id, live_id, select_difficulty)
 
 
 # TODO: 人数確認
 
 
-def _create_room(conn, user_id: int, live_id: int, select_difficalty: LiveDifficulty) -> Optional[int]:
+def _create_room(conn, user_id: int, live_id: int, select_difficulty: LiveDifficulty) -> Optional[int]:
 
     res = conn.execute(
         text(
             """
             INSERT
                 INTO
-                    `room` (`live_id`, `max_user_count`)
+                    `room` (`live_id`)
                 VALUES
-                    (:live_id, :max_user_count)
+                    (:live_id)
             """
         ),
-        {"live_id": live_id, "max_user_count": MAX_USER_COUNT}
+        {"live_id": live_id},
     )
 
     try:
@@ -172,12 +177,12 @@ def _create_room(conn, user_id: int, live_id: int, select_difficalty: LiveDiffic
             """
             INSERT
                 INTO
-                    `room_member` (`room_id`, `user_id`, `select_difficulty`)
+                    `room_member` (`room_id`, `user_id`, `select_difficulty`, `is_host`)
                 VALUES
-                    (:room_id, :user_id, :select_difficulty)
+                    (:room_id, :user_id, :select_difficulty, :is_host)
             """
         ),
-        {"room_id": id, "user_id": user_id, "select_difficulty": select_difficalty}
+        {"room_id": id, "user_id": user_id, "select_difficulty": select_difficulty.value, "is_host": True},
     )
     return id
 
@@ -186,46 +191,83 @@ def _create_room(conn, user_id: int, live_id: int, select_difficalty: LiveDiffic
 def get_room_list(live_id: int) -> list[Room]:
     with engine.begin() as conn:
 
-        stmt = \
-            """
+        stmt = """
             SELECT
                 `id`,
-                `live_id`,
-                `max_user_count`
+                `live_id`
             FROM
                 `room`
             """
 
         if live_id != 0:
-            stmt += \
-                """
+            stmt += """
                 WHERE
                     `live_id` = :live_id
                 """
 
-        res = conn.execute(
-            text(stmt),
-            {"live_id": live_id}
-        )
+        res = conn.execute(text(stmt), {"live_id": live_id})
 
         return [Room.from_orm(row) for row in res]
 
 
 def get_room_members(room_id: int) -> list[RoomMember]:
     with engine.begin() as conn:
-        res = conn.execute(
-            text(
-                """
-                SELECT
-                    `room_id`,
-                    `user_id`,
-                    `select_difficulty`
-                FROM
-                    `room_member`
-                WHERE
-                    `room_id` = :room_id
-                """
-            ),
-            {"room_id": room_id}
-        )
+        res = _get_room_members(conn, room_id)
         return [RoomMember.from_orm(row) for row in res]
+
+
+def _get_room_members(conn, room_id: int) -> list[RoomMember]:
+    res = conn.execute(
+        text(
+            """
+            SELECT
+                `room_id`,
+                `user_id`,
+                `select_difficulty`
+            FROM
+                `room_member`
+            WHERE
+                `room_id` = :room_id
+            """
+        ),
+        {"room_id": room_id},
+    )
+    return res
+
+
+def join_room(token: str, room_id: int, select_difficulty: LiveDifficulty) -> JoinRoomResult:
+    # TODO : lock
+    with engine.begin() as conn:
+        # user_id = _get_user_by_token(conn, token).id
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            return JoinRoomResult.OtherError
+
+        res = _get_room_members(conn, room_id)
+        users = [RoomMember.from_orm(row) for row in res]
+        if len(users) >= MAX_USER_COUNT:
+            return JoinRoomResult.RoomFull
+
+        # TODO :エラーハンドリング
+        try:
+            conn.execute(
+                text(
+                    """
+                    INSERT
+                        INTO
+                            `room_member` (`room_id`, `user_id`, `select_difficulty`, `is_host`)
+                        VALUES
+                            (:room_id, :user_id, :select_difficulty, :is_host)
+                    """
+                ),
+                {
+                    "room_id": room_id,
+                    "user_id": user.id,
+                    "select_difficulty": select_difficulty.value,
+                    "is_host": False,
+                },
+            )
+        except Exception:
+            return JoinRoomResult.OtherError
+
+        return JoinRoomResult.Ok

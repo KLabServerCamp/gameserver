@@ -29,7 +29,7 @@ class RoomListRequest(BaseModel):
 
 
 class RoomListResponse(BaseModel):
-    room_list: list[model.RoomInfo]
+    room_info_list: list[model.RoomInfo]
 
 
 class RoomJoinRequest(BaseModel):
@@ -81,7 +81,7 @@ def room_create(req: RoomCreateRequest, token=Depends(get_auth_token)):
 
 @router.post("/room/list", tags=["room"], response_model=RoomListResponse)
 def room_list(req: RoomListRequest):
-    return RoomListResponse(room_list=room_impl.get_room_list(req.live_id))
+    return RoomListResponse(room_info_list=room_impl.get_room_list(req.live_id))
 
 
 @router.post("/room/join", tags=["room"], response_model=RoomJoinResponse)

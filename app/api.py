@@ -108,3 +108,21 @@ def room_list(req: RoomListRequest, token: str = Depends(get_auth_token)):
     if room_info_list is None:
         raise HTTPException(status_code=404)
     return RoomListResponse(room_info_list=room_info_list)
+
+
+class RoomJoinRequest(BaseModel):
+    room_id: int
+    select_difficulty: LiveDifficulty
+
+
+class RoomJoinResponse(BaseModel):
+    join_room_result: JoinRoomResult
+
+
+@app.post("/room/join", response_model=RoomJoinResponse)
+def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
+    join_room_result = model.join_room(token, req.room_id, req.select_difficulty)
+    if join_room_result is None:
+        raise HTTPException(status_code=404)
+    return RoomJoinResponse(join_room_result=join_room_result)
+

@@ -239,3 +239,16 @@ def get_room_list(token: str, live_id: int) -> Optional[list[RoomInfo]]:
             return None
 
         return _get_room_list_by_live_id(conn, live_id)
+
+
+def join_room(
+    token: str, room_id: int, select_difficulty: LiveDifficulty
+) -> Optional[JoinRoomResult]:
+    with engine.begin() as conn:
+        conn = cast(Connection, conn)
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            return None
+
+        return _join_room(conn, user.id, room_id, select_difficulty)
+

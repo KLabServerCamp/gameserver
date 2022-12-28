@@ -1,7 +1,7 @@
 import json
 import uuid
 from enum import Enum, IntEnum
-from typing import Optional
+from typing import Optional, Union
 
 from fastapi import HTTPException
 from pydantic import BaseModel, Json
@@ -122,7 +122,7 @@ class RoomUser(BaseModel):
 
 class ResultUser(BaseModel):
     user_id: int
-    judge_count_list: Json[list[int]]
+    judge_count_list: Union[Json[list[int]], list[int]]
     score: int
 
     class Config:
@@ -326,9 +326,9 @@ def get_room_result(token: str, room_id: int) -> list[ResultUser]:
         joined_user_count = conn.execute(
             text(
                 "SELECT `joined_user_count` from `room` "
-                "WHERE `room_id`=:room_id and `wait_room_status`=:start"
+                "WHERE `id`=:room_id and `wait_room_status`=:start"
             ),
-            {"room_id": room_id, "start": WaitRoomStatus.LIVE_START},
+            {"room_id": room_id, "start": WaitRoomStatus.LIVE_START.value},
         ).one()["joined_user_count"]
         result = conn.execute(
             text(

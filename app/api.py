@@ -28,6 +28,9 @@ class UserCreateRequest(BaseModel):
 class UserCreateResponse(BaseModel):
     user_token: str
 
+class RoomCreateRequest(BaseModel):
+    room_id: int
+
 
 @app.post("/user/create", response_model=UserCreateResponse)
 def user_create(req: UserCreateRequest):
@@ -65,4 +68,12 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
     # print(req)
     model.update_user(token, req.user_name, req.leader_card_id)
     return {}
-sel
+
+#ルーム作成
+@app.get("/room/create", response_model=RoomCreateRequest)
+def room_create(token: str = Depends(get_auth_token)):
+    user = model.
+    if user is None:
+        raise HTTPException(status_code=404)
+    # print(f"user_me({token=}, {user=})")
+    return user

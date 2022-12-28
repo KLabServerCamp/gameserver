@@ -156,6 +156,24 @@ def list_room(live_id: int):
         return room_info_list
 
 
+
+# class JoinRoomResult(Enum):
+#     Ok = 1  # 入場OK
+#     RoomFull = 2  # 満員
+#     Disbanded = 3  # 解散済み
+#     OtherError = 4  # その他エラー
+    
+# class RoomJoinResponse(BaseModel):
+#     join_room_result: JoinRoomResult
+
+
+# @app.post("/room/join", response_model=RoomJoinResponse)
+# def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
+#     user = model.get_user_by_token(token)
+#     join_room_result = model.join_room(user.id, req.room_id, req.select_difficulty)
+#     return RoomJoinResponse(join_room_result=join_room_result)
+
+
 def _join_room(
     conn,
     user_id: int,
@@ -174,7 +192,9 @@ def _join_room(
             "is_host": is_host,
         },
     )
-    return JoinRoomResult.Ok.value
+    return JoinRoomResult.Ok
+
+
 
 
 def join_room(

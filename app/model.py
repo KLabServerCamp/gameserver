@@ -124,7 +124,7 @@ def _join_room(
             "select_difficulty": select_difficulty.value,
         },
     )
-    return JoinRoomResult(1)
+    return JoinRoomResult.Ok
 
 
 def join_room(
@@ -149,23 +149,29 @@ def create_room(user_id: int, live_id: int, select_difficulty: LiveDifficulty) -
 
 
 def list_room(live_id: int) -> List[RoomInfo]:
+    room_info_list = []
     with engine.begin() as conn:
-        results = conn.execute(
-            text("SELECT * FROM `room` WHERE live_id=:live_id"), {"live_id": live_id}
-        )
-        room_info_list = List[RoomInfo]
-        for row in results:
-            room_id = row["id"]
+        if live_id == 0:   #ワイルドカード
+            result = conn.execute(text("SELECT * FROM `room`"))
+        else:
             result = conn.execute(
+                text("SELECT * FROM `room` WHERE `live_id`=:live_id"), {"live_id": live_id}
+            )
+
+        for row in result.all():
+            room_id = row["id"]
+            res = conn.execute(
                 text("SELECT COUNT(1) FROM `room_member` WHERE `room_id`=:room_id"),
                 {"room_id": room_id},
             )
-            joined_user_count = result.one()[0]
-            room_info = RoomInfo.from_orm(
+            joined_user_count = res.one()[0]
+
+            room_info = RoomInfo(
                 room_id=room_id,
                 live_id=live_id,
                 joined_user_count=joined_user_count,
                 max_user_count=MAX_USER_COUNT,
             )
             room_info_list.append(room_info)
+            
     return room_info_list

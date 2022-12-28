@@ -148,35 +148,12 @@ def list_room(live_id: int):
         try:
             rows = result.all()
         except NoResultFound:
-            return None
+            return []
 
         for row in rows:
             room_info = RoomInfo.from_orm(row)
             room_info_list.append(room_info)
         return room_info_list
-
-            # room_id: int = row["id"]
-            # live_id: int = row["live_id"]
-            # joined_user_count: int = row["joined_user_count"]
-            # max_user_count: int = row["max_user_count"]
-
-            # for row in result.all():
-            #     room_id: int = row["id"]
-            #     res = conn.execute(
-            #         text("SELECT COUNT(1) FROM `room_member` WHERE `room_id`=:room_id"),
-            #         {"room_id": room_id},
-            #     )
-            #     joined_user_count = res.one()[0]
-
-            # room_info = RoomInfo(
-            #     room_id=room_id,
-            #     live_id=live_id,
-            #     joined_user_count=joined_user_count,
-            #     max_user_count=max_user_count,
-            # )
-            # room_info_list.append(room_info)
-
-    # return room_info_list
 
 
 def _join_room(
@@ -197,7 +174,7 @@ def _join_room(
             "is_host": is_host,
         },
     )
-    return JoinRoomResult.Ok
+    return JoinRoomResult.Ok.value
 
 
 def join_room(

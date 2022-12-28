@@ -108,8 +108,9 @@ class RoomListRequest(BaseModel):
     live_id: int
 
 
+
 class RoomListResponse(BaseModel):
-    room_info_list = list[RoomInfo]
+    room_info_list = []
 
 
 @app.post("/room/list", response_model=RoomListResponse)

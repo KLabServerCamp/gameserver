@@ -78,6 +78,15 @@ class RoomInfo(BaseModel):
     max_user_count: int
 
 
+class RoomUser(BaseModel):
+    user_id: int
+    name: str
+    leader_card_id: int
+    select_difficulty: model.LiveDifficulty
+    is_me: bool
+    is_host: bool
+
+
 class RoomCreateRequest(BaseModel):
     live_id: int
     select_difficulty: model.LiveDifficulty
@@ -109,6 +118,9 @@ def room_list(req: RoomListRequest):
     res = []
     for r in rooms:
         users = model.get_room_members(r.id)
+        if users is None:
+            return HTTPException(status_code=404)
+
         res.append(
             RoomInfo(room_id=r.id, live_id=r.live_id, joined_user_count=len(users), max_user_count=MAX_USER_COUNT)
         )
@@ -125,3 +137,45 @@ def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
     """Join a room"""
     res = model.join_room(token, req.room_id, req.select_difficulty)
     return res
+
+
+class RoomWaitRequest(BaseModel):
+    room_id: int
+
+
+class RoomWaitResponse(BaseModel):
+    status: model.WaitRoomStatus
+    room_user_list: list[RoomUser]
+
+
+@app.post("/room/wait", response_model=RoomWaitResponse)
+def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
+    """Wait for a room"""
+    me = model.get_user_by_token(token)
+    if me is None:
+        raise HTTPException(status_code=404)
+
+    status = model.get_room_status(req.room_id)
+    if status is None:
+        raise HTTPException(status_code=404)
+
+    members = model.get_room_members(req.room_id)
+    if members is None:
+        raise HTTPException(status_code=404)
+
+    room_user_list = []
+
+    for m in members:
+        user = model.get_user_by_id(m.user_id)
+        room_user_list.append(
+            RoomUser(
+                user_id=user.id,
+                name=user.name,
+                leader_card_id=user.leader_card_id,
+                select_difficulty=m.select_difficulty,
+                is_me=(me.id == user.id),
+                is_host=m.is_host,
+            )
+        )
+
+    return RoomWaitResponse(status=status, room_user_list=room_user_list)

@@ -104,6 +104,35 @@ def get_user_by_token(token: str) -> Optional[SafeUser]:
         return _get_user_by_token(conn, token)
 
 
+def _get_user_by_id(conn, user_id: int) -> Optional[SafeUser]:
+    row = conn.execute(
+        text(
+            """
+            SELECT
+                `id`,
+                `name`,
+                `leader_card_id`
+            FROM
+                `user`
+            WHERE
+                `id` = :user_id
+            """
+        ),
+        {"user_id": user_id},
+    )
+    try:
+        res = row.one()
+    except NoResultFound:
+        return None
+
+    return SafeUser.from_orm(res)
+
+
+def get_user_by_id(user_id: int) -> Optional[SafeUser]:
+    with engine.begin() as conn:
+        return _get_user_by_id(conn, user_id)
+
+
 def update_user(token: str, name: str, leader_card_id: int) -> None:
     with engine.begin() as conn:
         return _update_user(conn=conn, token=token, name=name, leader_card_id=leader_card_id)
@@ -145,6 +174,7 @@ class RoomMember(BaseModel):
     room_id: int
     user_id: int
     select_difficulty: int
+    is_host: bool
 
     class Config:
         orm_mode = True
@@ -194,7 +224,31 @@ def _create_room(conn, user_id: int, live_id: int, select_difficulty: LiveDiffic
     return id
 
 
-# room 一覧
+def _get_room(conn, room_id: int) -> Optional[Room]:
+    res = conn.execute(
+        text(
+            """
+            SELECT
+                `id`,
+                `live_id`,
+                `live_status`
+            FROM
+                `room`
+            WHERE
+                `id` = :id
+            """
+        ),
+        {"id": room_id},
+    )
+    try:
+        res = res.one()
+        res = Room.from_orm(res)
+    except NoResultFound:
+        return None
+
+    return res
+
+
 def get_room_list(live_id: int) -> list[Room]:
     with engine.begin() as conn:
 
@@ -218,20 +272,20 @@ def get_room_list(live_id: int) -> list[Room]:
         return [Room.from_orm(row) for row in res]
 
 
-def get_room_members(room_id: int) -> list[RoomMember]:
+def get_room_members(room_id: int) -> Optional[list[RoomMember]]:
     with engine.begin() as conn:
-        res = _get_room_members(conn, room_id)
-        return [RoomMember.from_orm(row) for row in res]
+        return _get_room_members(conn, room_id)
 
 
-def _get_room_members(conn, room_id: int) -> list[RoomMember]:
+def _get_room_members(conn, room_id: int) -> Optional[list[RoomMember]]:
     res = conn.execute(
         text(
             """
             SELECT
                 `room_id`,
                 `user_id`,
-                `select_difficulty`
+                `select_difficulty`,
+                `is_host`
             FROM
                 `room_member`
             WHERE
@@ -240,6 +294,11 @@ def _get_room_members(conn, room_id: int) -> list[RoomMember]:
         ),
         {"room_id": room_id},
     )
+    try:
+        res = [RoomMember.from_orm(row) for row in res]
+    except NoResultFound:
+        return None
+
     return res
 
 
@@ -251,8 +310,10 @@ def join_room(token: str, room_id: int, select_difficulty: LiveDifficulty) -> Jo
         if user is None:
             return JoinRoomResult.OtherError
 
-        res = _get_room_members(conn, room_id)
-        users = [RoomMember.from_orm(row) for row in res]
+        users = _get_room_members(conn, room_id)
+        if users is None:
+            return JoinRoomResult.OtherError
+
         if len(users) >= MAX_USER_COUNT:
             return JoinRoomResult.RoomFull
 
@@ -302,3 +363,12 @@ def join_room(token: str, room_id: int, select_difficulty: LiveDifficulty) -> Jo
             return JoinRoomResult.OtherError
 
         return JoinRoomResult.Ok
+
+
+def get_room_status(room_id: int) -> WaitRoomStatus:
+    with engine.begin() as conn:
+        room = _get_room(conn, room_id)
+        if room is None:
+            return WaitRoomStatus.Dissolution
+
+        return room.live_status

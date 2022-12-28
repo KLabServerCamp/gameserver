@@ -125,6 +125,11 @@ def room_create(req: CreateRoomRequest, token: str = Depends(get_auth_token)):
     return CreateRoomResponse(room_id=room_id)
 
 @app.post("/room/list")
-def list_room(req: RoomListRequest, token: str = Depends(get_auth_token)):
+def list_room(req: RoomListRequest):
     rooms = room.room_list(req.live_id)
     return rooms
+
+
+@app.post("/room/join")
+def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
+    return JoinRoomResult(room.room_join(req.room_id, req.select_difficulty, token))

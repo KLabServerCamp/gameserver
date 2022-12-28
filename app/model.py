@@ -175,6 +175,8 @@ class RoomMember(BaseModel):
     user_id: int
     select_difficulty: int
     is_host: bool
+    score: int
+    judge_count_list: str
 
     class Config:
         orm_mode = True
@@ -285,7 +287,9 @@ def _get_room_members(conn, room_id: int) -> Optional[list[RoomMember]]:
                 `room_id`,
                 `user_id`,
                 `select_difficulty`,
-                `is_host`
+                `is_host`,
+                `score`,
+                `judge_count_list`
             FROM
                 `room_member`
             WHERE

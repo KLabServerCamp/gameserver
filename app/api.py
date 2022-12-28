@@ -122,16 +122,21 @@ class RoomListResponse(BaseModel):
     room_info_list: list[RoomInfo]
 
 
-# FIXME: 開始済みのルームを排除、ルームの最大人数を超えているルームを排除、参加済みのルームを排除
 @app.post("/room/list", response_model=RoomListResponse)
 def room_list(req: RoomListRequest):
     """List all rooms"""
     rooms = model.get_room_list(req.live_id)
     res = []
     for r in rooms:
+        if r.live_status != model.WaitRoomStatus.Waiting:
+            continue
+
         users = model.get_room_members(r.id)
         if users is None:
             return HTTPException(status_code=404)
+
+        if len(users) >= MAX_USER_COUNT:
+            continue
 
         res.append(
             RoomInfo(room_id=r.id, live_id=r.live_id, joined_user_count=len(users), max_user_count=MAX_USER_COUNT)

@@ -274,16 +274,22 @@ def _room_wait(
             for row in rows
         ]
 
-        if len(rows) < max_user_count:
-            return (WaitRoomStatus.Wating, user_list)
-
-        return (WaitRoomStatus.LiveStart, user_list)
+        return (WaitRoomStatus.Wating, user_list)
 
 
 def room_wait(room_id: int, token: str) -> Tuple[WaitRoomStatus, list[RoomUser]]:
     with engine.begin() as conn:
         user = model._get_user_by_token(conn, token)
         return _room_wait(conn, room_id, user)
+
+
+# ライブの開始
+def room_start(room_id: int) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE `room` SET `status`= :status WHERE `room_id`= :room_id"),
+            {"status": WaitRoomStatus.LiveStart.value, "room_id": room_id},
+        )
 
 
 if __name__ == "__main__":

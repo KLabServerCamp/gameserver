@@ -139,3 +139,15 @@ def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
     # print(req)
     (status, room_user_list) = room_model.room_wait(req.room_id, token)
     return RoomWaitResponse(status=status, room_user_list=room_user_list)
+
+
+class RoomStartRequest(BaseModel):
+    room_id: int
+
+
+@app.post("/room/start", response_model=Empty)
+def room_start(req: RoomStartRequest):
+    """ルームリストの取得"""
+    # print(req)
+    room_model.room_start(req.room_id)
+    return {}

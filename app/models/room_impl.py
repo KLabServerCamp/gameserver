@@ -1,5 +1,6 @@
 import random
 from typing import Optional
+from fastapi import HTTPException
 
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
@@ -46,6 +47,9 @@ def _create_room(
     )
 
     user = user_impl._get_user_by_token(conn, token)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+
     _ = conn.execute(
         text(
             "INSERT INTO `room_member` (name, room_id, user_id, token, is_host, select_difficulty) VALUES (:name, :room_id, :user_id, :token, :is_host, :select_difficulty)"
@@ -71,21 +75,21 @@ def _get_room_list(conn, live_id: int) -> list[model.RoomInfo]:
     if live_id == 0:
         result = conn.execute(
             text(
-                "SELECT `live_id`, `room_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `status` = :status AND `joined_user_count` < `max_user_count`"
+                "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `status` = :status AND `joined_user_count` < `max_user_count`"
             ),
             {"status": model.WaitRoomStatus.Waiting.value},
         )
     else:
         result = conn.execute(
             text(
-                "SELECT `live_id`, `room_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `live_id` = :live_id AND `status` = :status AND `joined_user_count` < `max_user_count`"
+                "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `live_id` = :live_id AND `status` = :status AND `joined_user_count` < `max_user_count`"
             ),
             {"live_id": live_id, "status": model.WaitRoomStatus.Waiting.value},
         )
     try:
         rows = result.all()
     except NoResultFound:
-        return None
+        return []
     return [model.RoomInfo.from_orm(row) for row in rows]
 
 
@@ -125,7 +129,9 @@ def _join_room(
         commit(conn)
         return model.JoinRoomResult.RoomFull
 
-    if room.status != model.WaitRoomStatus.Waiting.value:
+    status = _get_room_status(conn, room_id)
+
+    if status != model.WaitRoomStatus.Waiting.value:
         commit(conn)
         return model.JoinRoomResult.OtherError
 
@@ -358,4 +364,56 @@ def _get_room_result(conn, room_id: int, token: str) -> list[model.ResultUser]:
             else:
                 user.judge_count_list.append(row[i + 2])
         result_user_list.append(user)
+    print(result_user_list)
     return result_user_list
+
+
+def leave_room(room_id: int, token: str) -> None:
+    with engine.begin() as conn:
+        _leave_room(conn, room_id, token)
+
+
+def _leave_room(conn, room_id: int, token: str) -> None:
+    user = user_impl._get_user_by_token(conn, token)
+    if user is None:
+        return
+    member = _get_room_member_by_room_id_and_token(conn, room_id, token)
+    if member is None:
+        return
+    room = _get_room_by_room_id(conn, room_id)
+    if room is None:
+        return
+    
+    _ = conn.execute(
+        text("DELETE FROM `room_member` WHERE `room_id` = :room_id AND `user_id` = :user_id"),
+        {
+            "room_id": room_id,
+            "token": user.id,
+        },
+    )
+
+    _ = conn.execute(
+        text("DELETE FROM `room_score` WHERE `room_id` = :room_id AND `user_id` = :user_id"),
+        {
+            "room_id": room_id,
+            "user_id": user.id,
+        },
+    )
+
+    _ = conn.execute(
+        text("UPDATE `room` SET `joined_user_count` = `joined_user_count` - 1 WHERE `room_id` = :room_id"),
+        {
+            "room_id": room_id,
+        },
+    )
+
+    room = _get_room_by_room_id(conn, room_id)
+    if room.joined_user_count == 0:
+        _ = conn.execute(
+            text("DELETE FROM `room` WHERE `room_id` = :room_id"),
+            {
+                "room_id": room_id,
+            },
+        )
+
+    return

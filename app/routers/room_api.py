@@ -68,6 +68,10 @@ class RoomResultRequest(BaseModel):
     room_id: int
 
 
+class RoomLeaveRequest(BaseModel):
+    room_id: int
+
+
 class Empty(BaseModel):
     pass
 
@@ -114,3 +118,9 @@ def room_result(req: RoomResultRequest, token=Depends(get_auth_token)):
     return RoomResultResponse(
         result_user_list=room_impl.get_room_result(req.room_id, token)
     )
+
+
+@router.post("/room/leave", tags=["room"], response_model=Empty)
+def room_leave(req: RoomLeaveRequest, token=Depends(get_auth_token)):
+    room_impl.leave_room(req.room_id, token)
+    return {}

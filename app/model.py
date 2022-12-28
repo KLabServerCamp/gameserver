@@ -419,7 +419,7 @@ def _room_start(conn, room_id: int, token: str) -> None:
 
     if member is None:
         return
-    
+
     if not member.is_host:
         return
 
@@ -474,15 +474,52 @@ def _room_end(
     return
 
 
-def get_room_score(room_id: int, token: str) -> list[ResultUser]:
+def get_room_result(room_id: int, token: str) -> list[ResultUser]:
     with engine.begin() as conn:
-        return _get_room_score(conn, room_id, token)
+        return _get_room_result(conn, room_id, token)
 
 
 """
 room_scoreについて、各判定ごとに数が分かれているのでそれぞれ取得してまとめる必要がある
 また、tokenがroom_memberじゃない場合にどうするかを考える必要がある(他の人が取得して問題ないのか)
-room_scoreがroomの人数分じゃない時には[]を返す(同じ人が間違って複数回登録してしまった場合、揃わずにできてしまう場合がある->room/endで対応)
 """
-def _get_room_score(conn, room_id: int, token: str) -> list[ResultUser]:
-    return []
+
+
+def _get_room_result(conn, room_id: int, token: str) -> list[ResultUser]:
+    member = _get_room_member_by_room_id_and_token(conn, room_id, token)
+    room = _get_room_by_room_id(conn, room_id)
+    if member is None:
+        return []
+
+    query = "SELECT `user_id`, `score`"
+
+    for column in JUDGE_COLUMNS:
+        query += ", `" + column + "`"
+    
+    query += " FROM `room_score` WHERE `room_id` = :room_id"
+    
+    result = conn.execute(
+        text(query),
+        {
+            "room_id": room_id,
+        },
+    )
+
+    if result.rowcount < room.joined_user_count:
+        return []
+
+    try:
+        rows = result.all()
+    except NoResultFound:
+        return []
+    
+    result_user_list = []
+    for row in rows:
+        user = ResultUser(user_id=row[0], score=row[1], judge_count_list=[])
+        for i in range(len(JUDGE_COLUMNS)):
+            if row[i] is None:
+                user.judge_count_list.append(0)
+            else:
+                user.judge_count_list.append(row[i+2])
+        result_user_list.append(user)
+    return result_user_list

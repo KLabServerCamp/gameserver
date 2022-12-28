@@ -86,7 +86,9 @@ def room_list(req: RoomListRequest):
 
 @router.post("/room/join", tags=["room"], response_model=RoomJoinResponse)
 def room_join(req: RoomJoinRequest, token=Depends(get_auth_token)):
-    return RoomJoinResponse(join_room_result=model.join_room(req.room_id, req.select_difficulty, token))
+    return RoomJoinResponse(
+        join_room_result=model.join_room(req.room_id, req.select_difficulty, token)
+    )
 
 
 @router.post("/room/wait", tags=["room"], response_model=RoomWaitResponse)

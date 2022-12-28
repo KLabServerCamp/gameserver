@@ -372,3 +372,38 @@ def get_room_status(room_id: int) -> WaitRoomStatus:
             return WaitRoomStatus.Dissolution
 
         return room.live_status
+
+
+# TODO: 戻り値を Exception にする
+def start_room(room_id: int, user_id: int) -> bool:
+    with engine.begin() as conn:
+        room = _get_room(conn, room_id)
+        if room is None:
+            return False
+
+        if room.live_status != WaitRoomStatus.Waiting:
+            return False
+
+        members = _get_room_members(conn, room_id)
+
+        for m in members:
+            if m.user_id == user_id:
+                if not m.is_host:
+                    return False
+                break
+
+        _ = conn.execute(
+            text(
+                """
+                UPDATE
+                    `room`
+                SET
+                    `live_status` = :live_status
+                WHERE
+                    `id` = :room_id
+                """
+            ),
+            {"live_status": WaitRoomStatus.LiveStart.value, "room_id": room_id},
+        )
+
+        return True

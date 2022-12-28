@@ -179,3 +179,21 @@ def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
         )
 
     return RoomWaitResponse(status=status, room_user_list=room_user_list)
+
+
+class RoomStartRequest(BaseModel):
+    room_id: int
+
+
+@app.post("/room/start", response_model=Empty)
+def room_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
+    """Start a room"""
+    me = model.get_user_by_token(token)
+    if me is None:
+        raise HTTPException(status_code=404)
+
+    res = model.start_room(req.room_id, me.id)
+    if not res:
+        raise HTTPException(status_code=404)
+
+    return {}

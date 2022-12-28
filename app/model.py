@@ -1,4 +1,5 @@
 # import json
+import json
 import uuid
 
 from enum import IntEnum
@@ -160,7 +161,7 @@ def _update_user(conn, token: str, name: str, leader_card_id: int) -> None:
 
 # Room
 
-
+# TODO: Nullable に Optional つける
 class Room(BaseModel):
     id: int
     live_id: int
@@ -175,8 +176,8 @@ class RoomMember(BaseModel):
     user_id: int
     select_difficulty: int
     is_host: bool
-    score: int
-    judge_count_list: str
+    score: Optional[int]
+    judge_count_list: Optional[str]
 
     class Config:
         orm_mode = True
@@ -409,5 +410,51 @@ def start_room(room_id: int, user_id: int) -> bool:
             ),
             {"live_status": WaitRoomStatus.LiveStart.value, "room_id": room_id},
         )
+
+        return True
+
+
+# TODO: 戻り値を Exception にする
+def store_result(room_id: int, user_id: int, score: int, judge_count: list[int]) -> bool:
+    with engine.begin() as conn:
+        room = _get_room(conn, room_id)
+        if room is None:
+            return False
+
+        if room.live_status != WaitRoomStatus.LiveStart:
+            return False
+
+        members = _get_room_members(conn, room_id)
+        if members is None:
+            return False
+
+        me = [m for m in members if m.user_id == user_id]
+        if len(me) != 1:
+            return False
+        me = me[0]
+
+        try:
+            _ = conn.execute(
+                text(
+                    """
+                    UPDATE
+                        `room_member`
+                    SET
+                        `score` = :score,
+                        `judge_count_list` = :judge_count_list
+                    WHERE
+                        `room_id` = :room_id AND
+                        `user_id` = :user_id
+                    """
+                ),
+                {
+                    "score": score,
+                    "judge_count_list": json.dumps(judge_count),
+                    "room_id": room_id,
+                    "user_id": user_id,
+                },
+            )
+        except Exception:
+            return False
 
         return True

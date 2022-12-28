@@ -87,6 +87,12 @@ class RoomUser(BaseModel):
     is_host: bool
 
 
+class ResultUser(BaseModel):
+    user_id: int
+    judge_count_list: list[int]
+    score: int
+
+
 class RoomCreateRequest(BaseModel):
     live_id: int
     select_difficulty: model.LiveDifficulty
@@ -193,6 +199,26 @@ def room_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
         raise HTTPException(status_code=404)
 
     res = model.start_room(req.room_id, me.id)
+    if not res:
+        raise HTTPException(status_code=404)
+
+    return {}
+
+
+class RoomEndRequest(BaseModel):
+    room_id: int
+    judge_count_list: list[int]
+    score: int
+
+
+@app.post("/room/end", response_model=Empty)
+def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
+    """End a room"""
+    me = model.get_user_by_token(token)
+    if me is None:
+        raise HTTPException(status_code=404)
+
+    res = model.store_result(req.room_id, me.id, req.score, req.judge_count_list)
     if not res:
         raise HTTPException(status_code=404)
 

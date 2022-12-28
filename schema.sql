@@ -26,3 +26,4 @@ CREATE TABLE `room_member` (
   `is_host` tinyint NOT NULL,
   PRIMARY KEY (`room_id`, `user_id`)
 );
+

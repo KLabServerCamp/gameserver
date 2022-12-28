@@ -1,12 +1,12 @@
 from enum import Enum
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 from . import model
-from .model import SafeUser
+from .model import RoomInfo, SafeUser
 
 
 class LiveDifficulty(Enum):
@@ -104,13 +104,6 @@ def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
     return RoomCreateResponse(room_id=room_id)
 
 
-class RoomInfo(BaseModel):
-    room_id: int
-    live_id: int
-    joined_user_count: int
-    max_user_count: int
-
-
 class RoomListRequest(BaseModel):
     live_id: int
 
@@ -121,8 +114,8 @@ class RoomListResponse(BaseModel):
 
 @app.post("/room/list", response_model=RoomListResponse)
 def room_list(req: RoomListRequest):
-    room_info_list = model.list_room(req.live_id)
-    return RoomListResponse(room_info_list=room_info_list)
+    r = model.list_room(req.live_id)
+    return RoomListResponse(room_info_list=r)
 
 
 class RoomJoinRequest(BaseModel):

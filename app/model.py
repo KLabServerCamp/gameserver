@@ -1,7 +1,7 @@
 import json
 import uuid
 from enum import Enum, IntEnum
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import HTTPException
 from pydantic import BaseModel
@@ -45,6 +45,9 @@ class RoomInfo(BaseModel):
     live_id: int
     joined_user_count: int
     max_user_count: int
+
+    class Config:
+        orm_mode = True
 
 
 class RoomUser(BaseModel):
@@ -111,17 +114,81 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
     return None
 
 
+def create_room(user_id: int, live_id: int, select_difficulty: LiveDifficulty) -> int:
+    with engine.begin() as conn:
+
+        result = conn.execute(
+            text(
+                "INSERT INTO `room` (live_id, joined_user_count, max_user_count) VALUES (:live_id, :joined_user_count, :max_user_count)"
+            ),
+            {
+                "live_id": live_id,
+                "joined_user_count": 1,
+                "max_user_count": MAX_USER_COUNT,
+            },
+        )
+        room_id = result.lastrowid
+
+        _join_room(conn, user_id, room_id, select_difficulty, is_host=True)
+
+    return room_id
+
+
+def list_room(live_id: int):
+    room_info_list: list[RoomInfo] = []
+    with engine.begin() as conn:
+        if live_id == 0:  # ワイルドカード
+            result = conn.execute(text("SELECT *, id AS room_id FROM `room`"))
+        else:
+            result = conn.execute(
+                text("SELECT *, id AS room_id FROM `room` WHERE `live_id`=:live_id"),
+                {"live_id": live_id},
+            )
+
+        for row in result.all():
+            room_info = RoomInfo.from_orm(row)
+            room_info_list.append(room_info)
+
+            # room_id: int = row["id"]
+            # live_id: int = row["live_id"]
+            # joined_user_count: int = row["joined_user_count"]
+            # max_user_count: int = row["max_user_count"]
+
+            # for row in result.all():
+            #     room_id: int = row["id"]
+            #     res = conn.execute(
+            #         text("SELECT COUNT(1) FROM `room_member` WHERE `room_id`=:room_id"),
+            #         {"room_id": room_id},
+            #     )
+            #     joined_user_count = res.one()[0]
+
+            # room_info = RoomInfo(
+            #     room_id=room_id,
+            #     live_id=live_id,
+            #     joined_user_count=joined_user_count,
+            #     max_user_count=max_user_count,
+            # )
+            # room_info_list.append(room_info)
+
+    return room_info_list
+
+
 def _join_room(
-    conn, user_id: int, room_id: int, select_difficulty: LiveDifficulty
+    conn,
+    user_id: int,
+    room_id: int,
+    select_difficulty: LiveDifficulty,
+    is_host: bool = False,
 ) -> JoinRoomResult:
     result = conn.execute(
         text(
-            "INSERT INTO `room_member` (user_id, room_id, select_difficulty) VALUES (:user_id, :room_id, :select_difficulty)"
+            "INSERT INTO `room_member` (user_id, room_id, select_difficulty, is_host) VALUES (:user_id, :room_id, :select_difficulty, :is_host)"
         ),
         {
             "user_id": user_id,
             "room_id": room_id,
             "select_difficulty": select_difficulty.value,
+            "is_host": is_host,
         },
     )
     return JoinRoomResult.Ok
@@ -132,46 +199,3 @@ def join_room(
 ) -> JoinRoomResult:
     with engine.begin() as conn:
         return _join_room(conn, user_id, room_id, select_difficulty)
-
-
-def create_room(user_id: int, live_id: int, select_difficulty: LiveDifficulty) -> int:
-    with engine.begin() as conn:
-
-        result = conn.execute(
-            text("INSERT INTO `room` (owner_id, live_id) VALUES (:owner_id, :live_id)"),
-            {"owner_id": user_id, "live_id": live_id},
-        )
-        room_id = result.lastrowid
-
-        _join_room(conn, user_id, room_id, select_difficulty)
-
-    return room_id
-
-
-def list_room(live_id: int) -> List[RoomInfo]:
-    room_info_list = []
-    with engine.begin() as conn:
-        if live_id == 0:   #ワイルドカード
-            result = conn.execute(text("SELECT * FROM `room`"))
-        else:
-            result = conn.execute(
-                text("SELECT * FROM `room` WHERE `live_id`=:live_id"), {"live_id": live_id}
-            )
-
-        for row in result.all():
-            room_id = row["id"]
-            res = conn.execute(
-                text("SELECT COUNT(1) FROM `room_member` WHERE `room_id`=:room_id"),
-                {"room_id": room_id},
-            )
-            joined_user_count = res.one()[0]
-
-            room_info = RoomInfo(
-                room_id=room_id,
-                live_id=live_id,
-                joined_user_count=joined_user_count,
-                max_user_count=MAX_USER_COUNT,
-            )
-            room_info_list.append(room_info)
-            
-    return room_info_list

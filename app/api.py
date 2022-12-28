@@ -113,5 +113,5 @@ class RoomJoinRequest(BaseModel):
 def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
     """ルームリストの取得"""
     # print(req)
-    room_info_list = room_model.get_room_list(req.room_id, req.select_difficulty, token)
+    room_info_list = room_model.room_join(req.room_id, req.select_difficulty, token)
     return room_info_list

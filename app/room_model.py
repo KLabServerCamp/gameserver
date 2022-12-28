@@ -29,7 +29,7 @@ class JoinRoomResult(IntEnum):
 class WaitRoomStatus(IntEnum):
     Wating = 1
     LiveStart = 2
-    Sissolution = 3
+    Dissolution = 3
 
 
 class RoomInfo(BaseModel):
@@ -55,36 +55,39 @@ class ResultUser(BaseModel):
 
 
 def _create_room(
-    conn, live_id: int, select_difficulty: LiveDifficulty, token: str
+    conn, live_id: int, select_difficulty: LiveDifficulty, user: SafeUser
 ) -> int:
 
     with engine.begin() as conn:
         conn.execute(
-            text("INSERT INTO `room` (live_id, token) VALUES (:live_id, :token)"),
+            text(
+                "INSERT INTO `room` (live_id, owner_id, status) "
+                "VALUES (:live_id, :owner_id, :status)"
+            ),
             {
                 "live_id": live_id,
-                "token": token,
+                "owner_id": user.id,
+                "status": WaitRoomStatus.Wating.value,
             },
         )
 
-        user = model._get_user_by_token(conn, token)
         result = conn.execute(
-            text("SELECT `room_id` FROM `room` WHERE `token` = :token"),
-            {"token": token},
+            text("SELECT `room_id` FROM `room` WHERE `owner_id` = :owner_id"),
+            {"owner_id": user.id},
         )
         row = result.one()
 
         conn.execute(
             text(
-                "INSERT INTO `room_member` (room_id, id, name, leader_card_id, select_difficulty) "
-                "VALUES (:room_id, :id, :name, :leader_card_id, :select_difficulty)"
+                "INSERT INTO `room_member` (room_id, user_id, select_difficulty, score, judge) "
+                "VALUES (:room_id, :user_id, :select_difficulty, :score, :judge)"
             ),
             {
                 "room_id": row.room_id,
-                "id": user.id,
-                "name": user.name,
-                "leader_card_id": user.leader_card_id,
+                "user_id": user.id,
                 "select_difficulty": select_difficulty.value,
+                "score": None,
+                "judge": None,
             },
         )
 
@@ -93,14 +96,18 @@ def _create_room(
 
 def create_room(live_id: int, select_difficulty: LiveDifficulty, token: str) -> int:
     with engine.begin() as conn:
-        return _create_room(conn, live_id, select_difficulty, token)
+        user = model._get_user_by_token(conn, token)
+        if user is None:
+            raise HTTPException(status_code=404)
+
+        return _create_room(conn, live_id, select_difficulty, user)
 
 
 # RoomInfoの取得
 def get_room_info(conn, room_id: int, live_id: int) -> RoomInfo:
     with engine.begin() as conn:
         result = conn.execute(
-            text("SELECT `name` FROM `room_member` WHERE `room_id` = :room_id"),
+            text("SELECT `user_id` FROM `room_member` WHERE `room_id` = :room_id"),
             {"room_id": room_id},
         )
 
@@ -139,39 +146,72 @@ def get_room_list(live_id: int) -> Optional[list[RoomInfo]]:
         return _get_room_list(conn, live_id)
 
 
+# ルームを探す
+def room_search(conn, room_id: int):
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("SELECT `status` FROM `room` WHERE `room_id` = :room_id FOR UPDATE"),
+            {"room_id": room_id},
+        )
+
+        try:
+            room_status = result.one().status
+        except NoResultFound:
+            return WaitRoomStatus.Dissolution
+
+        return room_status
+
+
 # ルームに入場する
-# def _room_join(
-#     conn, room_id: int, select_difficulty: LiveDifficulty, user: SafeUser
-# ) -> Optional[JoinRoomResult]:
+def _room_join(
+    conn, room_id: int, select_difficulty: LiveDifficulty, user_id: int
+) -> Optional[JoinRoomResult]:
 
-#     with engine.begin() as conn:
-#         result = conn.execute(
-#             text(
-#                 "INSERT INTO `room_member` (room_id, id, name, leader_card_id, select_difficulty) "
-#                 "VALUES (:room_id, :id, :name, :leader_card_id, :select_difficulty)"
-#             ),
-#             {
-#                 "room_id": room_id,
-#                 "id": user.id,
-#                 "name": user.name,
-#                 "leader_card_id": user.leader_card_id,
-#                 "select_difficulty": select_difficulty.value,
-#             },
-#         )
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT `user_id` FROM `room_member` WHERE `room_id` = :room_id FOR UPDATE"
+            ),
+            {"room_id": room_id},
+        )
 
-#         print(result)
+        if len(result.all()) > 3:
+            return JoinRoomResult.RoomFull
+
+        result = conn.execute(
+            text(
+                "INSERT INTO `room_member` (room_id, user_id, select_difficulty, score, judge) "
+                "VALUES (:room_id, :user_id, :select_difficulty, :score, :judge)"
+            ),
+            {
+                "room_id": room_id,
+                "user_id": user_id,
+                "select_difficulty": select_difficulty.value,
+                "score": None,
+                "judge": None,
+            },
+        )
+
+        try:
+            res = result
+        except NoResultFound:
+            return JoinRoomResult.OtherError
+        return JoinRoomResult.Ok
 
 
-# def room_join(
-#     room_id: int, select_difficulty: LiveDifficulty, token: str
-# ) -> Optional[JoinRoomResult]:
+def room_join(
+    room_id: int, select_difficulty: LiveDifficulty, token: str
+) -> Optional[JoinRoomResult]:
 
-#     with engine.begin() as conn:
-#         user = model._get_user_by_token(conn, token)
-#         if user is None:
-#             raise HTTPException(status_code=404)
+    with engine.begin() as conn:
+        if room_search(conn, room_id) == WaitRoomStatus.Dissolution:
+            return JoinRoomResult.Disbanded
 
-#         return _room_join(conn, room_id, select_difficulty, user)
+        user = model._get_user_by_token(conn, token)
+        if user is None:
+            return JoinRoomResult.OtherError
+
+        return _room_join(conn, room_id, select_difficulty, user.id)
 
 
 if __name__ == "__main__":

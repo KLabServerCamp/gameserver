@@ -1,7 +1,7 @@
 import json
 import uuid
 from enum import Enum, IntEnum
-from typing import List, Optional
+from typing import Optional
 
 from fastapi import HTTPException
 from pydantic import BaseModel

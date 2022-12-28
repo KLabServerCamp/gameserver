@@ -25,6 +25,21 @@ class SafeUser(BaseModel):
     class Config:
         orm_mode = True
 
+class RoomInfo(BaseModel):
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int 
+
+class LiveDifficulty(Enum):
+    nomal = 1
+    hard = 2
+
+class joinRoomResult(Enum):
+    OK = 1
+    RoomFull = 2
+    Disbanded = 3
+    OtherError = 4
 
 def create_user(name: str, leader_card_id: int) -> str:
     """Create new user and returns their token"""
@@ -53,9 +68,24 @@ def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
     return SafeUser.from_orm(row)
 
 
+def get_numofpeople_inroom_by_roomid(room_id: int) -> Optional[SafeUser]:
+    with engine.begin() as conn:
+        return _get_user_by_token(conn, room_id)
+
+def _get_numofpeople_inroom_by_roomid(conn, room_id: int) -> Optional[SafeUser]:
+    result = conn.execute(
+        text("SELECT COUNT(`room_id` =:room_id OR NULL) FROM `room`"),
+        {"room_id": room_id},
+    )
+    print(result)
+    return result
+
+
 def get_user_by_token(token: str) -> Optional[SafeUser]:
     with engine.begin() as conn:
         return _get_user_by_token(conn, token)
+
+##############
 
 
 def update_user(token: str, name: str, leader_card_id: int) -> None:
@@ -68,46 +98,23 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
 
-
-# live_id user_idからroom_idを得る
-# def get_room_id_by_live_id_and_user_id(live_id: int, user_id int):
-#     result = conn.execute(
-#         text("SELECT `id` FROM `room` WHERE `live_id`=:live_id AND `user_id`=:user_id"),
-#         {"live_id": live_id,"user_id":user_id},
-#     )
-#     try:
-#         row = result.one()
-#     except NoResultFpund:
-#         return None
-#     return SafeUser.from_orm(row)
-
 # ルーム作成DB操作
-def create_room(token: str, live_id: int, select_difficulty: int) -> int:
+def create_room(user_id: int, live_id: int, select_difficulty: int) -> int:
     """Create new room and returns room id"""
-    user_id = get_user_by_token(token)
+    print(user_id,live_id,select_difficulty,"rrr")
     # roomにユーザを登録する
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "INSERT INTO `room` (live_id,owner) VALUES (:live_id, :user_id) RETURNING id"
+                "INSERT INTO `room` (live_id, owner, status) VALUES (:live_id, :owner, :status)"
             ),
-            {"live_id": live_id, "owner": user_id},
+            {"live_id": live_id, "owner": user_id, "status": 1},
         )
-    print(result)
-
-    # #作成したルームのIDを得る
-    # room_id
-    # #作成したルームのIDと同じカラムをroom_memberテーブルに作る
-    # with engine.begin() as conn:
-    #     result = conn.execute(
-    #         text(
-    #             "INSERT INTO `room_member` (live_id,owner) VALUES (:live_id, :user_id)"
-    #         ),
-    #         {"live_id": live_id},
-    #     )
+    room_id = result.lastrowid
+    return room_id
 
 # ルーム検索DB操作
-def search_room(live_id: int) -> list:
+def search_room(live_id: int) -> Optional[RoomInfo]:
     """Returns room id list"""
     response = []
     if live_id == 0:
@@ -121,10 +128,29 @@ def search_room(live_id: int) -> list:
         with engine.begin() as conn:
             result = conn.execute(
                 text(
-                    "SELECT * FROM `room` WHERE `live_id` =: live_id"
+                    "SELECT * FROM `room` WHERE `live_id` =:live_id"
                 ),
                 {"live_id": live_id},
             )
+
     for (id,live_id,owner,status) in result:
-        response.append(id)
+        tmp = RoomInfo(room_id=id,live_id=live_id,joined_user_count=1,max_user_count=4)
+        response.append(tmp)
     return response
+
+#ルーム参加処理
+def join_room(user_id:int, room_id: int) -> Optional[joinRoomResult]:
+    if get_numofpeople_inroom_by_roomid >= 4:
+        return joinRoomResult(RoomFull)
+
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "INSERT INTO `room` (live_id, owner, status) VALUES (:live_id, :owner, :status)"
+            ),
+            {"live_id": live_id, "owner": user_id, "status": 1},
+        )
+    room_id = result.lastrowid
+    return room_id
+
+    return joinRoomResult(result)

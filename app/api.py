@@ -26,8 +26,7 @@ class UserCreateRequest(BaseModel):
 
 
 class UserCreateResponse(BaseModel):
-    user_token: str
-
+    room_id: int
 
 class RoomCreateRequest(BaseModel):
     live_id:int
@@ -40,7 +39,21 @@ class RoomListRequest(BaseModel):
     live_id:int
 
 class RoomListResponse(BaseModel):
-    room_id_list:list
+    room_info_list:list
+
+class RoomJoinRequest(BaseModel):
+    room_id:int
+    select_difficulty:int
+
+class joinRoomResult(Enum):
+    OK = 1
+    RoomFull = 2
+    Disbanded = 3
+    OtherError = 4
+
+class RoomJoinResponse(BaseModel):
+    join_room_result: joinRoomResult
+
 
 @app.post("/user/create", response_model=UserCreateResponse)
 def user_create(req: UserCreateRequest):
@@ -81,12 +94,22 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
 
 
 # ルーム作成
-@app.post("/room/create", response_model=RoomCreateRequest)
+@app.post("/room/create", response_model=UserCreateResponse)
 def room_create(req:RoomCreateRequest,token: str = Depends(get_auth_token)):
-    user = model.create_room(token, req.live_id, req.elect_difficulty)
+    user_id = model.get_user_by_token(token).id
+    room_id = model.create_room(user_id, req.live_id, req.select_difficulty)
+    return  UserCreateResponse(room_id=room_id)
 
 #ルーム検索
-@app.post("/room/list", response_model=RoomListRequest)
+@app.post("/room/list", response_model=RoomListResponse)
 def room_create(req:RoomListRequest,token: str = Depends(get_auth_token)):
     room_list = model.search_room(req.live_id)
-    return room_list
+    return RoomListResponse(room_info_list=room_list)
+
+#ルーム参加
+@app.post("/room/join", response_model=RoomJoinResponse)
+def room_create(req:RoomJoinRequest,token: str = Depends(get_auth_token)):
+    resutl = model.join_room(user_id,room_id) 
+
+    user_id = model.get_user_by_token(token).id
+    return RoomListResponse(room_info_list=room_list)

@@ -28,14 +28,14 @@ def test_room_1():
     response = client.post(
         "/room/create",
         headers=_auth_header(),
-        json={"live_id": 1001, "select_difficulty": 1},
+        json={"live_id": 1001, "select_difficulty": LiveDifficulty.Normal},
     )
     assert response.status_code == 200
 
     room_id = response.json()["room_id"]
     print(f"room/create {room_id=}")
 
-    response = client.post("/room/list", json={"live_id": 1001})
+    response = client.post("/room/list", headers=_auth_header(), json={"live_id": 1001})
     assert response.status_code == 200
     print("room/list response:", response.json())
 

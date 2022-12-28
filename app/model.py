@@ -11,6 +11,7 @@ from sqlalchemy.exc import NoResultFound
 from .db import engine
 
 MAX_ROOM_USER_COUNT = 4
+LIVE_ID_NULL = 0
 
 
 class InvalidToken(Exception):
@@ -32,6 +33,7 @@ def create_user(name: str, leader_card_id: int) -> str:
     """Create new user and returns their token"""
     token = str(uuid.uuid4())
     # NOTE: tokenが衝突したらリトライする必要がある.
+    # todo: エラー時リトライ
     with engine.begin() as conn:
         result = conn.execute(
             text(
@@ -118,6 +120,55 @@ def create_room(
         )
 
 
+class RoomInfo(BaseModel):
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int
+
+    class Config:
+        orm_mode = True
+
+
+def _list_room(conn, token: str, live_id: int) -> list[RoomInfo]:
+    """ルーム一覧を取得 live_id=LIVE_ID_NULLで全部屋"""
+    if live_id == LIVE_ID_NULL:
+        res = conn.execute(
+            text(
+                "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `joined_user_count` < `max_user_count`"
+            )
+        )
+    else:
+        res = conn.execute(
+            text(
+                "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `joined_user_count` < `max_user_count` AND live_id=:live_id"
+            ),
+            {"live_id", live_id},
+        )
+
+    rows = res.fetchall()
+    room_list = []
+    for _, row in enumerate(rows):
+        room_id = row["room_id"]
+        live_id = row["live_id"]
+        joined_user_count = row["joined_user_count"]
+        max_user_count = row["max_user_count"]
+        room_list.append(
+            RoomInfo(
+                room_id=room_id,
+                live_id=live_id,
+                joined_user_count=joined_user_count,
+                max_user_count=max_user_count,
+            )
+        )
+    return room_list
+
+
+def list_room(token: str, live_id: int) -> list[RoomInfo]:
+    with engine.begin() as conn:
+        return _list_room(conn, token=token, live_id=live_id)
+
+
 class JoinRoomResult(IntEnum):
     Ok = 1
     RoomFull = 2
@@ -129,16 +180,6 @@ class WaitRoomStatus(IntEnum):
     Waiting = 1
     LiveStart = 2
     Dissolution = 3  # 解散
-
-
-class RoomInfo(BaseModel):
-    room_id: int
-    live_id: int
-    joined_user_count: int
-    max_user_count: int
-
-    class Config:
-        orm_mode = True
 
 
 class RoomUser(BaseModel):

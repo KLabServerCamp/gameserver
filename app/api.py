@@ -103,6 +103,12 @@ class RoomListResponse(BaseModel):
     room_info_list: list[RoomInfo]
 
 
+@app.post("/room/list", response_model=RoomListResponse)
+def room_list(req: RoomListRequest, token: str = Depends(get_auth_token)):
+    room_info_list = model.list_room(token=token, live_id=req.live_id)
+    return RoomListResponse(room_info_list=room_info_list)
+
+
 #   room/join
 class RoomJoinRequest(BaseModel):
     live_id: int

@@ -463,5 +463,10 @@ def get_room_score(room_id: int, token: str) -> list[ResultUser]:
         return _get_room_score(conn, room_id, token)
 
 
+"""
+room_scoreについて、各判定ごとに数が分かれているのでそれぞれ取得してまとめる必要がある
+また、tokenがroom_memberじゃない場合にどうするかを考える必要がある(他の人が取得して問題ないのか)
+room_scoreがroomの人数分じゃない時には[]を返す(同じ人が間違って複数回登録してしまった場合、揃わずにできてしまう場合がある->room/endで対応)
+"""
 def _get_room_score(conn, room_id: int, token: str) -> list[ResultUser]:
     return []

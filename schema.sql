@@ -19,6 +19,7 @@ CREATE TABLE `room` (
   PRIMARY KEY (`id`)
 );
 CREATE TABLE `room_member` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
   `user_id` bigint NOT NULL,
   `room_id` bigint NOT NULL,
   `select_difficulty` int DEFAULT NULL,
@@ -27,5 +28,5 @@ CREATE TABLE `room_member` (
   `score` int DEFAULT NULL,
   FOREIGN KEY (`user_id`) REFERENCES `user` (`id`),
   FOREIGN KEY (`room_id`) REFERENCES `room` (`id`),
-  PRIMARY KEY (`user_id`, `room_id`)
+  PRIMARY KEY (`id`)
 );

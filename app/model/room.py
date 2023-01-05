@@ -11,7 +11,7 @@ from app.db import engine
 
 from enum import IntEnum
 
-from model import _get_user_by_token
+from .user import _get_user_by_token
 
 
 # Enum

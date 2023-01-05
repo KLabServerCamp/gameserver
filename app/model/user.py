@@ -46,6 +46,11 @@ def create_user(name: str, leader_card_id: int) -> str:
     return token
 
 
+def get_user_by_token(token: str) -> Optional[SafeUser]:
+    with engine.begin() as conn:
+        return _get_user_by_token(conn, token)
+
+
 def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
     res = conn.execute(
         text(
@@ -69,9 +74,9 @@ def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
     return SafeUser.from_orm(row)
 
 
-def get_user_by_token(token: str) -> Optional[SafeUser]:
+def get_user_by_id(user_id: int) -> Optional[SafeUser]:
     with engine.begin() as conn:
-        return _get_user_by_token(conn, token)
+        return _get_user_by_id(conn, user_id)
 
 
 def _get_user_by_id(conn, user_id: int) -> Optional[SafeUser]:
@@ -96,11 +101,6 @@ def _get_user_by_id(conn, user_id: int) -> Optional[SafeUser]:
         return None
 
     return SafeUser.from_orm(res)
-
-
-def get_user_by_id(user_id: int) -> Optional[SafeUser]:
-    with engine.begin() as conn:
-        return _get_user_by_id(conn, user_id)
 
 
 def update_user(token: str, name: str, leader_card_id: int) -> None:

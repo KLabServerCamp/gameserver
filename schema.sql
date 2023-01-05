@@ -32,8 +32,7 @@ CREATE TABLE `room_member` (
   `is_host` boolean DEFAULT NULL,
   PRIMARY KEY (`room_id`, `user_id`),
   CONSTRAINT `fk_1` FOREIGN KEY (`room_id`) REFERENCES `room` (`room_id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT `fk_2` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE,
-  UNIQUE KEY `token` (`token`)
+  CONSTRAINT `fk_2` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 

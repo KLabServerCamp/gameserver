@@ -25,7 +25,7 @@ def _auth_header(i=0):
 
 def test_room_1():
 
-    room_id = 1
+    room_id = 58
 
     response = client.post("/room/list", json={"live_id": 0})
     assert response.status_code == 200

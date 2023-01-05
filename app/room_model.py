@@ -298,8 +298,6 @@ def _room_wait(
 
         if row.status == WaitRoomStatus.LiveStart:
             return (WaitRoomStatus.LiveStart, user_list)
-        elif row.status == WaitRoomStatus.Dissolution:
-            return (WaitRoomStatus.Dissolution, user_list)
         else:
             return (WaitRoomStatus.Wating, user_list)
 
@@ -399,18 +397,28 @@ def room_leave(room_id: int, token: str) -> None:
     with engine.begin() as conn:
         user = model._get_user_by_token(conn, token)
 
-        if get_room_owner_id(conn, room_id) == user.id:
-            conn.execute(
-                text("UPDATE `room` SET `status`= :status WHERE `room_id`= :room_id"),
-                {"status": WaitRoomStatus.Dissolution.value, "room_id": room_id},
-            )
-
         conn.execute(
             text(
                 "DELETE FROM `room_member` WHERE `room_id`= :room_id AND `user_id`= :user_id"
             ),
             {"room_id": room_id, "user_id": user.id},
         )
+
+        if get_room_owner_id(conn, room_id) == user.id:
+            result = conn.execute(
+                text("SELECT `user_id` FROM `room_member` WHERE `room_id`= :room_id"),
+                {"room_id": room_id},
+            )
+            rows = result.all()
+
+            print(rows[0].user_id)
+
+            conn.execute(
+                text(
+                    "UPDATE `room` SET `owner_id`= :owner_id WHERE `room_id`= :room_id"
+                ),
+                {"owner_id": rows[0].user_id, "room_id": room_id},
+            )
 
 
 if __name__ == "__main__":
@@ -452,6 +460,9 @@ if __name__ == "__main__":
         model._get_user_by_token(conn, join_token).id,
     )
     print("join_result:", join_result)
+
+    room_owner_id = get_room_owner_id(conn, room_list[0].room_id)
+    print("owner_id:", room_owner_id)
 
     room_leave(room_list[0].room_id, token_list[1])
     print("leave OK")

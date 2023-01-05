@@ -1,10 +1,7 @@
-import json
 import sys
 import uuid
-from enum import Enum, IntEnum
 from typing import Optional
 
-from fastapi import HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
@@ -41,7 +38,8 @@ def create_user(name: str, leader_card_id: int) -> str:
 
         conn.execute(
             text(  # SQLAlchemyで処理できるようにするためにテキスト化する必要がある。　第二引数の辞書を参照することで、VALUESに挿入される。
-                "INSERT INTO `user` (name, token, leader_card_id) VALUES (:name, :token, :leader_card_id)"
+                "INSERT INTO `user` (name, token, leader_card_id) "
+                "VALUES (:name, :token, :leader_card_id)"
             ),
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )

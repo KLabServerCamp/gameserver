@@ -198,7 +198,7 @@ class RoomLeaveRequest(BaseModel):
 
 @app.post("/room/leave", response_model=Empty)
 def room_leave(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
-    """ルーム内の全ユーザのスコアを取得"""
+    """ルーム内のユーザの退室"""
     # print(req)
     room_model.room_leave(req.room_id, token)
 

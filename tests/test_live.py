@@ -7,7 +7,7 @@ user_tokens = []
 
 
 def _create_users():
-    for i in range(3):
+    for i in range(8):
         response = client.post(
             "/user/create",
             json={"user_name": f"room_user_{i}", "leader_card_id": 1000},
@@ -25,13 +25,13 @@ def _auth_header(i=0):
 
 def test_room_1():
 
-    room_id = 6
+    room_id = 10
 
     response = client.post("/room/list", json={"live_id": 0})
     assert response.status_code == 200
     print("room/list response:", response.json())
 
-    for i in range(3):
+    for i in range(8):
         response = client.post(
             "/room/join",
             headers=_auth_header(i),
@@ -45,3 +45,29 @@ def test_room_1():
     )
     assert response.status_code == 200
     print("room/wait response:", response.json())
+
+    # response = client.post(
+    #     "/room/start", headers=_auth_header(), json={"room_id": room_id}
+    # )
+    # assert response.status_code == 200
+    # print("room/start response:", response.json())
+
+    for i in range(2):
+        response = client.post(
+            "/room/end",
+            headers=_auth_header(i),
+            json={
+                "room_id": room_id,
+                "score": 1234,
+                "judge_count_list": [1111, 222, 33, 44, 5],
+            },
+        )
+        assert response.status_code == 200
+        print("room/end response:", response.json())
+
+    response = client.post(
+        "/room/result",
+        json={"room_id": room_id},
+    )
+    assert response.status_code == 200
+    print("room/end response:", response.json())

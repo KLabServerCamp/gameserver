@@ -14,6 +14,7 @@ CREATE TABLE `room` (
   `live_id` int NOT NULL,
   `owner_id` bigint NOT NULL,
   `status` int NOT NULL,
+  `end_time` int DEFAULT NULL,
   PRIMARY KEY (`room_id`)
 );
 

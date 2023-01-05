@@ -1,6 +1,6 @@
-import json
 import sys
-from enum import Enum, IntEnum
+import time
+from enum import IntEnum
 from typing import Optional, Tuple
 
 from fastapi import HTTPException
@@ -75,7 +75,8 @@ def _create_room(
 
         result = conn.execute(
             text(
-                "SELECT `room_id` FROM `room` WHERE `owner_id` = :owner_id AND `status` NOT IN (:status)"
+                "SELECT `room_id` FROM `room` "
+                "WHERE `owner_id` = :owner_id AND `status` NOT IN (:status)"
             ),
             {"owner_id": user.id, "status": WaitRoomStatus.Dissolution.value},
         )
@@ -137,7 +138,8 @@ def _get_room_list(conn, live_id: int) -> Optional[list[RoomInfo]]:
         else:
             result = conn.execute(
                 text(
-                    "SELECT `room_id`, `live_id`, `status` FROM `room` WHERE `live_id` = :live_id"
+                    "SELECT `room_id`, `live_id`, `status` FROM `room` "
+                    "WHERE `live_id` = :live_id"
                 ),
                 {"live_id": live_id},
             )
@@ -187,7 +189,8 @@ def _room_join(
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "SELECT `user_id` FROM `room_member` WHERE `room_id` = :room_id FOR UPDATE"
+                "SELECT `user_id` FROM `room_member` "
+                "WHERE `room_id` = :room_id FOR UPDATE"
             ),
             {"room_id": room_id},
         )
@@ -275,7 +278,8 @@ def _room_wait(
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "SELECT `user_id`, `select_difficulty` FROM `room_member` WHERE `room_id` = :room_id FOR UPDATE"
+                "SELECT `user_id`, `select_difficulty` FROM `room_member` "
+                "WHERE `room_id` = :room_id FOR UPDATE"
             ),
             {"room_id": room_id},
         )
@@ -324,6 +328,15 @@ def room_start(room_id: int) -> None:
         )
 
 
+def get_end_time(conn, room_id: int) -> Optional[int]:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("SELECT `end_time` FROM `room` WHERE `room_id`= :room_id"),
+            {"room_id": room_id},
+        )
+        return result.one().end_time
+
+
 # ライブの終了
 def room_end(judge_count_list: list[int], score: int, token: str) -> None:
     with engine.begin() as conn:
@@ -344,7 +357,24 @@ def room_end(judge_count_list: list[int], score: int, token: str) -> None:
             },
         )
 
+        result = conn.execute(
+            text("SELECT `room_id` FROM `room_member` WHERE `user_id`= :user_id"),
+            {"user_id": user.id},
+        )
+        room_id = result.one().room_id
 
+        end_time = get_end_time(conn, room_id)
+
+        if end_time is None:
+            conn.execute(
+                text(
+                    "UPDATE `room` SET `end_time`= :end_time WHERE `room_id`= :room_id"
+                ),
+                {"end_time": int(time.time()), "room_id": room_id},
+            )
+
+
+# ルーム内のリザルトの取得
 def _room_result(conn, room_id: int) -> Optional[list[ResultUser]]:
     with engine.begin() as conn:
         result = conn.execute(
@@ -358,15 +388,34 @@ def _room_result(conn, room_id: int) -> Optional[list[ResultUser]]:
         rows = result.all()
 
         if None in [row.score for row in rows]:
+            # スコアが更新されない人がいた場合にスコア0で更新し、リザルトを表示させる。
+            if time.time() - get_end_time(conn, room_id) >= 5:
+                for row in rows:
+                    if row.score is None:
+                        conn.execute(
+                            text(
+                                "UPDATE `room_member` SET `score`= :score, `perfect`= :perfect, `great`= :great, "
+                                "`good`= :good, `bad`= :bad, `miss`= :miss WHERE `user_id`= :user_id"
+                            ),
+                            {
+                                "score": 0,
+                                "perfect": 0,
+                                "great": 0,
+                                "good": 0,
+                                "bad": 0,
+                                "miss": 0,
+                                "user_id": row.user_id,
+                            },
+                        )
             return []
 
         conn.execute(
             text("DELETE FROM `room` WHERE `room_id` = :room_id"), {"room_id": room_id}
         )
-        conn.execute(
-            text("DELETE FROM `room_member` WHERE `room_id` = :room_id"),
-            {"room_id": room_id},
-        )
+        # conn.execute(
+        #     text("DELETE FROM `room_member` WHERE `room_id` = :room_id"),
+        #     {"room_id": room_id},
+        # )
 
         return [
             ResultUser(
@@ -399,7 +448,8 @@ def room_leave(room_id: int, token: str) -> None:
 
         conn.execute(
             text(
-                "DELETE FROM `room_member` WHERE `room_id`= :room_id AND `user_id`= :user_id"
+                "DELETE FROM `room_member` "
+                "WHERE `room_id`= :room_id AND `user_id`= :user_id"
             ),
             {"room_id": room_id, "user_id": user.id},
         )

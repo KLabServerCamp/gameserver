@@ -7,7 +7,7 @@ CREATE TABLE `user` (
   `token` varchar(255) DEFAULT NULL,
   `leader_card_id` int DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `token` (`token`)
+  UNIQUE KEY (`token`)
 );
 DROP TABLE IF EXISTS `room`;
 CREATE TABLE `room` (
@@ -26,9 +26,9 @@ CREATE TABLE `room_member` (
   `is_host` boolean NOT NULL DEFAULT false,
   `judge_count_list` json DEFAULT NULL,
   `score` int DEFAULT NULL,
-  `ttl` datetime DEFAULT NULL,
+  `ttl` datetime NOT NULL DEFAULT (ADDTIME(NOW(), 10)),
   FOREIGN KEY (`user_id`) REFERENCES `user` (`id`),
   FOREIGN KEY (`room_id`) REFERENCES `room` (`id`),
   PRIMARY KEY (`id`),
-  INDEX `user_id` (`user_id`)
+  UNIQUE KEY (`user_id`, `room_id`)
 );

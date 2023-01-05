@@ -139,6 +139,7 @@ class RoomWaitResponse(BaseModel):
 def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
     """４人集まるのを待つ（ポーリング）。APIの結果でゲーム開始がわかる"""
     status, room_user_list = model.get_room_wait_status(token, req.room_id)
+    print(RoomWaitResponse(status=status, room_user_list=room_user_list).json())
     return RoomWaitResponse(status=status, room_user_list=room_user_list)
 
 

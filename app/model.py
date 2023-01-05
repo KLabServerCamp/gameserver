@@ -1,6 +1,6 @@
-from datetime import datetime, timedelta
 import json
 import uuid
+from datetime import datetime, timedelta
 from enum import Enum, IntEnum
 from typing import Optional, Union
 
@@ -152,6 +152,28 @@ def _valitate_duplicate_member(conn: Connection, user_id: int):
         _leave_room(conn, user_id, room_id)
 
 
+def _leave_expired_member(conn: Connection):
+    for (user_id, room_id,) in conn.execute(
+        text("SELECT `user_id`, `room_id` FROM `room_member` WHERE `ttl` < NOW()")
+    ):
+        _leave_room(conn, user_id, room_id)
+
+
+def _update_member_ttl(
+    conn: Connection,
+    room_id: int,
+    user_id: Optional[int] = None,
+    time: timedelta = timedelta(seconds=10),
+):
+    conn.execute(
+        text(
+            "UPDATE `room_member` SET `ttl`=ADDTIME(NOW(), :time) "
+            f"WHERE {'' if user_id is None else '`user_id`=:user_id and '}`room_id`=:room_id"
+        ),
+        {"user_id": user_id, "room_id": room_id, "time": time},
+    )
+
+
 def _join_room(
     conn: Connection,
     user_id: int,
@@ -188,14 +210,13 @@ def _join_room(
     result = conn.execute(
         text(
             "INSERT INTO `room_member` (`user_id`, `room_id`, `select_difficulty`, `is_host`, `ttl`) "
-            "VALUES (:user_id, :room_id, :select_difficulty, :is_host, :ttl)"
+            "VALUES (:user_id, :room_id, :select_difficulty, :is_host, ADDTIME(NOW(), 10))"
         ),
         {
             "user_id": user_id,
             "room_id": room_id,
             "select_difficulty": select_difficulty.value,
             "is_host": is_host,
-            "ttl": datetime.now() + timedelta(seconds=10)
         },
     )
     return JoinRoomResult.OK
@@ -228,6 +249,7 @@ def get_room_info_list(token: str, live_id: int) -> list[RoomInfo]:
         conn: Connection
         user = _get_user_by_token_strict(conn, token)
         _valitate_duplicate_member(conn, user.id)
+        _leave_expired_member(conn)
         result = conn.execute(
             text(
                 "SELECT `id` as `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` "
@@ -258,18 +280,25 @@ def get_room_wait_status(
         user = _get_user_by_token_strict(conn, token)
 
         # memberバリテーション
-        conn.execute(
-            text(
-                "SELECT * FROM `room_member` WHERE `user_id`=:user_id and `room_id`=:room_id LIMIT 1"
-            ),
-            {"user_id": user.id, "room_id": room_id},
-        ).one()
+        member = RoomMemberRecord.from_orm(
+            conn.execute(
+                text(
+                    "SELECT * FROM `room_member` WHERE `user_id`=:user_id and `room_id`=:room_id LIMIT 1"
+                ),
+                {"user_id": user.id, "room_id": room_id},
+            ).one()
+        )
+        _leave_expired_member(conn)
 
         status_result = conn.execute(
             text("SELECT `wait_room_status` FROM `room` WHERE `id`=:room_id"),
             {"room_id": room_id},
         )
         status = WaitRoomStatus(status_result.one()["wait_room_status"])
+
+        if status is WaitRoomStatus.WATING:
+            _update_member_ttl(conn, room_id, user.id, timedelta(seconds=10))
+
         member_result = conn.execute(
             text(
                 "SELECT `user_id`, `name`, `leader_card_id`, `select_difficulty`, "
@@ -283,23 +312,23 @@ def get_room_wait_status(
         return status, room_user_list
 
 
-def _valitate_room_member(
-    conn: Connection, user_id: int, room_id: int, is_host: bool = False
-):
-    conn.execute(
-        text(
-            "SELECT * FROM `room_member` WHERE `user_id`=:user_id and `room_id`=:room_id "
-            f"{'and is_host=true' if is_host else ''}"
-        ),
-        {"user_id": user_id, "room_id": room_id},
-    ).one()
+def _get_room_member(conn: Connection, user_id: int, room_id: int):
+    return RoomMemberRecord.from_orm(
+        conn.execute(
+            text(
+                "SELECT * FROM `room_member` WHERE `user_id`=:user_id and `room_id`=:room_id"
+            ),
+            {"user_id": user_id, "room_id": room_id},
+        ).one()
+    )
 
 
 def start_room(token: str, room_id: int):
     with engine.begin() as conn:
         conn: Connection
         user = _get_user_by_token_strict(conn, token)
-        _valitate_room_member(conn, user.id, room_id, True)
+        member = _get_room_member(conn, user.id, room_id)
+        _update_member_ttl(conn, room_id, time=timedelta(minutes=10))
         result = conn.execute(
             text(
                 "UPDATE `room` SET `wait_room_status`=:start WHERE `id`=:room_id and `wait_room_status`=:wait"
@@ -314,13 +343,11 @@ def start_room(token: str, room_id: int):
             raise Exception
 
 
-# TODO: これメンバーが強制終了したらライブが終わらなくない?
-
-
 def end_room(token: str, room_id: int, judge_count_list: list[int], score: int):
     with engine.begin() as conn:
         conn: Connection
         user = _get_user_by_token_strict(conn, token)
+        _update_member_ttl(conn, room_id, time=timedelta(seconds=10))
         result = conn.execute(
             text(
                 "UPDATE `room_member` SET `judge_count_list`=:judge_count_list, `score`=:score "
@@ -340,7 +367,9 @@ def end_room(token: str, room_id: int, judge_count_list: list[int], score: int):
 def get_room_result(token: str, room_id: int) -> list[ResultUser]:
     with engine.begin() as conn:
         conn: Connection
+        _leave_expired_member(conn)
         user = _get_user_by_token_strict(conn, token)
+        _update_member_ttl(conn, room_id, user_id=user.id, time=timedelta(seconds=10))
         joined_user_count = conn.execute(
             text(
                 "SELECT `joined_user_count` from `room` "
@@ -364,10 +393,14 @@ def get_room_result(token: str, room_id: int) -> list[ResultUser]:
 
 
 def _leave_room(conn: Connection, user_id: int, room_id: int):
-    member = RoomMemberRecord.from_orm(conn.execute(
-        text("SELECT * FROM `room_member` WHERE `room_id`=:room_id and `user_id`=:user_id"),
-        {"room_id": room_id, "user_id": user_id},
-    ).one())
+    member = RoomMemberRecord.from_orm(
+        conn.execute(
+            text(
+                "SELECT * FROM `room_member` WHERE `room_id`=:room_id and `user_id`=:user_id"
+            ),
+            {"room_id": room_id, "user_id": user_id},
+        ).one()
+    )
 
     # room_member削除
     conn.execute(text("DELETE FROM `room_member` WHERE `id`=:id"), {"id": member.id})
@@ -400,7 +433,9 @@ def _leave_room(conn: Connection, user_id: int, room_id: int):
     # host移譲
     if status != WaitRoomStatus.DISSOLUTION and member.is_host:
         conn.execute(
-            text("UPDATE `room_member` SET `is_host`=true WHERE `room_id`=:room_id LIMIT 1"),
+            text(
+                "UPDATE `room_member` SET `is_host`=true WHERE `room_id`=:room_id LIMIT 1"
+            ),
             {"room_id": room_id},
         )
 

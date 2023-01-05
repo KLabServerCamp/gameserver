@@ -68,22 +68,25 @@ class RoomListResponse(BaseModel):
 @router.post("/list", response_model=RoomListResponse)
 def room_list(req: RoomListRequest):
     """List all rooms"""
-    rooms = model.get_room_list(req.live_id)
-    res = []
-    for r in rooms:
-        if r.live_status != model.WaitRoomStatus.Waiting:
-            continue
 
-        users = model.get_room_members(r.id)
-        if users is None:
-            return HTTPException(status_code=404)
+    try:
+        if req.live_id == 0:
+            rooms = model.get_room_list(user_max=MAX_USER_COUNT, user_min=1, room_status=model.WaitRoomStatus.Waiting)
+        else:
+            rooms = model.get_room_list(
+                req.live_id, user_max=MAX_USER_COUNT, user_min=1, room_status=model.WaitRoomStatus.Waiting
+            )
+    except Exception:
+        raise HTTPException(status_code=404)
 
-        if len(users) >= MAX_USER_COUNT or len(users) <= 0:
-            continue
+    try:
+        res = [
+            RoomInfo(room_id=r.id, live_id=r.live_id, joined_user_count=r.user_count, max_user_count=MAX_USER_COUNT)
+            for r in rooms
+        ]
+    except Exception:
+        raise HTTPException(status_code=404)
 
-        res.append(
-            RoomInfo(room_id=r.id, live_id=r.live_id, joined_user_count=len(users), max_user_count=MAX_USER_COUNT)
-        )
     return RoomListResponse(room_info_list=res)
 
 

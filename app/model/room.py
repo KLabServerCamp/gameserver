@@ -38,6 +38,7 @@ class Room(BaseModel):
     id: int
     live_id: Optional[int]
     live_status: Optional[WaitRoomStatus]
+    user_count: Optional[int]
 
     class Config:
         orm_mode = True
@@ -122,25 +123,61 @@ def _get_room(conn, room_id: int) -> Optional[Room]:
     return res
 
 
-def get_room_list(live_id: int) -> list[Room]:
+def get_room_list(
+    live_id: int = None, user_max: int = None, user_min: int = None, room_status: WaitRoomStatus = None
+) -> list[Room]:
+    """
+    Get room list
+
+    live_id: 0のときは、全てのlive_idのルームを取得
+    userLimit: (min, max)で、min以上max以下の人数のルームを取得
+    room_status: 取得するルームの状態
+    """
     with engine.begin() as conn:
 
         stmt = """
             SELECT
                 `id`,
                 `live_id`,
-                `live_status`
+                `live_status`,
+                IFNULL(`room_member_count`.`user_count`, 0) AS `user_count`
             FROM
                 `room`
+            LEFT OUTER JOIN
+                (
+                    SELECT
+                        `room_id`,
+                        COUNT(*) AS `user_count`
+                    FROM
+                        `room_member`
+                    GROUP BY
+                        `room_id`
+                ) AS `room_member_count`
+            ON
+                `room`.`id` = `room_member_count`.`room_id`
             """
 
-        if live_id != 0:
-            stmt += """
-                WHERE
-                    `live_id` = :live_id
-                """
+        where_clauses = []
 
-        res = conn.execute(text(stmt), {"live_id": live_id})
+        if live_id is not None:
+            where_clauses.append("`live_id` = :live_id")
+
+        if user_max is not None:
+            where_clauses.append("`user_count` <= :user_max")
+
+        if user_min is not None:
+            where_clauses.append("`user_count` >= :user_min")
+
+        if room_status is not None:
+            where_clauses.append("`live_status` = :room_status")
+
+        if len(where_clauses) > 0:
+            stmt += " WHERE " + " AND ".join(where_clauses)
+
+        res = conn.execute(
+            text(stmt),
+            {"live_id": live_id, "user_max": user_max, "user_min": user_min, "room_status": room_status.value},
+        )
 
         return [Room.from_orm(row) for row in res]
 

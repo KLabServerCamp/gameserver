@@ -256,6 +256,16 @@ def end_room(user_id: int, room_id: int, judge_count_list: list[int], score: int
                 "user_id": user_id,
             },
         )
+        if user_id == get_host_user_id(room_id):
+            result = conn.execute(
+                text(
+                    "UPDATE room SET wait_room_status=:wait_room_status WHERE id=:room_id"
+                ),
+                {
+                    "wait_room_status": WaitRoomStatus.Dissolution.value,
+                    "room_id": room_id,
+                },
+            )
     return None
 
 
@@ -288,17 +298,17 @@ def _join_room(
     role: Union[Literal["host"], Literal["guest"]],
 ) -> JoinRoomResult:
     result = conn.execute(
-        text("SELECT COUNT(user_id) FROM `room_member` WHERE room_id=:room_id FOR UPDATE")
-        , {"room_id": room_id}
-        )
+        text(
+            "SELECT COUNT(user_id) FROM `room_member` WHERE room_id=:room_id FOR UPDATE"
+        ),
+        {"room_id": room_id},
+    )
     if result.one()[0] >= MAX_USER_COUNT:
-        conn.execute(
-            text("ROLLBACK")
-        )
+        conn.execute(text("ROLLBACK"))
         return JoinRoomResult.RoomFull
     result = conn.execute(
         text(
-            "INSERT INTO `room_member` (user_id, room_id, select_difficulty, role) VALUES (:user_id, :room_id, :select_difficulty, :role COMMIT)"
+            "INSERT INTO `room_member` (user_id, room_id, select_difficulty, role) VALUES (:user_id, :room_id, :select_difficulty, :role)"
         ),
         {
             "user_id": user_id,
@@ -307,6 +317,7 @@ def _join_room(
             "role": role,
         },
     )
+    conn.execute(text("COMMIT"))
     return JoinRoomResult.Ok
 
 
@@ -325,6 +336,5 @@ def leave_room(user_id: int, room_id: int) -> None:
             ),
             {"user_id": user_id, "room_id": room_id},
         )
-
 
     return None

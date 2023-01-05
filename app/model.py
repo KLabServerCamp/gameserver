@@ -275,7 +275,7 @@ def result_room(room_id: int):
         for row in rows:
             row_dict = dict(row)
             row_dict["judge_count_list"] = json.loads(row_dict["judge_count_list"])
-            result_user = ResultUser.from_orm(row_dict)
+            result_user = ResultUser(**row_dict)
             result_user_list.append(result_user)
     return result_user_list
 
@@ -288,8 +288,17 @@ def _join_room(
     role: Union[Literal["host"], Literal["guest"]],
 ) -> JoinRoomResult:
     result = conn.execute(
+        text("SELECT COUNT(user_id) FROM `room_member` WHERE room_id=:room_id FOR UPDATE")
+        , {"room_id": room_id}
+        )
+    if result.one()[0] >= MAX_USER_COUNT:
+        conn.execute(
+            text("ROLLBACK")
+        )
+        return JoinRoomResult.RoomFull
+    result = conn.execute(
         text(
-            "INSERT INTO `room_member` (user_id, room_id, select_difficulty, role) VALUES (:user_id, :room_id, :select_difficulty, :role)"
+            "INSERT INTO `room_member` (user_id, room_id, select_difficulty, role) VALUES (:user_id, :room_id, :select_difficulty, :role COMMIT)"
         ),
         {
             "user_id": user_id,
@@ -316,5 +325,6 @@ def leave_room(user_id: int, room_id: int) -> None:
             ),
             {"user_id": user_id, "room_id": room_id},
         )
+
 
     return None

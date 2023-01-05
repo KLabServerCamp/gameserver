@@ -39,6 +39,7 @@ class RoomUser(BaseModel):
     class Config:
         orm_mode = True
 
+
 class ResultUser(BaseModel):
     user_id: int
     judge_count_list: list[int]
@@ -169,8 +170,8 @@ def _room_member_list(room_id: int, user_id: int):
                                     name=data_row[0],
                                     leader_card_id=data_row[1],
                                     select_difficulty=player[1],
-                                    is_me=True if player[0] == player[2] else False,
-                                    is_host=True if player[0] == user_id else False))
+                                    is_host=True if player[0] == player[2] else False,
+                                    is_me=True if player[0] == user_id else False))
     return members
 
 
@@ -204,7 +205,7 @@ def room_start(room_id: int, token: str):
         user = result.one()[0]
         result = conn.execute(
             text("SELECT `room_id` FROM `room_member` WHERE `room_id`=:room_id AND `owner`=:user_id"),
-            {"room_id": room_id, "user_id":user},
+            {"room_id": room_id, "user_id": user},
         )
         if result is not None:
             _ = conn.execute(
@@ -221,7 +222,6 @@ def room_end(room_id: int, judge_count_list: list[int], score: int, token: str):
             {"token": token},
         )
         user = result.one()[0]
-        print("-------------Flag B")
         _ = conn.execute(
             text("UPDATE `room_member` "
                  "SET `judge_count_perfect`=:perfect,"
@@ -229,7 +229,8 @@ def room_end(room_id: int, judge_count_list: list[int], score: int, token: str):
                  " `judge_count_good`=:good,"
                  " `judge_count_bad`=:bad,"
                  " `judge_count_miss`=:miss,"
-                 " `player_score`=:score"
+                 " `player_score`=:score,"
+                 " `done`= 1"
                  " WHERE `room_id`=:room_id AND `player_id`=:user_id"),
             {"perfect": judge_count_list[0],
              "great": judge_count_list[1],
@@ -240,5 +241,22 @@ def room_end(room_id: int, judge_count_list: list[int], score: int, token: str):
              "room_id": room_id,
              "user_id": user},
         )
-        print("-------------Flag A")
+    pass
+
+
+def room_result(room_id: int, token: str):
+    results = []
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("SELECT * FROM `room_member` WHERE `room_id`=:room_id"),
+            {"room_id": room_id},
+            )
+        row = result.fetchall()
+        for d in row:
+            if d[-1] == 0:
+                return []
+            results.append(ResultUser(user_id=d[3],
+                                      judge_count_list=[d[5], d[6], d[7], d[8], d[9]],
+                                      score=d[-2]))
+        return results
     pass

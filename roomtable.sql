@@ -23,5 +23,6 @@ CREATE TABLE `room_member` (
   `judge_count_bad` int DEFAULT NULL,
   `judge_count_miss` int DEFAULT NULL,
   `player_score` int DEFAULT NULL,
+  `done` int DEFAULT 0,
   PRIMARY KEY (`id`)
 );

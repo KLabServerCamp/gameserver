@@ -365,3 +365,36 @@ def start_room(token: str, room_id: int):
         # host only
         if _is_host(conn, user.id, room_id):
             _start_room(conn, room_id)
+
+
+def _end_room(
+    conn: Connection,
+    user_id: int,
+    room_id: int,
+    judge_count_list: list[int],
+    score: int,
+):
+    _: CursorResult = conn.execute(
+        text(
+            "UPDATE `room_member` "
+            "SET `judge_count_list` = :judge_count_list, `score` = :score "
+            "WHERE `user_id` = :user_id AND `room_id` = :room_id"
+        ),
+        {
+            "user_id": user_id,
+            "room_id": room_id,
+            "judge_count_list": str(judge_count_list),
+            "score": score,
+        },
+    )
+
+
+def end_room(token: str, room_id: int, judge_count_list: list[int], score: int):
+    with engine.begin() as conn:
+        conn = cast(Connection, conn)
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            return
+
+        _end_room(conn, user.id, room_id, judge_count_list, score)
+

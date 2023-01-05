@@ -263,11 +263,15 @@ def room_result(room_id: int, token: str):
 
 
 def room_leave(room_id: int, token: str):
+    # NOTE:必要なもの（誰もいなくなったらroomを削除する。ownerが抜けたら別の人をownerにする）
     user = _get_user_by_token(token=token)
     with engine.begin() as conn:
         _ = conn.execute(
             text("DELETE FROM `room_member` WHERE `room_id`=:room_id AND `player_id`=:user_id"),
             {"room_id": room_id, "user_id": user[0]},
+        )
+        result = conn.execute(
+            text("SELECT ``")
         )
         _ = conn.execute(
             text("UPDATE `room` SET `joined_user_count`=`joined_user_count`-1 WHERE `room_id`=:room_id"),

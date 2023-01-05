@@ -49,6 +49,11 @@ class RoomUser(BaseModel):
     is_me: bool
     is_host:bool
 
+class ResultUser(BaseModel):
+    user_id: int
+    judge_count_list: list
+    score: int
+
 def create_user(name: str, leader_card_id: int) -> str:
     """Create new user and returns their token"""
     token = str(uuid.uuid4())
@@ -71,7 +76,7 @@ def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
     )
     try:
         row = result.one()
-    except NoResultFpund:
+    except NoResultFund:
         return None
     return SafeUser.from_orm(row)
 
@@ -154,9 +159,12 @@ def create_room(user_id: int, live_id: int, select_difficulty: int) -> int:
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "INSERT INTO `room_member` (room_id, user_id, difficulty) VALUES (:room_id, :user_id, :select_difficulty)"
+                "INSERT INTO `room_member` (room_id, user_id, difficulty, is_join) VALUES (:room_id, :user_id, :select_difficulty, :is_join)"
             ),
-            {"room_id":room_id,"user_id":user_id,"select_difficulty":select_difficulty},
+            {"room_id":room_id,
+            "user_id":user_id,
+            "select_difficulty":select_difficulty,
+            "is_join":1},
         )
     return room_id
 
@@ -181,27 +189,38 @@ def search_room(live_id: int) -> Optional[RoomInfo]:
             )
 
     for (id,live_id,owner,status) in result:
-        tmp = RoomInfo(room_id=id,live_id=live_id,joined_user_count=1,max_user_count=4)
+        with engine.begin() as conn:
+            result = conn.execute(
+                text(
+                    "SELECT * FROM `room_member` WHERE `room_id` =:id AND `is_join` =:is_join"
+                ),
+                {"id": id,
+                "is_join":1},
+            )
+            joined_user_count = len(result.all())
+        print(result.all(),"eee",joined_user_count)
+        tmp = RoomInfo(room_id=id,live_id=live_id,joined_user_count=joined_user_count,max_user_count=4)
         response.append(tmp)
     return response
 
 #ルーム参加処理
 def join_room(user_id:int, room_id: int, select_difficulty:int) -> Optional[joinRoomResult]:
-    if get_status_by_roomid(room_id) == 2:
-        return 2
+    if get_numofpeople_inroom_by_roomid(room_id) == 4:
+        update_status_by_roomid(roomid,api.joinRoomResult.RoomFull)
 
     #get_numofpeople_inroom_by_roomid
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "INSERT INTO `room_member` (room_id, user_id, difficulty) VALUES (:room_id, :user_id, :select_difficulty)"
+                "INSERT INTO `room_member` (room_id, user_id, difficulty, is_join) VALUES (:room_id, :user_id, :select_difficulty, :is_join)"
             ),
-            {"room_id":room_id,"user_id":user_id,"select_difficulty":select_difficulty},
+            {"room_id":room_id,
+            "user_id":user_id,
+            "select_difficulty":select_difficulty,
+            "is_join":1},
         )
-    if get_numofpeople_inroom_by_roomid(room_id) == 4:
-        set_status_by_roomid(roomid,2)
 
-    return 1
+    return api.joinRoomResult.Ok
 
 #wating処理
 def wait_room(room_id: int, my_user_id:int) -> Optional[RoomUser]:
@@ -225,7 +244,6 @@ def wait_room(room_id: int, my_user_id:int) -> Optional[RoomUser]:
         )
 
     for (user_id,difficulty) in result:
-        print(user_id,difficulty,"dddd")
         is_me = False
         is_host = False
         tmp = get_username_by_userid(user_id)[0]
@@ -244,3 +262,47 @@ def wait_room(room_id: int, my_user_id:int) -> Optional[RoomUser]:
         is_host=is_host)
         response.append(tmp)
     return response
+
+def end_room(user_id:int, room_id: int, judge_count_list: list,score: int):
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "UPDATE `room_member` set `score`=:score, `judge`=:judge_count_list where `room_id`=:room_id AND `user_id`=:user_id"
+            ),
+            {"room_id":room_id,
+            "user_id":user_id,
+            "score":score,
+            "judge":','.join(judge_count_list)}
+        )
+
+#結果表示処理
+def result_room(room_id: int) -> Optional[ResultUser]:
+    response = []
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT `user_id`, `judge_count_list`, `score` FROM `room_member` WHERE `room_id` =:room_id"
+            ),
+            {"room_id": room_id},
+        )
+    
+    for (user_id, judge_count_list, score) in result:
+        tmp = ResultUser(
+            user_id=user_id,
+            judge_count_list=list(judge_count_list.split()),
+            score=score)
+        response.append(tmp)
+    return response
+
+#退出処理
+def leave_room(user_id:int, room_id: int):
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "UPDATE `room_member` set `is_join`=:is_join, where `room_id`=:room_id AND `user_id`=:user_id"
+            ),
+            {
+            "is_join":0,
+            "room_id":room_id,
+            "user_id":user_id}
+        )

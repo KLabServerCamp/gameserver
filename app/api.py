@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from . import model
 from .model import SafeUser
 from . import room_controler as room
-from .room_controler import LiveDifficulty, JoinRoomResult, WaitRoomStatus, RoomUser, ResultUser
+from .room_controler import LiveDifficulty, JoinRoomResult, WaitRoomStatus, RoomInfo, RoomUser, ResultUser
 
 app = FastAPI()
 
@@ -73,13 +73,6 @@ class RoomID(BaseModel):
     room_id: int
 
 
-class RoomInfo():
-    room_id: int
-    live_id: int
-    joined_user_count: int
-    max_user_count: int
-
-
 class CreateRoomRequest(BaseModel):
     live_id: int
     select_difficulty: LiveDifficulty
@@ -91,6 +84,10 @@ class CreateRoomResponse(BaseModel):
 
 class RoomListRequest(BaseModel):
     live_id: int
+
+
+class RoomListResponse(BaseModel):
+    room_info_list: list[RoomInfo]
 
 
 class RoomJoinRequest(BaseModel):
@@ -145,30 +142,29 @@ def room_create(req: CreateRoomRequest, token: str = Depends(get_auth_token)):
     return CreateRoomResponse(room_id=room_id)
 
 
-@app.post("/room/list")
+@app.post("/room/list", response_model=RoomListResponse)
 def list_room(req: RoomListRequest):
-    rooms = room.room_list(req.live_id)
-    return rooms
+    return RoomListResponse(room_info_list=room.room_list(req.live_id))
 
 
-@app.post("/room/join")
+@app.post("/room/join", response_model=RoomJoinResponse)
 def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)) -> RoomJoinResponse:
     return RoomJoinResponse(result=JoinRoomResult(room.room_join(req.room_id, req.select_difficulty, token)))
 
 
-@app.post("/room/wait")
+@app.post("/room/wait", response_model=RoomWaitResponse)
 def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)) -> RoomWaitResponse:
     status, member = room.room_wait(room_id=req.room_id, token=token)
     return RoomWaitResponse(status=status, room_user_list=member)
 
 
-@app.post("/room/start")
+@app.post("/room/start", response_model=Empty)
 def room_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
     room.room_start(req.room_id, token)
     pass
 
 
-@app.post("/room/end")
+@app.post("/room/end", response_model=Empty)
 def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
     room.room_end(room_id=req.room_id,
                   judge_count_list=req.judge_count_list,
@@ -177,12 +173,12 @@ def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
     pass
 
 
-@app.post("/room/result")
-def room_result(req: RoomResultRequest, token: str = Depends(get_auth_token)):
-    return RoomResultResponse(result_user_list=room.room_result(room_id=req.room_id, token=token))
+@app.post("/room/result", response_model=RoomResultResponse)
+def room_result(req: RoomResultRequest):
+    return RoomResultResponse(result_user_list=room.room_result(room_id=req.room_id))
 
 
-@app.post("/room/leave")
+@app.post("/room/leave", response_model=Empty)
 def room_leave(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
     room.room_leave(room_id=req.room_id, token=token)
     pass

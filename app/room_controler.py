@@ -28,6 +28,13 @@ class WaitRoomStatus(Enum):
     Dissolution = 3
 
 
+class RoomInfo(BaseModel):
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int
+
+
 class RoomUser(BaseModel):
     user_id: int
     name: str
@@ -245,7 +252,7 @@ def room_end(room_id: int, judge_count_list: list[int], score: int, token: str):
     pass
 
 
-def room_result(room_id: int, token: str):
+def room_result(room_id: int):
     results = []
     with engine.begin() as conn:
         result = conn.execute(
@@ -270,9 +277,11 @@ def room_leave(room_id: int, token: str):
             text("DELETE FROM `room_member` WHERE `room_id`=:room_id AND `player_id`=:user_id"),
             {"room_id": room_id, "user_id": user[0]},
         )
+        '''
         result = conn.execute(
             text("SELECT ``")
         )
+        '''
         _ = conn.execute(
             text("UPDATE `room` SET `joined_user_count`=`joined_user_count`-1 WHERE `room_id`=:room_id"),
             {"room_id": room_id},

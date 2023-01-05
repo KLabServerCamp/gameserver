@@ -4,7 +4,7 @@ from enum import Enum, IntEnum
 from typing import Optional, cast
 
 from fastapi import HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from sqlalchemy import text
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import NoResultFound
@@ -123,6 +123,12 @@ class ResultUser(BaseModel):
     judge_count_list: list[int]
     score: int
 
+    @validator("judge_count_list", pre=True)
+    def deserialize_json_str(cls, v: str | list[int]):
+        if isinstance(v, str):
+            return json.loads(v)
+        return v
+
 
 def _create_room(conn: Connection, user_id: int, live_id: int) -> Optional[int]:
     res: CursorResult = conn.execute(
@@ -165,7 +171,7 @@ def _set_room_status(conn: Connection, room_id: int, status: WaitRoomStatus):
 def _count_room_member(conn: Connection, room_id: int) -> Optional[int]:
     res: CursorResult = conn.execute(
         text(
-            "SELECT COUNT(1) AS joined_user_count FROM room_member WHERE room_id = :room_id"
+            "SELECT COUNT(*) AS joined_user_count FROM room_member WHERE room_id = :room_id"
         ),
         {"room_id": room_id},
     )
@@ -383,7 +389,7 @@ def _end_room(
         {
             "user_id": user_id,
             "room_id": room_id,
-            "judge_count_list": str(judge_count_list),
+            "judge_count_list": json.dumps(judge_count_list),
             "score": score,
         },
     )
@@ -398,3 +404,49 @@ def end_room(token: str, room_id: int, judge_count_list: list[int], score: int):
 
         _end_room(conn, user.id, room_id, judge_count_list, score)
 
+
+def _has_all_live_ended(conn: Connection, room_id: int) -> bool:
+    res: CursorResult = conn.execute(
+        text(
+            "SELECT COUNT(*) FROM `room_member` "
+            "WHERE `room_id` = :room_id AND `score` IS NULL"
+        ),
+        {"room_id": room_id},
+    )
+
+    print(len(res.all()))
+    try:
+        b = res.one()
+        print("413: " + str(b))
+        return False
+    except NoResultFound:
+        return True
+
+
+def _get_result(conn: Connection, room_id: int) -> list[ResultUser]:
+    res: CursorResult = conn.execute(
+        text(
+            "SELECT `user_id`, `judge_count_list`, `score` "
+            "FROM `room_member` "
+            "WHERE `room_id` = :room_id"
+        ),
+        {"room_id": room_id},
+    )
+
+    return [ResultUser(**row) for row in res]
+
+
+def get_result(token: str, room_id: int) -> list[ResultUser]:
+    with engine.begin() as conn:
+        conn = cast(Connection, conn)
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            return []
+
+        if _has_all_live_ended(conn, room_id):
+            res = _get_result(conn, room_id)
+            if _is_host(conn, user.id, room_id):
+                _set_room_status(conn, room_id, WaitRoomStatus.DISSOLUTION)
+            return res
+        else:
+            return []

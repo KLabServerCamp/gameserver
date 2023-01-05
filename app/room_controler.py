@@ -56,7 +56,7 @@ class SafeRoom(BaseModel):
     class Config:
         orm_mode = True
 
-'''
+
 def _get_user_by_token(token: str):
     with engine.begin() as conn:
         result = conn.execute(
@@ -64,7 +64,8 @@ def _get_user_by_token(token: str):
             {"token": token},
         )
         return result.one()
-'''
+
+
 def create_room(live_id: int, difficulty: LiveDifficulty, token: str):
     with engine.begin() as conn:
         # NOTE: 必要情報の設定。
@@ -259,4 +260,17 @@ def room_result(room_id: int, token: str):
                                       judge_count_list=[d[5], d[6], d[7], d[8], d[9]],
                                       score=d[-2]))
         return results
+
+
+def room_leave(room_id: int, token: str):
+    user = _get_user_by_token(token=token)
+    with engine.begin() as conn:
+        _ = conn.execute(
+            text("DELETE FROM `room_member` WHERE `room_id`=:room_id AND `player_id`=:user_id"),
+            {"room_id": room_id, "user_id": user[0]},
+        )
+        _ = conn.execute(
+            text("UPDATE `room` SET `joined_user_count`=`joined_user_count`-1 WHERE `room_id`=:room_id"),
+            {"room_id": room_id},
+        )
     pass

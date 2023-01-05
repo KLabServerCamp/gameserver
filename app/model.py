@@ -1,15 +1,16 @@
 import json
+import sys
 import uuid
 from enum import Enum, IntEnum
 from typing import Optional
 
-# from db import engine
 from fastapi import HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
-from .db import engine  # データベースの管理をしている
+sys.path.append("./")
+from app.db import engine  # データベースの管理をしている
 
 
 class InvalidToken(Exception):
@@ -30,9 +31,15 @@ class SafeUser(BaseModel):
 def create_user(name: str, leader_card_id: int) -> str:
     """Create new user and returns their token"""
     token = str(uuid.uuid4())
+
     # NOTE: tokenが衝突したらリトライする必要がある.
     with engine.begin() as conn:  # エラーが起きた場合には自動でロールバックしてくれる。
-        result = conn.execute(
+
+        # 初期生成したtokenでユーザが登録されている場合にtokenを更新する
+        while _get_user_by_token(conn, token) is not None:
+            token = str(uuid.uuid4())
+
+        conn.execute(
             text(  # SQLAlchemyで処理できるようにするためにテキスト化する必要がある。　第二引数の辞書を参照することで、VALUESに挿入される。
                 "INSERT INTO `user` (name, token, leader_card_id) VALUES (:name, :token, :leader_card_id)"
             ),
@@ -67,7 +74,7 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
     # このコードを実装してもらう
     with engine.begin() as conn:
         # TODO: 実装
-        reult = conn.execute(
+        conn.execute(
             text(
                 "UPDATE `user` SET `name`=:name, `leader_card_id`=:id WHERE `token`=:token"
             ),

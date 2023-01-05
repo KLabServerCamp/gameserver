@@ -10,7 +10,7 @@ CREATE TABLE `user` (
 
 DROP TABLE IF EXISTS `room`;
 CREATE TABLE `room` (
-  `room_id` int NOT NULL AUTO_INCREMENT,
+  `room_id` bigint NOT NULL AUTO_INCREMENT,
   `live_id` int NOT NULL,
   `owner_id` bigint NOT NULL,
   `status` int NOT NULL,
@@ -22,11 +22,11 @@ CREATE TABLE `room_member` (
   `room_id` bigint NOT NULL,
   `user_id` bigint NOT NULL,
   `select_difficulty` int,
-  `score` int DEFAULT 0,
-  `just` int DEFAULT 0,
-  `great` int DEFAULT 0,
-  `good` int DEFAULT 0,
-  `bad` int DEFAULT 0,
-  `miss` int DEFAULT 0,
+  `score` int DEFAULT NULL,
+  `perfect` int DEFAULT NULL,
+  `great` int DEFAULT NULL,
+  `good` int DEFAULT NULL,
+  `bad` int DEFAULT NULL,
+  `miss` int DEFAULT NULL,
   PRIMARY KEY (`room_id`, `user_id`)
 );

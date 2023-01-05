@@ -99,16 +99,18 @@ class RoomListRequest(BaseModel):
     live_id: int
 
 
-@app.post("/room/list", response_model=list[RoomInfo])
+class RoomListResponse(BaseModel):
+    room_info_list: list[RoomInfo]
+
+
+@app.post("/room/list", response_model=RoomListResponse)
 def room_list(req: RoomListRequest):
     """ルームリストの取得"""
     # print(req)
     room_info_list = room_model.get_room_list(req.live_id)
 
-    if room_info_list is None:
-        raise HTTPException(status_code=404)
-
-    return room_info_list
+    # return {"room_info_list": room_info_list}
+    return RoomListResponse(room_info_list=room_info_list)
 
 
 class RoomJoinRequest(BaseModel):
@@ -116,12 +118,18 @@ class RoomJoinRequest(BaseModel):
     select_difficulty: LiveDifficulty
 
 
-@app.post("/room/join", response_model=JoinRoomResult)
+class RoomJoinResponse(BaseModel):
+    join_room_result: JoinRoomResult
+
+
+@app.post("/room/join", response_model=RoomJoinResponse)
 def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
     """ルームへの参加"""
     # print(req)
-    room_info_list = room_model.room_join(req.room_id, req.select_difficulty, token)
-    return room_info_list
+    join_room_result = room_model.room_join(req.room_id, req.select_difficulty, token)
+
+    # return {"join_room_result": join_room_result}
+    return RoomJoinResponse(join_room_result=join_room_result)
 
 
 class RoomWaitRequest(BaseModel):
@@ -167,23 +175,31 @@ def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
     return {}
 
 
-class RoomEndRequest(BaseModel):
+class RoomResultRequest(BaseModel):
     room_id: int
-    score: int
-    judge_count_list: list[int]
 
 
-@app.post("/room/end", response_model=Empty)
-def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
+class RoomResultResponse(BaseModel):
+    result_user_list: list[ResultUser]
+
+
+@app.post("/room/result", response_model=RoomResultResponse)
+def room_result(req: RoomResultRequest):
     """ルーム内の全ユーザのスコアを取得"""
     # print(req)
-    room_model.room_end(req.judge_count_list, req.score, token)
+    result_user_list = room_model.room_result(req.room_id)
+
+    return RoomResultResponse(result_user_list=result_user_list)
+
+
+class RoomLeaveRequest(BaseModel):
+    room_id: int
+
+
+@app.post("/room/leave", response_model=Empty)
+def room_leave(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
+    """ルーム内の全ユーザのスコアを取得"""
+    # print(req)
+    room_model.room_leave(req.room_id, token)
+
     return {}
-
-
-# @app.post("/room/result", response_model=Empty)
-# def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
-#     """ルーム内の全ユーザのスコアを取得"""
-#     # print(req)
-#     room_model.room_end(req.judge_count_list, req.score, token)
-#     return {}

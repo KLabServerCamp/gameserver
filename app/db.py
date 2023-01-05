@@ -1,6 +1,5 @@
-# import config
 from sqlalchemy import create_engine
 
-from . import config
+import app.config as config
 
 engine = create_engine(config.DATABASE_URI, future=True, echo=True)

@@ -1,15 +1,17 @@
 import json
+import sys
 from enum import Enum, IntEnum
 from typing import Optional, Tuple
 
 from fastapi import HTTPException
-
-# from model import SafeUser
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
-from .model import SafeUser
+sys.path.append("./")
+import app.model as model
+from app.db import engine
+from app.model import SafeUser
 
 max_user_count = 4
 
@@ -72,8 +74,10 @@ def _create_room(
         )
 
         result = conn.execute(
-            text("SELECT `room_id` FROM `room` WHERE `owner_id` = :owner_id"),
-            {"owner_id": user.id},
+            text(
+                "SELECT `room_id` FROM `room` WHERE `owner_id` = :owner_id AND `status` NOT IN (:status)"
+            ),
+            {"owner_id": user.id, "status": WaitRoomStatus.Dissolution.value},
         )
         row = result.one()
 
@@ -109,12 +113,17 @@ def get_room_info(conn, room_id: int, live_id: int) -> RoomInfo:
             {"room_id": room_id},
         )
 
-        return RoomInfo(
-            room_id=room_id,
-            live_id=live_id,
-            joined_user_count=len(result.all()),
-            max_user_count=max_user_count,
-        )
+        user_count = len(result.all())
+
+        if user_count < max_user_count:
+            return RoomInfo(
+                room_id=room_id,
+                live_id=live_id,
+                joined_user_count=user_count,
+                max_user_count=max_user_count,
+            )
+        else:
+            return None
 
 
 # room_listの取得
@@ -122,13 +131,13 @@ def _get_room_list(conn, live_id: int) -> Optional[list[RoomInfo]]:
     with engine.begin() as conn:
         if live_id == 0:
             result = conn.execute(
-                text("SELECT `room_id`, `live_id` FROM `room`"),
+                text("SELECT `room_id`, `live_id`, `status` FROM `room`"),
                 {},
             )
         else:
             result = conn.execute(
                 text(
-                    "SELECT `room_id`, `live_id` FROM `room` WHERE `live_id` = :live_id"
+                    "SELECT `room_id`, `live_id`, `status` FROM `room` WHERE `live_id` = :live_id"
                 ),
                 {"live_id": live_id},
             )
@@ -136,8 +145,16 @@ def _get_room_list(conn, live_id: int) -> Optional[list[RoomInfo]]:
         try:
             rows = result.all()
         except NoResultFound:
-            return None
-        room_info_list = [get_room_info(conn, row.room_id, row.live_id) for row in rows]
+            return []
+
+        room_info_list = []
+
+        for row in rows:
+            if row.status == WaitRoomStatus.Wating:
+                room_info = get_room_info(conn, row.room_id, row.live_id)
+                if room_info is not None:
+                    room_info_list.append(room_info)
+
         return room_info_list
 
 
@@ -272,7 +289,19 @@ def _room_wait(
             for row in rows
         ]
 
-        return (WaitRoomStatus.Wating, user_list)
+        result = conn.execute(
+            text("SELECT `status` FROM `room` WHERE `room_id` = :room_id FOR UPDATE"),
+            {"room_id": room_id},
+        )
+
+        row = result.one()
+
+        if row.status == WaitRoomStatus.LiveStart:
+            return (WaitRoomStatus.LiveStart, user_list)
+        elif row.status == WaitRoomStatus.Dissolution:
+            return (WaitRoomStatus.Dissolution, user_list)
+        else:
+            return (WaitRoomStatus.Wating, user_list)
 
 
 def room_wait(room_id: int, token: str) -> Tuple[WaitRoomStatus, list[RoomUser]]:
@@ -284,6 +313,13 @@ def room_wait(room_id: int, token: str) -> Tuple[WaitRoomStatus, list[RoomUser]]
 # ライブの開始
 def room_start(room_id: int) -> None:
     with engine.begin() as conn:
+        # 2人以上ルームにいないと開始できない
+        # result = conn.execute(
+        #     text("SELECT `user_id` FROM `room_member` WHERE `room_id` = :room_id"),
+        #     {"room_id": room_id},
+        # )
+
+        # if len(result.all()) >= 2:
         conn.execute(
             text("UPDATE `room` SET `status`= :status WHERE `room_id`= :room_id"),
             {"status": WaitRoomStatus.LiveStart.value, "room_id": room_id},
@@ -296,12 +332,12 @@ def room_end(judge_count_list: list[int], score: int, token: str) -> None:
         user = model._get_user_by_token(conn, token)
         conn.execute(
             text(
-                "UPDATE `room_member` SET `score`= :score, `just`= :just, `great`= :great, "
+                "UPDATE `room_member` SET `score`= :score, `perfect`= :perfect, `great`= :great, "
                 "`good`= :good, `bad`= :bad, `miss`= :miss WHERE `user_id`= :user_id"
             ),
             {
                 "score": score,
-                "just": judge_count_list[0],
+                "perfect": judge_count_list[0],
                 "great": judge_count_list[1],
                 "good": judge_count_list[2],
                 "bad": judge_count_list[3],
@@ -311,30 +347,118 @@ def room_end(judge_count_list: list[int], score: int, token: str) -> None:
         )
 
 
+def _room_result(conn, room_id: int) -> Optional[list[ResultUser]]:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT `user_id`, `score`, `perfect`, `great`, `good`, `bad`, `miss`"
+                "FROM `room_member` WHERE `room_id`= :room_id"
+            ),
+            {"room_id": room_id},
+        )
+
+        rows = result.all()
+
+        if None in [row.score for row in rows]:
+            return []
+
+        conn.execute(
+            text("DELETE FROM `room` WHERE `room_id` = :room_id"), {"room_id": room_id}
+        )
+        conn.execute(
+            text("DELETE FROM `room_member` WHERE `room_id` = :room_id"),
+            {"room_id": room_id},
+        )
+
+        return [
+            ResultUser(
+                user_id=row.user_id,
+                judge_count_list=[row.perfect, row.great, row.good, row.bad, row.miss],
+                score=row.score,
+            )
+            for row in rows
+        ]
+
+
+def room_result(room_id: int) -> Optional[list[ResultUser]]:
+    with engine.begin() as conn:
+        return _room_result(conn, room_id)
+
+
+def get_room_owner_id(conn, room_id: int) -> Optional[int]:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("SELECT `owner_id` FROM `room` WHERE `room_id`= :room_id"),
+            {"room_id": room_id},
+        )
+
+        return result.one().owner_id
+
+
+def room_leave(room_id: int, token: str) -> None:
+    with engine.begin() as conn:
+        user = model._get_user_by_token(conn, token)
+
+        if get_room_owner_id(conn, room_id) == user.id:
+            conn.execute(
+                text("UPDATE `room` SET `status`= :status WHERE `room_id`= :room_id"),
+                {"status": WaitRoomStatus.Dissolution.value, "room_id": room_id},
+            )
+
+        conn.execute(
+            text(
+                "DELETE FROM `room_member` WHERE `room_id`= :room_id AND `user_id`= :user_id"
+            ),
+            {"room_id": room_id, "user_id": user.id},
+        )
+
+
 if __name__ == "__main__":
-    import model
-    from db import engine
-
     conn = engine.connect()
-    token = model.create_user(name="honoka", leader_card_id=1)
-    model.update_user(token, "honono", 50)
-    res = model._get_user_by_token(conn, token)
-    print("user:", res)
+    token_list = [model.create_user(name="ho", leader_card_id=1) for i in range(10)]
+    model.update_user(token_list[0], "honoka", 50)
+    user_list = [model._get_user_by_token(conn, token) for token in token_list]
+    print("user:", user_list[0])
 
-    result1 = _create_room(
+    room_id_list = [
+        _create_room(
+            conn,
+            live_id=i,
+            select_difficulty=LiveDifficulty.normal,
+            user=user,
+        )
+        for i, user in enumerate(user_list)
+    ]
+
+    print("room_id:", room_id_list)
+
+    room_list = get_room_list(1)
+    print("roomlist(live_id=1):", room_list)
+
+    room_list = get_room_list(0)
+    print("roomlist(live_id=all):", room_list)
+
+    for i in range(len(room_id_list)):
+        if i % 2 == 0:
+            room_start(room_id_list[i][0])
+    room_list = get_room_list(0)
+    print("roomlist(live_id=wait_room):", room_list)
+
+    join_token = model.create_user(name="ho", leader_card_id=1)
+    join_result = _room_join(
         conn,
-        live_id=1,
-        select_difficulty=LiveDifficulty.normal,
-        user=res,
+        room_list[0].room_id,
+        LiveDifficulty.normal,
+        model._get_user_by_token(conn, join_token).id,
     )
-    print("room_id:", result1)
+    print("join_result:", join_result)
 
-    result2 = get_room_list(1)
-    print("roomlist:", result2)
+    room_leave(room_list[0].room_id, token_list[1])
+    print("leave OK")
 
-    result3 = _room_join(conn, 1, LiveDifficulty.normal, res)
-    print("join_result:", result3)
-
-else:
-    from . import model
-    from .db import engine  # データベースの管理をしている
+    result = _create_room(
+        conn,
+        live_id=i,
+        select_difficulty=LiveDifficulty.normal,
+        user=user_list[1],
+    )

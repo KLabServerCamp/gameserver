@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from . import model
 from .model import SafeUser
 from . import room_controler as room
-from .room_controler import LiveDifficulty, JoinRoomResult, WaitRoomStatus, RoomUser
+from .room_controler import LiveDifficulty, JoinRoomResult, WaitRoomStatus, RoomUser, ResultUser
 
 app = FastAPI()
 
@@ -117,6 +117,10 @@ class RoomWaitResponse(BaseModel):
     room_user_list: list[RoomUser]
 
 
+class RoomStartRequest(BaseModel):
+    room_id: int
+
+
 @app.post("/room/create", response_model=CreateRoomResponse)
 def room_create(req: CreateRoomRequest, token: str = Depends(get_auth_token)):
     room_id = room.create_room(req.live_id, req.select_difficulty, token)
@@ -135,13 +139,14 @@ def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)) -> Roo
 
 
 @app.post("/room/wait")
-def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
+def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)) -> RoomWaitResponse:
     status, member = room.room_wait(room_id=req.room_id, token=token)
     return RoomWaitResponse(status=status, room_user_list=member)
 
 
 @app.post("/room/start")
-def room_start():
+def room_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
+    room.room_start(req.room_id, token)
     pass
 
 

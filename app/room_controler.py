@@ -39,6 +39,11 @@ class RoomUser(BaseModel):
     class Config:
         orm_mode = True
 
+class ResultUser(BaseModel):
+    user_id: int
+    judge_count_list: list[int]
+    score: int
+
 
 # NOTE:SafeRoomは閲覧可能なRoomの構成要素
 class SafeRoom(BaseModel):
@@ -180,3 +185,22 @@ def room_wait(room_id: int, token: str):
             return WaitRoomStatus.Waiting, _room_member_list(room_id=room_id, user_id=user_id)
         else:
             return WaitRoomStatus.LiveStart, _room_member_list(room_id=room_id, user_id=user_id)
+
+
+def room_start(room_id: int, token: str):
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("SELECT `id` FROM `user` WHERE `token`=:token"),
+            {"token": token},
+        )
+        user = result.one()[0]
+        result = conn.execute(
+            text("SELECT `room_id` FROM `room_member` WHERE `room_id`=:room_id AND `owner`=:user_id"),
+            {"room_id": room_id, "user_id":user},
+        )
+        if result is not None:
+            _ = conn.execute(
+                text("UPDATE `room` SET `status`=:status WHERE `room_id`=:room_id"),
+                {"status": 2, "room_id": room_id},
+            )
+    pass

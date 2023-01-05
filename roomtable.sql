@@ -17,6 +17,11 @@ CREATE TABLE `room_member` (
   `owner` int DEFAULT NULL,
   `player_id` int DEFAULT NULL,
   `select_difficulty` int DEFAULT NULL,
+  `judge_count_perfect` int DEFAULT NULL,
+  `judge_count_great` int DEFAULT NULL,
+  `judge_count_good` int DEFAULT NULL,
+  `judge_count_bad` int DEFAULT NULL,
+  `judge_count_miss` int DEFAULT NULL,
   `player_score` int DEFAULT NULL,
   PRIMARY KEY (`id`)
 );

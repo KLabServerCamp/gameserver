@@ -377,11 +377,32 @@ def _leave_room(conn, room_id: int, token: str) -> None:
     member = _get_room_member_by_room_id_and_token(conn, room_id, token)
     if member is None:
         return
+
+    if member.is_host:
+        members = conn.execute(
+            text(
+                "SELECT user_id FROM `room_member` WHERE `room_id` = :room_id AND `user_id` != :user_id"
+            ),
+            {
+                "room_id": room_id,
+                "user_id": user.id,
+            },
+        )
+
+        if members.rowcount > 0:
+            _ = conn.execute(
+                text(
+                    "UPDATE `room_member` SET `is_host` = 1 WHERE `room_id` = :room_id AND `user_id` = :user_id"
+                ),
+                {
+                    "room_id": room_id,
+                    "user_id": members[0].user_id,
+                },
+            )
+
     room = _get_room_by_room_id(conn, room_id)
     if room is None:
         return
-
-    # ここはトランザクションにしたい
 
     _ = conn.execute(
         text(

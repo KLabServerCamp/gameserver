@@ -27,7 +27,7 @@ CREATE TABLE `room_member` (
   `select_difficulty` int NOT NULL,
   `role` ENUM('host', 'guest') NOT NULL,
   `score` int,
-  `judge_count_list` varchar(255), 
+  `judge_count_list` varchar(512), 
   PRIMARY KEY (`room_id`, `user_id`),
   FOREIGN KEY (`user_id`) REFERENCES `user` (`id`)
 );

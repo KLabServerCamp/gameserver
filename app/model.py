@@ -67,6 +67,9 @@ class ResultUser(BaseModel):
     judge_count_list: list[int]
     score: int
 
+    class Config:
+        orm_mode = True
+
 
 def create_user(name: str, leader_card_id: int) -> str:
     """Create new user and returns their token"""
@@ -241,13 +244,14 @@ def start_room(user_id: int, room_id: int) -> None:
 
 def end_room(user_id: int, room_id: int, judge_count_list: list[int], score: int):
     with engine.begin() as conn:
+        judge_count_list_json = json.dumps(judge_count_list)
         result = conn.execute(
             text(
-                "UPDATE `room_member` SET `score`=:score, `judge_count_list`=:judge_count_list WHERE `room_id`=:room_id AND `user_id`=:user_id"
+                "UPDATE `room_member` SET `score`=:score, `judge_count_list`=:judge_count_list_json WHERE `room_id`=:room_id AND `user_id`=:user_id"
             ),
             {
                 "score": score,
-                "judge_count_list": judge_count_list,
+                "judge_count_list_json": judge_count_list_json,
                 "room_id": room_id,
                 "user_id": user_id,
             },
@@ -269,7 +273,9 @@ def result_room(room_id: int):
             return []
         result_user_list = []
         for row in rows:
-            result_user = ResultUser.from_orm(row)
+            row_dict = dict(row)
+            row_dict["judge_count_list"] = json.loads(row_dict["judge_count_list"])
+            result_user = ResultUser.from_orm(row_dict)
             result_user_list.append(result_user)
     return result_user_list
 
@@ -300,3 +306,15 @@ def join_room(
 ) -> JoinRoomResult:
     with engine.begin() as conn:
         return _join_room(conn, user_id, room_id, select_difficulty, role="guest")
+
+
+def leave_room(user_id: int, room_id: int) -> None:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "DELETE FROM `room_member` WHERE `user_id`=:user_id AND `room_id`=:room_id"
+            ),
+            {"user_id": user_id, "room_id": room_id},
+        )
+
+    return None

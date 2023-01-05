@@ -374,14 +374,44 @@ def _leave_room(conn, room_id: int, token: str) -> None:
     user = user_impl._get_user_by_token(conn, token)
     if user is None:
         return
-    member = _get_room_member_by_room_id_and_token(conn, room_id, token)
-    if member is None:
+
+    result = conn.execute(
+        text(
+            "SELECT room_id, joined_user_count FROM `room` WHERE `room_id` = :room_id LOCK IN SHARE MODE"
+        ),
+        {
+            "room_id": room_id,
+        },
+    )
+
+    try:
+        row = result.one()
+    except NoResultFound:
         return
 
+    room = row
+
+    result = conn.execute(
+        text(
+            "SELECT user_id, room_id, token, is_host FROM `room_member` WHERE `room_id` = :room_id AND `user_id` = :user_id LOCK IN SHARE MODE"
+        ),
+        {
+            "room_id": room_id,
+            "user_id": user.id,
+        },
+    )
+
+    try:
+        row = result.one()
+    except NoResultFound:
+        return
+
+    member = row
+
     if member.is_host:
-        members = conn.execute(
+        result = conn.execute(
             text(
-                "SELECT user_id FROM `room_member` WHERE `room_id` = :room_id AND `user_id` != :user_id"
+                "SELECT user_id FROM `room_member` WHERE `room_id` = :room_id AND `user_id` != :user_id LOCK IN SHARE MODE"
             ),
             {
                 "room_id": room_id,
@@ -389,7 +419,8 @@ def _leave_room(conn, room_id: int, token: str) -> None:
             },
         )
 
-        if members.rowcount > 0:
+        if result.rowcount > 0:
+            members = result.all()
             _ = conn.execute(
                 text(
                     "UPDATE `room_member` SET `is_host` = 1 WHERE `room_id` = :room_id AND `user_id` = :user_id"
@@ -399,10 +430,6 @@ def _leave_room(conn, room_id: int, token: str) -> None:
                     "user_id": members[0].user_id,
                 },
             )
-
-    room = _get_room_by_room_id(conn, room_id)
-    if room is None:
-        return
 
     _ = conn.execute(
         text(
@@ -441,5 +468,7 @@ def _leave_room(conn, room_id: int, token: str) -> None:
                 "room_id": room_id,
             },
         )
+
+    commit(conn)
 
     return

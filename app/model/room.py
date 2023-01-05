@@ -63,9 +63,6 @@ def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty) -> 
         return _create_room(conn, user_id, live_id, select_difficulty)
 
 
-# TODO: 人数確認
-
-
 def _create_room(conn, user_id: int, live_id: int, select_difficulty: LiveDifficulty) -> Optional[int]:
 
     res = conn.execute(
@@ -80,10 +77,10 @@ def _create_room(conn, user_id: int, live_id: int, select_difficulty: LiveDiffic
         ),
         {"live_id": live_id, "live_status": WaitRoomStatus.Waiting.value},
     )
-
     try:
         id = res.lastrowid
-    except NoResultFound:
+    except Exception:
+        conn.rollback()
         return None
 
     _ = conn.execute(
@@ -245,6 +242,23 @@ def join_room(token: str, room_id: int, select_difficulty: LiveDifficulty) -> Jo
         return JoinRoomResult.Ok
 
 
+def _update_host(conn, room_id: int, user_id: int, is_host: bool) -> None:
+    conn.execute(
+        text(
+            """
+            UPDATE
+                `room_member`
+            SET
+                `is_host` = :is_host
+            WHERE
+                `room_id` = :room_id AND
+                `user_id` = :user_id
+            """
+        ),
+        {"room_id": room_id, "user_id": user_id, "is_host": is_host},
+    )
+
+
 def get_room_status(room_id: int) -> WaitRoomStatus:
     with engine.begin() as conn:
         room = _get_room(conn, room_id)
@@ -351,12 +365,8 @@ def get_result(room_id: int) -> Optional[RoomMember]:
         return members
 
 
-def leave_room(token: str, room_id: int) -> bool:
+def leave_room(user_id: int, room_id: int) -> bool:
     with engine.begin() as conn:
-
-        me = _get_user_by_token(conn, token)
-        if me is None:
-            return False
 
         try:
             conn.execute(
@@ -370,7 +380,7 @@ def leave_room(token: str, room_id: int) -> bool:
                         `user_id` = :user_id
                     """
                 ),
-                {"room_id": room_id, "user_id": me.id},
+                {"room_id": room_id, "user_id": user_id},
             )
         except Exception:
             return False

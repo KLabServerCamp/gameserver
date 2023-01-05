@@ -11,6 +11,7 @@ from app import model
 
 
 router = APIRouter()
+# FIXME: Status Code
 
 
 # room APIs
@@ -77,7 +78,7 @@ def room_list(req: RoomListRequest):
         if users is None:
             return HTTPException(status_code=404)
 
-        if len(users) >= MAX_USER_COUNT:
+        if len(users) >= MAX_USER_COUNT > 0:
             continue
 
         res.append(
@@ -223,8 +224,22 @@ class RoomLeaveRequest(BaseModel):
 def room_leave(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
     """Leave a room"""
 
-    res = model.leave_room(token, req.room_id)
+    me = model.get_user_by_token(token)
+    if me is None:
+        raise HTTPException(status_code=404)
+
+    room_members = model.get_room_members(req.room_id)
+    if room_members is None:
+        raise HTTPException(status_code=404)
+
+    res = model.leave_room(me.id, req.room_id)
     if not res:
         raise HTTPException(status_code=404)
+
+    for m in room_members:
+        if m.user_id == me.id:
+            if m.is_host:
+                # FIXME : ここでホストが抜けたらどうするか
+                pass
 
     return {}

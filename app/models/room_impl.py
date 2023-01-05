@@ -381,13 +381,15 @@ def _leave_room(conn, room_id: int, token: str) -> None:
     if room is None:
         return
 
+    # ここはトランザクションにしたい
+
     _ = conn.execute(
         text(
             "DELETE FROM `room_member` WHERE `room_id` = :room_id AND `user_id` = :user_id"
         ),
         {
             "room_id": room_id,
-            "token": user.id,
+            "user_id": user.id,
         },
     )
 

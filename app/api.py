@@ -121,6 +121,11 @@ class RoomStartRequest(BaseModel):
     room_id: int
 
 
+class RoomEndRequest(BaseModel):
+    room_id: int
+    judge_count_list: list[int]
+    score: int
+
 @app.post("/room/create", response_model=CreateRoomResponse)
 def room_create(req: CreateRoomRequest, token: str = Depends(get_auth_token)):
     room_id = room.create_room(req.live_id, req.select_difficulty, token)
@@ -151,7 +156,11 @@ def room_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
 
 
 @app.post("/room/end")
-def room_end():
+def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
+    room.room_end(room_id=req.room_id,
+                  judge_count_list=req.judge_count_list,
+                  score=req.score,
+                  token=token)
     pass
 
 

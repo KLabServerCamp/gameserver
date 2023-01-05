@@ -55,7 +55,15 @@ class SafeRoom(BaseModel):
     class Config:
         orm_mode = True
 
-
+'''
+def _get_user_by_token(token: str):
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("SELECT `id` FROM `user` WHERE `token`=:token"),
+            {"token": token},
+        )
+        return result.one()
+'''
 def create_room(live_id: int, difficulty: LiveDifficulty, token: str):
     with engine.begin() as conn:
         # NOTE: 必要情報の設定。
@@ -203,4 +211,34 @@ def room_start(room_id: int, token: str):
                 text("UPDATE `room` SET `status`=:status WHERE `room_id`=:room_id"),
                 {"status": 2, "room_id": room_id},
             )
+    pass
+
+
+def room_end(room_id: int, judge_count_list: list[int], score: int, token: str):
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("SELECT `id` FROM `user` WHERE `token`=:token"),
+            {"token": token},
+        )
+        user = result.one()[0]
+        print("-------------Flag B")
+        _ = conn.execute(
+            text("UPDATE `room_member` "
+                 "SET `judge_count_perfect`=:perfect,"
+                 " `judge_count_great`=:great,"
+                 " `judge_count_good`=:good,"
+                 " `judge_count_bad`=:bad,"
+                 " `judge_count_miss`=:miss,"
+                 " `player_score`=:score"
+                 " WHERE `room_id`=:room_id AND `player_id`=:user_id"),
+            {"perfect": judge_count_list[0],
+             "great": judge_count_list[1],
+             "good": judge_count_list[2],
+             "bad": judge_count_list[3],
+             "miss": judge_count_list[4],
+             "score": score,
+             "room_id": room_id,
+             "user_id": user},
+        )
+        print("-------------Flag A")
     pass

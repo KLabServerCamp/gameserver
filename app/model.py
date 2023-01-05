@@ -415,17 +415,15 @@ def end_room(token: str, room_id: int, judge_count_list: list[int], score: int):
 def _has_all_live_ended(conn: Connection, room_id: int) -> bool:
     res: CursorResult = conn.execute(
         text(
-            "SELECT COUNT(*) FROM `room_member` "
+            "SELECT COUNT(*) AS in_game_count FROM `room_member` "
             "WHERE `room_id` = :room_id AND `score` IS NULL"
         ),
         {"room_id": room_id},
     )
 
-    print(len(res.all()))
     try:
-        b = res.one()
-        print("413: " + str(b))
-        return False
+        row = res.one()
+        return row["in_game_count"] == 0
     except NoResultFound:
         return True
 

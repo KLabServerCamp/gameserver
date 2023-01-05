@@ -358,6 +358,13 @@ def leave_room(token: str, room_id: int):
         ).one()
         joined_user_count = room_row["joined_user_count"]
         status = WaitRoomStatus(room_row["wait_room_status"])
+        is_host: bool = conn.execute(
+            text(
+                "SELECT `is_host` FROM `room_member` "
+                "WHERE `room_id`=:room_id and `user_id`=:user_id"
+            ),
+            {"room_id": room_id},
+        ).one()['is_host']
         conn.execute(
             text(
                 "DELETE FROM `room_member` WHERE `room_id`=:room_id and `user_id`=:user_id"
@@ -378,3 +385,10 @@ def leave_room(token: str, room_id: int):
                 "status": status.value,
             },
         )
+        if status != WaitRoomStatus.DISSOLUTION and is_host:
+            conn.execute(
+                text(
+                    "UPDATE `room_member` SET `is_host`=true "
+                    "WHERE `id`=:room_id LIMIT 1"
+                )
+            )

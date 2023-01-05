@@ -1,3 +1,5 @@
+
+DROP TABLE IF EXISTS `room_member`;
 DROP TABLE IF EXISTS `user`;
 CREATE TABLE `user` (
   `id` bigint NOT NULL AUTO_INCREMENT,
@@ -7,7 +9,6 @@ CREATE TABLE `user` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `token` (`token`)
 );
-DROP TABLE IF EXISTS `room_member`;
 DROP TABLE IF EXISTS `room`;
 CREATE TABLE `room` (
   `id` bigint NOT NULL AUTO_INCREMENT,
@@ -18,7 +19,6 @@ CREATE TABLE `room` (
   PRIMARY KEY (`id`)
 );
 CREATE TABLE `room_member` (
-  `id` bigint NOT NULL AUTO_INCREMENT,
   `user_id` bigint NOT NULL,
   `room_id` bigint NOT NULL,
   `select_difficulty` int DEFAULT NULL,

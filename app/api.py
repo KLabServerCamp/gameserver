@@ -179,7 +179,6 @@ def room_result(req: RoomResultRequest, token: str = Depends(get_auth_token)):
     """ルームのライブ終了後。end 叩いたあとにこれをポーリングする。 クライアントはn秒間隔で投げる想定。"""
     result_user_list = model.get_room_result(token, req.room_id)
     rr = RoomResultResponse(result_user_list=result_user_list)
-    print(repr(rr))
     return rr
 
 

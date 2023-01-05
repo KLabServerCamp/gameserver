@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 import json
 import uuid
 from enum import Enum, IntEnum
@@ -129,16 +130,18 @@ class ResultUser(BaseModel):
         orm_mode = True
 
 
-class RoomJoinException(Exception):
-    """入室時のエラー"""
+class RoomMemberRecord(BaseModel):
+    id: int
+    user_id: int
+    room_id: int
+    select_difficulty: Optional[LiveDifficulty]
+    is_host: bool
+    judge_count_list: Optional[Union[Json[list[int]], list[int]]]
+    score: Optional[int]
+    ttl: Optional[datetime]
 
-
-class RoomFullException(RoomJoinException):
-    """満室時のエラー"""
-
-
-class RoomDisbandedException(RoomJoinException):
-    """ルーム解散時のエラー"""
+    class Config:
+        orm_mode = True
 
 
 def _valitate_duplicate_member(conn: Connection, user_id: int):
@@ -184,22 +187,21 @@ def _join_room(
     # room_memberをinsert
     result = conn.execute(
         text(
-            "INSERT INTO `room_member` (`user_id`, `room_id`, `select_difficulty`, `is_host`) "
-            "VALUES (:user_id, :room_id, :select_difficulty, :is_host)"
+            "INSERT INTO `room_member` (`user_id`, `room_id`, `select_difficulty`, `is_host`, `ttl`) "
+            "VALUES (:user_id, :room_id, :select_difficulty, :is_host, :ttl)"
         ),
         {
             "user_id": user_id,
             "room_id": room_id,
             "select_difficulty": select_difficulty.value,
             "is_host": is_host,
+            "ttl": datetime.now() + timedelta(seconds=10)
         },
     )
     return JoinRoomResult.OK
 
 
 def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty) -> int:
-
-    # TODO: すでに部屋に入ってるかバリテーションする
     with engine.begin() as conn:
         conn: Connection
         user = _get_user_by_token_strict(conn, token)
@@ -362,22 +364,13 @@ def get_room_result(token: str, room_id: int) -> list[ResultUser]:
 
 
 def _leave_room(conn: Connection, user_id: int, room_id: int):
-    # hostか判定
-    is_host: bool = conn.execute(
-        text(
-            "SELECT `is_host` FROM `room_member` "
-            "WHERE `room_id`=:room_id and `user_id`=:user_id"
-        ),
+    member = RoomMemberRecord.from_orm(conn.execute(
+        text("SELECT * FROM `room_member` WHERE `room_id`=:room_id and `user_id`=:user_id"),
         {"room_id": room_id, "user_id": user_id},
-    ).one()["is_host"]
+    ).one())
 
     # room_member削除
-    conn.execute(
-        text(
-            "DELETE FROM `room_member` WHERE `room_id`=:room_id and `user_id`=:user_id"
-        ),
-        {"room_id": room_id, "user_id": user_id},
-    )
+    conn.execute(text("DELETE FROM `room_member` WHERE `id`=:id"), {"id": member.id})
 
     room_row = conn.execute(
         text(
@@ -405,12 +398,9 @@ def _leave_room(conn: Connection, user_id: int, room_id: int):
     )
 
     # host移譲
-    if status != WaitRoomStatus.DISSOLUTION and is_host:
+    if status != WaitRoomStatus.DISSOLUTION and member.is_host:
         conn.execute(
-            text(
-                "UPDATE `room_member` SET `is_host`=true "
-                "WHERE `room_id`=:room_id LIMIT 1"
-            ),
+            text("UPDATE `room_member` SET `is_host`=true WHERE `room_id`=:room_id LIMIT 1"),
             {"room_id": room_id},
         )
 

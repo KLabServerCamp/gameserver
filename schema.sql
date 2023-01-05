@@ -26,7 +26,9 @@ CREATE TABLE `room_member` (
   `is_host` boolean NOT NULL DEFAULT false,
   `judge_count_list` json DEFAULT NULL,
   `score` int DEFAULT NULL,
+  `ttl` datetime DEFAULT NULL,
   FOREIGN KEY (`user_id`) REFERENCES `user` (`id`),
   FOREIGN KEY (`room_id`) REFERENCES `room` (`id`),
-  PRIMARY KEY (`id`)
+  PRIMARY KEY (`id`),
+  INDEX `user_id` (`user_id`)
 );

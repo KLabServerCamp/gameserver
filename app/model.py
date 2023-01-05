@@ -358,19 +358,25 @@ def leave_room(token: str, room_id: int):
         ).one()
         joined_user_count = room_row["joined_user_count"]
         status = WaitRoomStatus(room_row["wait_room_status"])
+
+        # hostか判定
         is_host: bool = conn.execute(
             text(
                 "SELECT `is_host` FROM `room_member` "
                 "WHERE `room_id`=:room_id and `user_id`=:user_id"
             ),
-            {"room_id": room_id},
-        ).one()['is_host']
+            {"room_id": room_id, "user_id": user.id},
+        ).one()["is_host"]
+
+        # room_member削除
         conn.execute(
             text(
                 "DELETE FROM `room_member` WHERE `room_id`=:room_id and `user_id`=:user_id"
             ),
             {"room_id": room_id, "user_id": user.id},
         )
+
+        # memberのいないroomをDISSOLUTIONにする
         joined_user_count -= 1
         if joined_user_count < 1:
             status = WaitRoomStatus.DISSOLUTION
@@ -385,10 +391,13 @@ def leave_room(token: str, room_id: int):
                 "status": status.value,
             },
         )
+
+        # host移譲
         if status != WaitRoomStatus.DISSOLUTION and is_host:
             conn.execute(
                 text(
                     "UPDATE `room_member` SET `is_host`=true "
-                    "WHERE `id`=:room_id LIMIT 1"
-                )
+                    "WHERE `room_id`=:room_id LIMIT 1"
+                ),
+                {"room_id": room_id},
             )

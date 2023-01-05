@@ -10,6 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import NoResultFound
 
+from .config import TTL_LIVE_INTERVAL, TTL_POLLING_INTERVAL
 from .db import engine
 
 
@@ -163,7 +164,7 @@ def _update_member_ttl(
     conn: Connection,
     room_id: int,
     user_id: Optional[int] = None,
-    time: timedelta = timedelta(seconds=10),
+    time: timedelta = timedelta(seconds=TTL_POLLING_INTERVAL),
 ):
     conn.execute(
         text(
@@ -210,13 +211,14 @@ def _join_room(
     result = conn.execute(
         text(
             "INSERT INTO `room_member` (`user_id`, `room_id`, `select_difficulty`, `is_host`, `ttl`) "
-            "VALUES (:user_id, :room_id, :select_difficulty, :is_host, ADDTIME(NOW(), 10))"
+            "VALUES (:user_id, :room_id, :select_difficulty, :is_host, ADDTIME(NOW(), :time))"
         ),
         {
             "user_id": user_id,
             "room_id": room_id,
             "select_difficulty": select_difficulty.value,
             "is_host": is_host,
+            "time": timedelta(seconds=TTL_POLLING_INTERVAL),
         },
     )
     return JoinRoomResult.OK
@@ -249,7 +251,6 @@ def get_room_info_list(token: str, live_id: int) -> list[RoomInfo]:
         conn: Connection
         user = _get_user_by_token_strict(conn, token)
         _valitate_duplicate_member(conn, user.id)
-        _leave_expired_member(conn)
         result = conn.execute(
             text(
                 "SELECT `id` as `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` "
@@ -288,7 +289,6 @@ def get_room_wait_status(
                 {"user_id": user.id, "room_id": room_id},
             ).one()
         )
-        _leave_expired_member(conn)
 
         status_result = conn.execute(
             text("SELECT `wait_room_status` FROM `room` WHERE `id`=:room_id"),
@@ -297,7 +297,9 @@ def get_room_wait_status(
         status = WaitRoomStatus(status_result.one()["wait_room_status"])
 
         if status is WaitRoomStatus.WATING:
-            _update_member_ttl(conn, room_id, user.id, timedelta(seconds=10))
+            _update_member_ttl(
+                conn, room_id, user.id, timedelta(seconds=TTL_POLLING_INTERVAL)
+            )
 
         member_result = conn.execute(
             text(
@@ -328,7 +330,7 @@ def start_room(token: str, room_id: int):
         conn: Connection
         user = _get_user_by_token_strict(conn, token)
         member = _get_room_member(conn, user.id, room_id)
-        _update_member_ttl(conn, room_id, time=timedelta(minutes=10))
+        _update_member_ttl(conn, room_id, time=timedelta(seconds=TTL_LIVE_INTERVAL))
         result = conn.execute(
             text(
                 "UPDATE `room` SET `wait_room_status`=:start WHERE `id`=:room_id and `wait_room_status`=:wait"
@@ -347,7 +349,7 @@ def end_room(token: str, room_id: int, judge_count_list: list[int], score: int):
     with engine.begin() as conn:
         conn: Connection
         user = _get_user_by_token_strict(conn, token)
-        _update_member_ttl(conn, room_id, time=timedelta(seconds=10))
+        _update_member_ttl(conn, room_id)
         result = conn.execute(
             text(
                 "UPDATE `room_member` SET `judge_count_list`=:judge_count_list, `score`=:score "
@@ -367,9 +369,8 @@ def end_room(token: str, room_id: int, judge_count_list: list[int], score: int):
 def get_room_result(token: str, room_id: int) -> list[ResultUser]:
     with engine.begin() as conn:
         conn: Connection
-        _leave_expired_member(conn)
         user = _get_user_by_token_strict(conn, token)
-        _update_member_ttl(conn, room_id, user_id=user.id, time=timedelta(seconds=10))
+        _update_member_ttl(conn, room_id, user_id=user.id)
         joined_user_count = conn.execute(
             text(
                 "SELECT `joined_user_count` from `room` "
@@ -389,7 +390,8 @@ def get_room_result(token: str, room_id: int) -> list[ResultUser]:
             return []
         if not any(ru.user_id == user.id for ru in result_user_list):
             return []
-        return result_user_list
+        _dissolution_room(conn, room_id)
+    return result_user_list
 
 
 def _leave_room(conn: Connection, user_id: int, room_id: int):
@@ -445,3 +447,25 @@ def leave_room(token: str, room_id: int):
         conn: Connection
         user = _get_user_by_token_strict(conn, token)
         _leave_room(conn, user.id, room_id)
+
+
+def _dissolution_room(conn: Connection, room_id: int):
+    conn.execute(
+        text("DELETE FROM `room_member` WHERE `room_id`=:room_id"), {"room_id": room_id}
+    )
+    conn.execute(
+        text(
+            "UPDATE `room` SET `joined_user_count`=:joined_user_count, `wait_room_status`=:status "
+            "WHERE `id`=:room_id"
+        ),
+        {
+            "room_id": room_id,
+            "joined_user_count": 0,
+            "status": WaitRoomStatus.DISSOLUTION.value,
+        },
+    )
+
+
+def leave_expired_member():
+    with engine.begin() as conn:
+        _leave_expired_member(conn)

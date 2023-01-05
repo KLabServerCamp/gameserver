@@ -2,6 +2,7 @@ from enum import Enum
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi_utils.tasks import repeat_every
 from pydantic import BaseModel
 
 from . import model
@@ -23,6 +24,12 @@ app = FastAPI()
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
+
+
+@app.on_event("startup")
+@repeat_every(seconds=5)
+async def leave_expired_member_task():
+    model.leave_expired_member()
 
 
 # User APIs

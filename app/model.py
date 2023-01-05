@@ -152,6 +152,16 @@ def _get_room_status(conn: Connection, room_id: int) -> Optional[WaitRoomStatus]
         return None
 
 
+def _set_room_status(conn: Connection, room_id: int, status: WaitRoomStatus):
+    _: CursorResult = conn.execute(
+        text("UPDATE `room` SET `status` = :status WHERE `id` = :room_id"),
+        {
+            "room_id": room_id,
+            "status": status.value,
+        },
+    )
+
+
 def _count_room_member(conn: Connection, room_id: int) -> Optional[int]:
     res: CursorResult = conn.execute(
         text(
@@ -302,8 +312,24 @@ def wait_room(
         return status, room_user_list
 
 
-def _leave_room(conn: Connection, user_id: int, room_id: int):
+def _is_host(conn: Connection, user_id: int, room_id: int) -> bool:
     res: CursorResult = conn.execute(
+        text("SELECT FROM `room` WHERE `id` = :room_id AND `host_id` = :user_id"),
+        {
+            "room_id": room_id,
+            "user_id": user_id,
+        },
+    )
+
+    try:
+        _ = res.one()
+        return True
+    except NoResultFound:
+        return False
+
+
+def _leave_room(conn: Connection, user_id: int, room_id: int):
+    _: CursorResult = conn.execute(
         text(
             "DELETE FROM `room_member` WHERE `room_id` = :room_id AND `user_id` = :user_id"
         ),
@@ -311,17 +337,8 @@ def _leave_room(conn: Connection, user_id: int, room_id: int):
     )
 
     # disband room on host leaving
-    res: CursorResult = conn.execute(
-        text(
-            "UPDATE `room` SET `status` = :status "
-            "WHERE `id` = :room_id AND `host_id` = :user_id"
-        ),
-        {
-            "user_id": user_id,
-            "room_id": room_id,
-            "status": WaitRoomStatus.DISSOLUTION.value,
-        },
-    )
+    if _is_host(conn, user_id, room_id):
+        _set_room_status(conn, room_id, WaitRoomStatus.DISSOLUTION)
 
 
 def leave_room(token: str, room_id: int):
@@ -332,3 +349,19 @@ def leave_room(token: str, room_id: int):
             return
 
         _leave_room(conn, user.id, room_id)
+
+
+def _start_room(conn: Connection, room_id: int):
+    _set_room_status(conn, room_id, WaitRoomStatus.LIVE_START)
+
+
+def start_room(token: str, room_id: int):
+    with engine.begin() as conn:
+        conn = cast(Connection, conn)
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            return
+
+        # host only
+        if _is_host(conn, user.id, room_id):
+            _start_room(conn, room_id)

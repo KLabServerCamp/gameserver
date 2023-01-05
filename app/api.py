@@ -1,4 +1,5 @@
 from enum import Enum
+from typing import TypeAlias
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
@@ -151,4 +152,13 @@ class RoomLeaveRequest(BaseModel):
 @app.post("/room/leave", response_model=Empty)
 def room_leave(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
     model.leave_room(token, req.room_id)
+    return {}
+
+
+RoomStartRequest: TypeAlias = RoomLeaveRequest
+
+
+@app.post("/room/start", response_model=Empty)
+def room_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
+    model.start_room(token, req.room_id)
     return {}

@@ -238,25 +238,40 @@ def start_room(user_id: int, room_id: int) -> None:
         )
     return None
 
-def end_room(room_id: int, judge_count_list: list[int], score: int):
+
+def end_room(user_id: int, room_id: int, judge_count_list: list[int], score: int):
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "UPDATE `room` SET `wait_room_status`=:wait_room_status WHERE `id`=:room_id",
-            ),
-            {"wait_room_status": WaitRoomStatus.Dissolution.value, "room_id": room_id},
-        )
-        result = conn.execute(
-            text(
-                "UPDATE `room_member` SET `score`=:score, `judge_count_list`=:judge_count_list WHERE `room_id`=:room_id"
+                "UPDATE `room_member` SET `score`=:score, `judge_count_list`=:judge_count_list WHERE `room_id`=:room_id AND `user_id`=:user_id"
             ),
             {
                 "score": score,
-                "judge_count_list": ",".join(map(str, judge_count_list)),
+                "judge_count_list": judge_count_list,
                 "room_id": room_id,
+                "user_id": user_id,
             },
         )
     return None
+
+
+def result_room(room_id: int):
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT `user_id`, `judge_count_list`, `score` FROM `room_member` WHERE `room_id`=:room_id"
+            ),
+            {"room_id": room_id},
+        )
+        try:
+            rows = result.all()
+        except NoResultFound:
+            return []
+        result_user_list = []
+        for row in rows:
+            result_user = ResultUser.from_orm(row)
+            result_user_list.append(result_user)
+    return result_user_list
 
 
 def _join_room(

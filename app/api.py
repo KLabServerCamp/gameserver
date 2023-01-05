@@ -95,12 +95,6 @@ class RoomCreateResponse(BaseModel):
     room_id: int
 
 
-@app.post("/room/create", response_model=RoomCreateResponse)  # ok
-def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
-    user = model.get_user_by_token(token)
-    room_id = model.create_room(user.id, req.live_id, req.select_difficulty)
-
-    return RoomCreateResponse(room_id=room_id)
 
 
 class RoomListRequest(BaseModel):
@@ -111,11 +105,6 @@ class RoomListResponse(BaseModel):
     room_info_list = []
 
 
-@app.post("/room/list", response_model=RoomListResponse)  # ok
-def room_list(req: RoomListRequest):
-    room_info_list = model.list_room(req.live_id)
-    return RoomListResponse(room_info_list=room_info_list)
-
 
 class RoomWaitRequest(BaseModel):
     room_id: int
@@ -124,6 +113,27 @@ class RoomWaitRequest(BaseModel):
 class RoomWaitResponse(BaseModel):
     status: WaitRoomStatus
     room_user_list = []
+
+class RoomEndRequest(BaseModel):
+    room_id: int
+    score: int
+    judge_count_list: list[int]
+
+
+
+@app.post("/room/create", response_model=RoomCreateResponse)  # ok
+def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
+    user = model.get_user_by_token(token)
+    room_id = model.create_room(user.id, req.live_id, req.select_difficulty)
+
+    return RoomCreateResponse(room_id=room_id)
+
+
+@app.post("/room/list", response_model=RoomListResponse)  # ok
+def room_list(req: RoomListRequest):
+    room_info_list = model.list_room(req.live_id)
+    return RoomListResponse(room_info_list=room_info_list)
+
 
 
 @app.post("/room/wait", response_model=RoomWaitResponse)
@@ -140,10 +150,7 @@ def room_start(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
     return {}
 
 
-class RoomEndRequest(BaseModel):
-    room_id: int
-    judge_count_list: []
-    score: int
+
 
 
 @app.post("/room/end", response_model=Empty)
@@ -151,6 +158,20 @@ def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
     user = model.get_user_by_token(token)
     model.end_room(user.id, req.room_id, req.judge_count_list, req.score)
     return {}
+
+
+class RoomResultRequest(BaseModel):
+    room_id: int
+
+
+class RoomResultResponse(BaseModel):
+    result_user_list: list = []
+
+
+@app.post("/room/result", response_model=RoomResultResponse)
+def room_result(req: RoomResultRequest):
+    result_user_list = model.result_room(req.room_id)
+    return RoomResultResponse(result_user_list=result_user_list)
 
 
 class RoomJoinRequest(BaseModel):

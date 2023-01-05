@@ -146,10 +146,14 @@ def _create_room(conn: Connection, user_id: int, live_id: int) -> Optional[int]:
     return cast(int, res.lastrowid)
 
 
-def _get_room_status(conn: Connection, room_id: int) -> Optional[WaitRoomStatus]:
-    res: CursorResult = conn.execute(
-        text("SELECT * FROM room WHERE id = :id LIMIT 1"), {"id": room_id}
-    )
+def _get_room_status(
+    conn: Connection, room_id: int, *, for_update: bool = False
+) -> Optional[WaitRoomStatus]:
+    q = "SELECT * FROM room WHERE id = :id LIMIT 1"
+    if for_update:
+        q += " FOR UPDATE"
+
+    res: CursorResult = conn.execute(text(q), {"id": room_id})
 
     try:
         row = res.one()
@@ -171,7 +175,9 @@ def _set_room_status(conn: Connection, room_id: int, status: WaitRoomStatus):
 def _count_room_member(conn: Connection, room_id: int) -> Optional[int]:
     res: CursorResult = conn.execute(
         text(
-            "SELECT COUNT(*) AS joined_user_count FROM room_member WHERE room_id = :room_id"
+            "SELECT COUNT(*) AS joined_user_count FROM room_member "
+            "WHERE room_id = :room_id "
+            "LOCK IN SHARE MODE"
         ),
         {"room_id": room_id},
     )
@@ -186,8 +192,7 @@ def _count_room_member(conn: Connection, room_id: int) -> Optional[int]:
 def _join_room(
     conn: Connection, user_id: int, room_id: int, select_difficulty: LiveDifficulty
 ) -> JoinRoomResult:
-    # TODO: Lock
-    match _get_room_status(conn, room_id):
+    match _get_room_status(conn, room_id, for_update=True):
         case WaitRoomStatus.WAITING:
             pass
         case WaitRoomStatus.LIVE_START:
@@ -342,16 +347,16 @@ def _is_host(conn: Connection, user_id: int, room_id: int) -> bool:
 
 
 def _leave_room(conn: Connection, user_id: int, room_id: int):
+    # disband room on host leaving
+    if _is_host(conn, user_id, room_id):
+        _set_room_status(conn, room_id, WaitRoomStatus.DISSOLUTION)
+
     _: CursorResult = conn.execute(
         text(
             "DELETE FROM `room_member` WHERE `room_id` = :room_id AND `user_id` = :user_id"
         ),
         {"user_id": user_id, "room_id": room_id},
     )
-
-    # disband room on host leaving
-    if _is_host(conn, user_id, room_id):
-        _set_room_status(conn, room_id, WaitRoomStatus.DISSOLUTION)
 
 
 def leave_room(token: str, room_id: int):

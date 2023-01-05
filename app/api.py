@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
@@ -49,8 +48,7 @@ class UserCreateResponse(BaseModel):
     user_token: str
 
 
-
-@app.post("/user/create", response_model=UserCreateResponse) # ok
+@app.post("/user/create", response_model=UserCreateResponse)  # ok
 def user_create(req: UserCreateRequest):
     """新規ユーザー作成"""
     token = model.create_user(req.user_name, req.leader_card_id)
@@ -67,7 +65,7 @@ def get_auth_token(cred: HTTPAuthorizationCredentials = Depends(bearer)) -> str:
     return cred.credentials
 
 
-@app.get("/user/me", response_model=SafeUser) # ok
+@app.get("/user/me", response_model=SafeUser)  # ok
 def user_me(token: str = Depends(get_auth_token)):
     user = model.get_user_by_token(token)
     if user is None:
@@ -87,6 +85,7 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
     model.update_user(token, req.user_name, req.leader_card_id)
     return {}
 
+
 class RoomCreateRequest(BaseModel):
     live_id: int
     select_difficulty: LiveDifficulty
@@ -94,6 +93,7 @@ class RoomCreateRequest(BaseModel):
 
 class RoomCreateResponse(BaseModel):
     room_id: int
+
 
 @app.post("/room/create", response_model=RoomCreateResponse)  # ok
 def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
@@ -111,13 +111,46 @@ class RoomListResponse(BaseModel):
     room_info_list = []
 
 
-@app.post("/room/list", response_model=RoomListResponse) # ok
+@app.post("/room/list", response_model=RoomListResponse)  # ok
 def room_list(req: RoomListRequest):
     room_info_list = model.list_room(req.live_id)
     return RoomListResponse(room_info_list=room_info_list)
 
 
+class RoomWaitRequest(BaseModel):
+    room_id: int
 
+
+class RoomWaitResponse(BaseModel):
+    status: WaitRoomStatus
+    room_user_list = []
+
+
+@app.post("/room/wait", response_model=RoomWaitResponse)
+def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
+    user = model.get_user_by_token(token)
+    wait_room_status, room_user_list = model.wait_room(user.id, req.room_id)
+    return RoomWaitResponse(status=wait_room_status, room_user_list=room_user_list)
+
+
+@app.post("/room/start", response_model=Empty)
+def room_start(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
+    user = model.get_user_by_token(token)
+    model.start_room(user.id, req.room_id)
+    return {}
+
+
+class RoomEndRequest(BaseModel):
+    room_id: int
+    judge_count_list: []
+    score: int
+
+
+@app.post("/room/end", response_model=Empty)
+def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
+    user = model.get_user_by_token(token)
+    model.end_room(user.id, req.room_id, req.judge_count_list, req.score)
+    return {}
 
 
 class RoomJoinRequest(BaseModel):
@@ -133,4 +166,5 @@ class RoomJoinResponse(BaseModel):
 def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
     user = model.get_user_by_token(token)
     join_room_result = model.join_room(user.id, req.room_id, req.select_difficulty)
-    return RoomJoinResponse(join_room_result=join_room_result)
+    # return RoomJoinResponse(join_room_result=join_room_result)
+    return join_room_result

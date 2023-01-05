@@ -16,6 +16,8 @@ CREATE TABLE `room` (
   `live_id` int NOT NULL,
   `joined_user_count` int NOT NULL,
   `max_user_count` int NOT NULL,
+  `wait_room_status` int NOT NULL,
+  `host_user_id` int NOT NULL,
   PRIMARY KEY (`id`)
 );
 
@@ -23,8 +25,11 @@ CREATE TABLE `room_member` (
   `user_id` bigint NOT NULL,
   `room_id` bigint NOT NULL,
   `select_difficulty` int NOT NULL,
-  `is_host` tinyint NOT NULL,
-  PRIMARY KEY (`room_id`, `user_id`)
+  `role` ENUM('host', 'guest') NOT NULL,
+  `score` int,
+  `judge_count_list` varchar(255), 
+  PRIMARY KEY (`room_id`, `user_id`),
+  FOREIGN KEY (`user_id`) REFERENCES `user` (`id`)
 );
 
 -- INSERT INTO `user` (name, token, leader_card_id) VALUES ('user1', '2759ebe2-4f27-4fd4-94ae-d2f666902918', 1);

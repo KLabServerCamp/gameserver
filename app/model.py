@@ -1,7 +1,7 @@
 import json
 import uuid
 from enum import Enum, IntEnum
-from typing import Optional
+from typing import Literal, Optional, Tuple, Union
 
 from fastapi import HTTPException
 from pydantic import BaseModel
@@ -58,6 +58,9 @@ class RoomUser(BaseModel):
     is_me: bool
     is_host: bool
 
+    class Config:
+        orm_mode = True
+
 
 class ResultUser(BaseModel):
     user_id: int
@@ -72,7 +75,7 @@ def create_user(name: str, leader_card_id: int) -> str:
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "INSERT INTO `user` (name, token, leader_card_id) VALUES (:name, :token, :leader_card_id)"
+                "INSERT INTO user (name, token, leader_card_id) VALUES (:name, :token, :leader_card_id)"
             ),
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
@@ -114,22 +117,41 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
     return None
 
 
+# CREATE TABLE `room_member` (
+#   `user_id` bigint NOT NULL,
+#   `room_id` bigint NOT NULL,
+#   `select_difficulty` int NOT NULL,
+#   `role` ENUM('host', 'guest') NOT NULL,
+#   `score` int,
+#   `judge_count_list` varchar(255),
+#   PRIMARY KEY (`room_id`, `user_id`)
+# );
+
+
+class WaitRoomStatus(Enum):
+    Waiting = 1  # ホストがライブ開始ボタン押すのを待っている
+    LiveStart = 2  # ライブ画面遷移OK
+    Dissolution = 3  # 解放された
+
+
 def create_room(user_id: int, live_id: int, select_difficulty: LiveDifficulty) -> int:
     with engine.begin() as conn:
 
         result = conn.execute(
             text(
-                "INSERT INTO `room` (live_id, joined_user_count, max_user_count) VALUES (:live_id, :joined_user_count, :max_user_count)"
+                "INSERT INTO `room` (live_id, joined_user_count, max_user_count, wait_room_status, host_user_id) VALUES (:live_id, :joined_user_count, :max_user_count, :wait_room_status, :host_user_id)"
             ),
             {
                 "live_id": live_id,
                 "joined_user_count": 1,
                 "max_user_count": MAX_USER_COUNT,
+                "wait_room_status": WaitRoomStatus.Waiting.value,
+                "host_user_id": user_id,
             },
         )
         room_id = result.lastrowid
 
-        _join_room(conn, user_id, room_id, select_difficulty, is_host=True)
+        _join_room(conn, user_id, room_id, select_difficulty, role="host")
 
     return room_id
 
@@ -156,21 +178,85 @@ def list_room(live_id: int):
         return room_info_list
 
 
-# class JoinRoomResult(Enum):
-#     Ok = 1  # 入場OK
-#     RoomFull = 2  # 満員
-#     Disbanded = 3  # 解散済み
-#     OtherError = 4  # その他エラー
+def wait_room(user_id: int, room_id: int):
+    with engine.begin() as conn:
+        # result = conn.execute(
+        #     text("SELECT `wait_room_status` FROM `room` WHERE `id`=:room_id"),
+        #     {"room_id", room_id},
+        # )
+        result = conn.execute(
+            text("SELECT `wait_room_status` FROM `room` WHERE `id`=:room_id"),
+            {"room_id": room_id},
+        )
 
-# class RoomJoinResponse(BaseModel):
-#     join_room_result: JoinRoomResult
+        try:
+            wait_room_status: WaitRoomStatus = result.one()["wait_room_status"]
+        except NoResultFound:
+            return None
+
+        result = conn.execute(
+            text(
+                "SELECT rm.user_id AS user_id, u.name AS name, u.leader_card_id AS leader_card_id, rm.select_difficulty AS select_difficulty, CASE WHEN rm.user_id=:user_id THEN 1 ELSE 0 END AS is_me, CASE WHEN rm.role='host' THEN 1 ELSE 0 END AS is_host FROM room_member AS rm JOIN user AS u ON rm.user_id=u.id WHERE rm.room_id=:room_id"
+            ),
+            {"room_id": room_id, "user_id": user_id},
+        )
+        try:
+            rows = result.all()
+        except NoResultFound:
+            return None
+
+        room_user_list: list[RoomUser] = []
+        for row in rows:
+            room_user = RoomUser.from_orm(row)
+            room_user_list.append(room_user)
+
+    return wait_room_status, room_user_list
 
 
-# @app.post("/room/join", response_model=RoomJoinResponse)
-# def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
-#     user = model.get_user_by_token(token)
-#     join_room_result = model.join_room(user.id, req.room_id, req.select_difficulty)
-#     return RoomJoinResponse(join_room_result=join_room_result)
+def get_host_user_id(room_id: int):
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("SELECT `host_user_id` FROM `room` WHERE `id`=:room_id"),
+            {"room_id": room_id},
+        )
+        try:
+            host_user_id = result.one()["host_user_id"]
+        except NoResultFound:
+            return None
+    return host_user_id
+
+
+def start_room(user_id: int, room_id: int) -> None:
+    if user_id != get_host_user_id(room_id):
+        return None
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "UPDATE `room` SET `wait_room_status`=:wait_room_status WHERE `id`=:room_id",
+            ),
+            {"wait_room_status": WaitRoomStatus.LiveStart.value, "room_id": room_id},
+        )
+    return None
+
+def end_room(room_id: int, judge_count_list: list[int], score: int):
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "UPDATE `room` SET `wait_room_status`=:wait_room_status WHERE `id`=:room_id",
+            ),
+            {"wait_room_status": WaitRoomStatus.Dissolution.value, "room_id": room_id},
+        )
+        result = conn.execute(
+            text(
+                "UPDATE `room_member` SET `score`=:score, `judge_count_list`=:judge_count_list WHERE `room_id`=:room_id"
+            ),
+            {
+                "score": score,
+                "judge_count_list": ",".join(map(str, judge_count_list)),
+                "room_id": room_id,
+            },
+        )
+    return None
 
 
 def _join_room(
@@ -178,17 +264,17 @@ def _join_room(
     user_id: int,
     room_id: int,
     select_difficulty: LiveDifficulty,
-    is_host: bool = False,
+    role: Union[Literal["host"], Literal["guest"]],
 ) -> JoinRoomResult:
     result = conn.execute(
         text(
-            "INSERT INTO `room_member` (user_id, room_id, select_difficulty, is_host) VALUES (:user_id, :room_id, :select_difficulty, :is_host)"
+            "INSERT INTO `room_member` (user_id, room_id, select_difficulty, role) VALUES (:user_id, :room_id, :select_difficulty, :role)"
         ),
         {
             "user_id": user_id,
             "room_id": room_id,
             "select_difficulty": select_difficulty.value,
-            "is_host": is_host,
+            "role": role,
         },
     )
     return JoinRoomResult.Ok
@@ -198,4 +284,4 @@ def join_room(
     user_id: int, room_id: int, select_difficulty: LiveDifficulty
 ) -> JoinRoomResult:
     with engine.begin() as conn:
-        return _join_room(conn, user_id, room_id, select_difficulty)
+        return _join_room(conn, user_id, room_id, select_difficulty, role="guest")

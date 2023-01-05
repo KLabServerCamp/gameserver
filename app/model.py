@@ -314,7 +314,7 @@ def wait_room(
 
 def _is_host(conn: Connection, user_id: int, room_id: int) -> bool:
     res: CursorResult = conn.execute(
-        text("SELECT FROM `room` WHERE `id` = :room_id AND `host_id` = :user_id"),
+        text("SELECT * FROM `room` WHERE `id` = :room_id AND `host_id` = :user_id"),
         {
             "room_id": room_id,
             "user_id": user_id,

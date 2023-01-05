@@ -27,11 +27,11 @@ CREATE TABLE `room_member` (
   PRIMARY KEY (`room_id`, `user_id`)
 );
 
-INSERT INTO `user` (name, token, leader_card_id) VALUES ('user1', '2759ebe2-4f27-4fd4-94ae-d2f666902918', 1);
-INSERT INTO `user` (name, token, leader_card_id) VALUES ('user2', '4245ebe2-4f27-4fd4-94ae-d2f666902919', 2);
+-- INSERT INTO `user` (name, token, leader_card_id) VALUES ('user1', '2759ebe2-4f27-4fd4-94ae-d2f666902918', 1);
+-- INSERT INTO `user` (name, token, leader_card_id) VALUES ('user2', '4245ebe2-4f27-4fd4-94ae-d2f666902919', 2);
 
-INSERT INTO `room` (live_id, joined_user_count, max_user_count) VALUES (0, 1, 4);
-INSERT INTO `room_member` (user_id, room_id, select_difficulty, is_host) VALUES (1, 1, 0, 1)
+-- INSERT INTO `room` (live_id, joined_user_count, max_user_count) VALUES (0, 1, 4);
+-- INSERT INTO `room_member` (user_id, room_id, select_difficulty, is_host) VALUES (1, 1, 0, 1)
 
 
 

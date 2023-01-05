@@ -49,16 +49,8 @@ class UserCreateResponse(BaseModel):
     user_token: str
 
 
-class RoomCreateRequest(BaseModel):
-    live_id: int
-    select_difficulty: LiveDifficulty
 
-
-class RoomCreateResponse(BaseModel):
-    room_id: int
-
-
-@app.post("/user/create", response_model=UserCreateResponse)
+@app.post("/user/create", response_model=UserCreateResponse) # ok
 def user_create(req: UserCreateRequest):
     """新規ユーザー作成"""
     token = model.create_user(req.user_name, req.leader_card_id)
@@ -75,7 +67,7 @@ def get_auth_token(cred: HTTPAuthorizationCredentials = Depends(bearer)) -> str:
     return cred.credentials
 
 
-@app.get("/user/me", response_model=SafeUser)
+@app.get("/user/me", response_model=SafeUser) # ok
 def user_me(token: str = Depends(get_auth_token)):
     user = model.get_user_by_token(token)
     if user is None:
@@ -95,8 +87,15 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
     model.update_user(token, req.user_name, req.leader_card_id)
     return {}
 
+class RoomCreateRequest(BaseModel):
+    live_id: int
+    select_difficulty: LiveDifficulty
 
-@app.post("/room/create", response_model=RoomCreateResponse)
+
+class RoomCreateResponse(BaseModel):
+    room_id: int
+
+@app.post("/room/create", response_model=RoomCreateResponse)  # ok
 def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
     user = model.get_user_by_token(token)
     room_id = model.create_room(user.id, req.live_id, req.select_difficulty)
@@ -108,15 +107,17 @@ class RoomListRequest(BaseModel):
     live_id: int
 
 
-
 class RoomListResponse(BaseModel):
     room_info_list = []
 
 
-@app.post("/room/list", response_model=RoomListResponse)
+@app.post("/room/list", response_model=RoomListResponse) # ok
 def room_list(req: RoomListRequest):
     room_info_list = model.list_room(req.live_id)
     return RoomListResponse(room_info_list=room_info_list)
+
+
+
 
 
 class RoomJoinRequest(BaseModel):

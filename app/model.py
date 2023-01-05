@@ -156,13 +156,12 @@ def list_room(live_id: int):
         return room_info_list
 
 
-
 # class JoinRoomResult(Enum):
 #     Ok = 1  # 入場OK
 #     RoomFull = 2  # 満員
 #     Disbanded = 3  # 解散済み
 #     OtherError = 4  # その他エラー
-    
+
 # class RoomJoinResponse(BaseModel):
 #     join_room_result: JoinRoomResult
 
@@ -193,8 +192,6 @@ def _join_room(
         },
     )
     return JoinRoomResult.Ok
-
-
 
 
 def join_room(

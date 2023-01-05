@@ -167,13 +167,31 @@ def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
 
 #   room/result
 class RoomResultRequest(BaseModel):
-    live_id: int
+    room_id: int
 
 
 class RoomResultResponse(BaseModel):
     result_user_list: list[ResultUser]
 
 
+@app.post("/room/result", response_model=RoomResultResponse)
+def room_result(req: RoomResultRequest, token: str = Depends(get_auth_token)):
+    result_user_list = model.result_room(
+        token=token,
+        room_id=req.room_id,
+    )
+    return RoomResultResponse(result_user_list=result_user_list)
+
+
 #   room/leave
 class RoomLeaveRequest(BaseModel):
     room_id: int
+
+
+@app.post("/room/leave", response_model=Empty)
+def room_result(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
+    model.leave_room(
+        token=token,
+        room_id=req.room_id,
+    )
+    return {}

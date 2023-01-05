@@ -155,10 +155,12 @@ def _list_room(conn, live_id: int) -> list[RoomInfo]:
         )
 
     rows = result.fetchall()
+
     room_list = []
     for _, row in enumerate(rows):
         room_list.append(RoomInfo.from_orm(row))
-    return room_list
+    #    return room_list
+    return list[int](map(RoomInfo.from_orm, rows))
 
 
 def list_room(live_id: int) -> list[RoomInfo]:
@@ -183,16 +185,12 @@ def _join_room(
     # 空きがあるか確認
     result = conn.execute(
         text(
-            "SELECT `joined_user_count`, `max_user_count` FROM `room` WHERE room_id=:room_id AND `is_playing`=false FOR UPDATE"
+            "SELECT `joined_user_count`, `max_user_count` FROM `room` WHERE room_id=:room_id AND `is_playing`=FALSE FOR UPDATE"
         ),
         {"room_id": room_id},
     )
 
-    try:
-        row = result.one()
-    except NoResultFound:
-        conn.rollback()
-        return JoinRoomResult.Disbanded
+    row = result.one()
 
     if row["joined_user_count"] >= row["max_user_count"]:
         conn.rollback()
@@ -201,7 +199,7 @@ def _join_room(
     # 部屋に追加
     result = conn.execute(
         text(
-            "INSERT INTO `room_user` SET `room_id`=:room_id, `user_id`=:user_id, `select_difficulty`=:select_difficulty, `is_host`=false"
+            "INSERT INTO `room_user` SET `room_id`=:room_id, `user_id`=:user_id, `select_difficulty`=:select_difficulty, `is_host`=FALSE"
         ),
         {
             "room_id": room_id,
@@ -209,19 +207,13 @@ def _join_room(
             "select_difficulty": int(select_difficulty),
         },
     )
-
-    # 多重joinチェック
     result = conn.execute(
-        text("SELECT `user_id` FROM room_user WHERE `user_id`=:user_id"),
-        {"user_id": user.id},
+        text(
+            "UPDATE `room` SET `joined_user_count`=`joined_user_count`+1 WHERE `room_id`=:room_id"
+        ),
+        {"room_id": room_id},
     )
-    try:
-        row = result.one()
-    except NoResultFound:  # 2件以上もNoResultFound
-        conn.rollback()
-        return JoinRoomResult.OtherError
 
-    conn.commit()
     return JoinRoomResult.Ok
 
 
@@ -291,7 +283,7 @@ def _wait_room(conn, token: str, room_id: int) -> WaitRoomResult:
         result = conn.execute(
             text("SELECT `name`, `leader_card_id` FROM `user` WHERE `id`=:user_id"),
             {
-                "user_id": room_id,
+                "user_id": row["user_id"],
             },
         )
         u = result.one()
@@ -344,9 +336,14 @@ def _end_room(
 
     result = conn.execute(
         text(
-            "UPDATE `room_user` SET `judge_count_list`=:judge_count_str, `score`=:score WHERE `user_id`=:user_id"
+            "UPDATE `room_user` SET `judge_count_list`=:judge_count_str, `score`=:score WHERE `room_id`=:room_id, `user_id`=:user_id"
         ),
-        {"judge_count_str": judge_count_str, "score": score, "user_id": user.id},
+        {
+            "judge_count_str": judge_count_str,
+            "score": score,
+            "room_id": room_id,
+            "user_id": user.id,
+        },
     )
 
 
@@ -362,3 +359,104 @@ class ResultUser(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+def _result_room(conn, token: str, room_id: int) -> list[ResultUser]:
+    result = conn.execute(
+        text(
+            "SELECT `user_id`, `judge_count_list`, `score` FROM `room_user` WHERE `room_id`=:room_id"
+        ),
+        {"room_id": room_id},
+    )
+
+    rows = result.fetchall()
+    isFinished = len(rows) > 0
+    for _, row in enumerate(rows):
+        if row["judge_count_list"] is None:
+            isFinished = False
+
+    result_user_list = []
+    if isFinished:
+        for _, row in enumerate(rows):
+            judge_count_list = list[int](
+                map(int, str.split(row["judge_count_list"], ","))
+            )
+            result_user_list.append(
+                ResultUser(
+                    user_id=row["user_id"],
+                    judge_count_list=judge_count_list,
+                    score=row["score"],
+                )
+            )
+
+    return result_user_list
+
+
+def result_room(token: str, room_id: int) -> list[ResultUser]:
+    with engine.begin() as conn:
+        return _result_room(conn, token, room_id)
+
+
+def _leave_room(conn, token: str, room_id: int) -> None:
+    user = _get_user_by_token(conn=conn, token=token)
+    if user is None:
+        raise InvalidToken
+
+    result = conn.execute(
+        text(
+            "SELECT `joined_user_count` FROM `room` WHERE `room_id`=:room_id FOR UPDATE"
+        ),
+        {"room_id": room_id},
+    )
+    row = result.one()
+    if row["joined_user_count"] <= 1:
+        conn.execute(
+            text("DELETE FROM `room` WHERE `room_id`=:room_id"),
+            {"room_id": room_id},
+        )
+        conn.execute(
+            text("DELETE FROM `room_user` WHERE `room_id`=:room_id"),
+            {"room_id": room_id},
+        )
+        return
+
+    result = conn.execute(
+        text(
+            "SELECT `user_id`, `is_host` FROM `room_user` WHERE `room_id`=:room_id FOR UPDATE"
+        ),
+        {"room_id": room_id},
+    )
+
+    rows = result.fetchall()
+    is_host_leave = False
+    for _, row in enumerate(rows):
+        if row["user_id"] == user.id and row["is_host"]:
+            is_host_leave = True
+            break
+
+    if is_host_leave:
+        for _, row in enumerate(rows):
+            if row["user_id"] != user.id:
+                result = conn.execute(
+                    text(
+                        "UPDATE `room_user` SET `is_host`=TRUE WHERE `room_id`=:room_id AND `user_id`=:user_id"
+                    ),
+                    {"room_id": room_id, "user_id": row["user_id"]},
+                )
+                break
+
+    conn.execute(
+        text("DELETE FROM `room_user` WHERE `room_id`=:room_id AND `user_id`=:user_id"),
+        {"room_id": room_id, "user_id": user.id},
+    )
+    conn.execute(
+        text(
+            "UPDATE `room` SET `joined_user_count`=`joined_user_count`-1 WHERE `room_id`=:room_id"
+        ),
+        {"room_id": room_id, "user_id": user.id},
+    )
+
+
+def leave_room(token: str, room_id: int) -> None:
+    with engine.begin() as conn:
+        _leave_room(conn, token, room_id)

@@ -25,12 +25,6 @@ class SafeUser(BaseModel):
     class Config:
         orm_mode = True
 
-class RoomInfo(BaseModel):
-    room_id: int
-    live_id: int
-    joined_user_count: int
-    max_user_count: int 
-
 class LiveDifficulty(Enum):
     nomal = 1
     hard = 2
@@ -40,6 +34,20 @@ class joinRoomResult(Enum):
     RoomFull = 2
     Disbanded = 3
     OtherError = 4
+
+class RoomInfo(BaseModel):
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int 
+
+class RoomUser(BaseModel):
+    room_id: int
+    name: str
+    leader_card_id: int
+    select_difficulty: LiveDifficulty
+    is_me: bool
+    is_host:bool
 
 def create_user(name: str, leader_card_id: int) -> str:
     """Create new user and returns their token"""
@@ -67,6 +75,10 @@ def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
         return None
     return SafeUser.from_orm(row)
 
+def get_user_by_token(token: str) -> Optional[SafeUser]:
+    with engine.begin() as conn:
+        return _get_user_by_token(conn, token)
+
 
 def get_numofpeople_inroom_by_roomid(room_id: int) -> Optional[SafeUser]:
     with engine.begin() as conn:
@@ -77,14 +89,43 @@ def _get_numofpeople_inroom_by_roomid(conn, room_id: int) -> Optional[SafeUser]:
         text("SELECT COUNT(`room_id` =:room_id OR NULL) FROM `room`"),
         {"room_id": room_id},
     )
-    print(result)
     return result
 
-
-def get_user_by_token(token: str) -> Optional[SafeUser]:
+def _get_username_by_userid(conn, user_id: int) -> Optional[SafeUser]:
+    result = conn.execute(
+        text("SELECT `name`, `leader_card_id` FROM `user` WHERE `id`=:user_id"),
+        {"user_id": user_id},
+    )
+    row = result.all()
+    return row
+    
+def get_username_by_userid(user_id: int) -> Optional[SafeUser]:
     with engine.begin() as conn:
-        return _get_user_by_token(conn, token)
+        return _get_username_by_userid(conn, user_id)
 
+def _get_status_by_roomid(conn, room_id: int) -> Optional[SafeUser]:
+    result = conn.execute(
+        text("SELECT `status` FROM `room` WHERE `id`=:room_id"),
+        {"room_id": room_id},
+    )
+    row = result.one()[0]
+    return row
+    
+def get_status_by_roomid(room_id: int) -> Optional[SafeUser]:
+    with engine.begin() as conn:
+        return _get_status_by_roomid(conn, room_id)
+
+def _update_status_by_roomid(conn, room_id: int, status: int):
+    result = conn.execute(
+            text(
+                "UPDATE `room` set `status`=:status where `room_id`=:room_id"
+            ),
+            {"status": status, "room_id": room_id},
+        )
+    
+def update_status_by_roomid(room_id: int,status: int):
+    with engine.begin() as conn:
+        return _update_status_by_roomid(conn, room_id, status)
 ##############
 
 
@@ -101,7 +142,6 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
 # ルーム作成DB操作
 def create_room(user_id: int, live_id: int, select_difficulty: int) -> int:
     """Create new room and returns room id"""
-    print(user_id,live_id,select_difficulty,"rrr")
     # roomにユーザを登録する
     with engine.begin() as conn:
         result = conn.execute(
@@ -111,6 +151,13 @@ def create_room(user_id: int, live_id: int, select_difficulty: int) -> int:
             {"live_id": live_id, "owner": user_id, "status": 1},
         )
     room_id = result.lastrowid
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "INSERT INTO `room_member` (room_id, user_id, difficulty) VALUES (:room_id, :user_id, :select_difficulty)"
+            ),
+            {"room_id":room_id,"user_id":user_id,"select_difficulty":select_difficulty},
+        )
     return room_id
 
 # ルーム検索DB操作
@@ -139,18 +186,61 @@ def search_room(live_id: int) -> Optional[RoomInfo]:
     return response
 
 #ルーム参加処理
-def join_room(user_id:int, room_id: int) -> Optional[joinRoomResult]:
-    if get_numofpeople_inroom_by_roomid >= 4:
-        return joinRoomResult(RoomFull)
+def join_room(user_id:int, room_id: int, select_difficulty:int) -> Optional[joinRoomResult]:
+    if get_status_by_roomid(room_id) == 2:
+        return 2
+
+    #get_numofpeople_inroom_by_roomid
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "INSERT INTO `room_member` (room_id, user_id, difficulty) VALUES (:room_id, :user_id, :select_difficulty)"
+            ),
+            {"room_id":room_id,"user_id":user_id,"select_difficulty":select_difficulty},
+        )
+    if get_numofpeople_inroom_by_roomid(room_id) == 4:
+        set_status_by_roomid(roomid,2)
+
+    return 1
+
+#wating処理
+def wait_room(room_id: int, my_user_id:int) -> Optional[RoomUser]:
+    response = []
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT * FROM `room` WHERE `id` =:room_id"
+            ),
+            {"room_id": room_id},
+        )
+
+    owner = result.all()[0][2]
 
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "INSERT INTO `room` (live_id, owner, status) VALUES (:live_id, :owner, :status)"
+                "SELECT `user_id`, `difficulty` FROM `room_member` WHERE `room_id` =:room_id"
             ),
-            {"live_id": live_id, "owner": user_id, "status": 1},
+            {"room_id": room_id},
         )
-    room_id = result.lastrowid
-    return room_id
 
-    return joinRoomResult(result)
+    for (user_id,difficulty) in result:
+        print(user_id,difficulty,"dddd")
+        is_me = False
+        is_host = False
+        tmp = get_username_by_userid(user_id)[0]
+        name,leader_card_id = tmp
+        if user_id == my_user_id:
+            is_me=True
+        
+        if owner == my_user_id:
+            is_host = False
+
+        tmp = RoomUser(room_id=room_id,
+        name=name,
+        leader_card_id=leader_card_id,
+        select_difficulty=difficulty,
+        is_me=is_me,
+        is_host=is_host)
+        response.append(tmp)
+    return response

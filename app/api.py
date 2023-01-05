@@ -26,7 +26,7 @@ class UserCreateRequest(BaseModel):
 
 
 class UserCreateResponse(BaseModel):
-    room_id: int
+    user_token: str
 
 class RoomCreateRequest(BaseModel):
     live_id:int
@@ -51,9 +51,21 @@ class joinRoomResult(Enum):
     Disbanded = 3
     OtherError = 4
 
-class RoomJoinResponse(BaseModel):
-    join_room_result: joinRoomResult
+class WaitRoomStatus(Enum):
+    wating = 1
+    LiveStart = 2
+    Dissolution = 3
 
+class RoomJoinResponse(BaseModel):
+    join_room_result: int
+
+class RoomWaitRequest(BaseModel):
+    room_id:int
+    select_difficulty:int
+
+class RoomWaitResponse(BaseModel):
+    status: int
+    room_user_list: list
 
 @app.post("/user/create", response_model=UserCreateResponse)
 def user_create(req: UserCreateRequest):
@@ -94,11 +106,11 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
 
 
 # ルーム作成
-@app.post("/room/create", response_model=UserCreateResponse)
+@app.post("/room/create", response_model=RoomCreateResponse)
 def room_create(req:RoomCreateRequest,token: str = Depends(get_auth_token)):
     user_id = model.get_user_by_token(token).id
     room_id = model.create_room(user_id, req.live_id, req.select_difficulty)
-    return  UserCreateResponse(room_id=room_id)
+    return  RoomCreateResponse(room_id=room_id)
 
 #ルーム検索
 @app.post("/room/list", response_model=RoomListResponse)
@@ -109,7 +121,18 @@ def room_create(req:RoomListRequest,token: str = Depends(get_auth_token)):
 #ルーム参加
 @app.post("/room/join", response_model=RoomJoinResponse)
 def room_create(req:RoomJoinRequest,token: str = Depends(get_auth_token)):
-    resutl = model.join_room(user_id,room_id) 
-
     user_id = model.get_user_by_token(token).id
-    return RoomListResponse(room_info_list=room_list)
+    room_id = req.room_id
+    select_difficulty = req.select_difficulty
+    join_room_result = model.join_room(user_id,room_id,select_difficulty) 
+
+    return RoomJoinResponse(join_room_result=join_room_result)
+
+#ルーム検索
+@app.post("/room/wait", response_model=RoomWaitResponse)
+def room_wait(req:RoomWaitRequest,token: str = Depends(get_auth_token)):
+    print(user_id,"deeee")
+    user_id = model.get_user_by_token(token).id
+    room_user_list = model.wait_room(req.room_id,user_id)
+    status = model.get_status_by_roomid(req.room_id)
+    return RoomWaitResponse(room_user_list=room_user_list,status=status)

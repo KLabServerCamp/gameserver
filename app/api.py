@@ -1,5 +1,3 @@
-from enum import Enum
-
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
@@ -7,7 +5,7 @@ from pydantic import BaseModel
 from . import model
 from .model import SafeUser
 from . import room_controler as room
-from .room_controler import LiveDifficulty
+from .room_controler import LiveDifficulty, JoinRoomResult, WaitRoomStatus, RoomUser
 
 app = FastAPI()
 
@@ -71,19 +69,6 @@ def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
 
 # NOTE:ROOM category
 
-class JoinRoomResult(Enum):
-    Ok = 1
-    RoomFull = 2
-    Disbanded = 3
-    OtherError = 4
-
-
-class WaitRoomStatus(Enum):
-    Waiting = 1
-    LiveStart = 2
-    Dissolution = 3
-
-
 class RoomID(BaseModel):
     room_id: int
 
@@ -113,16 +98,30 @@ class RoomJoinRequest(BaseModel):
     select_difficulty: LiveDifficulty
 
 
+class RoomJoinResponse(BaseModel):
+    result: JoinRoomResult
+
+
 class ResultUser(BaseModel):
     user_id: int
     judge_count_list: list[int]
     score: int
 
 
+class RoomWaitRequest(BaseModel):
+    room_id: int
+
+
+class RoomWaitResponse(BaseModel):
+    status: WaitRoomStatus
+    room_user_list: list[RoomUser]
+
+
 @app.post("/room/create", response_model=CreateRoomResponse)
 def room_create(req: CreateRoomRequest, token: str = Depends(get_auth_token)):
     room_id = room.create_room(req.live_id, req.select_difficulty, token)
     return CreateRoomResponse(room_id=room_id)
+
 
 @app.post("/room/list")
 def list_room(req: RoomListRequest):
@@ -131,5 +130,30 @@ def list_room(req: RoomListRequest):
 
 
 @app.post("/room/join")
-def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
-    return JoinRoomResult(room.room_join(req.room_id, req.select_difficulty, token))
+def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)) -> RoomJoinResponse:
+    return RoomJoinResponse(result=JoinRoomResult(room.room_join(req.room_id, req.select_difficulty, token)))
+
+
+@app.post("/room/wait")
+def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
+    status, member = room.room_wait(room_id=req.room_id, token=token)
+    return RoomWaitResponse(status=status, room_user_list=member)
+
+
+@app.post("/room/start")
+def room_start():
+    pass
+
+
+@app.post("/room/end")
+def room_end():
+    pass
+
+
+@app.post("/room/result")
+def room_result():
+    pass
+
+@app.post("/room/leave")
+def room_leave():
+    pass

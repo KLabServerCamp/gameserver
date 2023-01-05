@@ -241,8 +241,12 @@ def _get_room_list_all(conn: Connection) -> list[RoomInfo]:
             "SELECT `room_id`, `live_id`, COUNT(*) AS `joined_user_count` "
             "FROM room "
             "INNER JOIN room_member ON room.id = room_id "
+            "WHERE `status` = :WAITING "
             "GROUP BY `room_id`, `live_id`"
-        )
+        ),
+        {
+            "WAITING": WaitRoomStatus.WAITING.value,
+        },
     )
     return [RoomInfo(**row) for row in res]
 
@@ -253,10 +257,13 @@ def _get_room_list_by_live_id(conn: Connection, live_id: int) -> list[RoomInfo]:
             "SELECT `room_id`, `live_id`, COUNT(*) AS `joined_user_count` "
             "FROM room "
             "INNER JOIN room_member ON room.id = room_id "
-            "GROUP BY `room_id`, `live_id` "
-            "HAVING live_id = :live_id "
+            "WHERE `live_id` = :live_id AND `status` = :WAITING "
+            "GROUP BY `room_id`, `live_id`"
         ),
-        {"live_id": live_id},
+        {
+            "live_id": live_id,
+            "WAITING": WaitRoomStatus.WAITING.value,
+        },
     )
 
     return [RoomInfo(**row) for row in res]

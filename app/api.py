@@ -260,3 +260,18 @@ def room_result(req: RoomResultRequest):
     res = [ResultUser(user_id=r.user_id, judge_count_list=json.loads(r.judge_count_list), score=r.score) for r in res]
 
     return RoomResultResponse(result_user_list=res)
+
+
+class RoomLeaveRequest(BaseModel):
+    room_id: int
+
+
+@app.post("/room/leave", response_model=Empty)
+def room_leave(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
+    """Leave a room"""
+
+    res = model.leave_room(token, req.room_id)
+    if not res:
+        raise HTTPException(status_code=404)
+
+    return {}

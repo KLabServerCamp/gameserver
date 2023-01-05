@@ -474,3 +474,30 @@ def get_result(room_id: int) -> Optional[RoomMember]:
             return None
 
         return members
+
+
+def leave_room(token: str, room_id: int) -> bool:
+    with engine.begin() as conn:
+
+        me = _get_user_by_token(conn, token)
+        if me is None:
+            return False
+
+        try:
+            conn.execute(
+                text(
+                    """
+                    DELETE
+                    FROM
+                        `room_member`
+                    WHERE
+                        `room_id` = :room_id AND
+                        `user_id` = :user_id
+                    """
+                ),
+                {"room_id": room_id, "user_id": me.id},
+            )
+        except Exception:
+            return False
+
+        return True

@@ -1,18 +1,17 @@
-# import json
 import json
-import uuid
-
-from enum import IntEnum
 from typing import Optional
-
-# from fastapi import HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
 from app.config import MAX_USER_COUNT
 
-from .db import engine
+from app.db import engine
+
+
+from enum import IntEnum
+
+from model import _get_user_by_token
 
 
 # Enum
@@ -35,131 +34,6 @@ class WaitRoomStatus(IntEnum):
     LiveStart = 2
     Dissolution = 3
 
-
-# User
-
-
-class InvalidToken(Exception):
-    """指定されたtokenが不正だったときに投げる"""
-
-
-class SafeUser(BaseModel):
-    """token を含まないUser"""
-
-    # 外部に見られてもいいもの
-
-    id: int
-    name: str
-    leader_card_id: int
-
-    class Config:
-        orm_mode = True
-
-
-def create_user(name: str, leader_card_id: int) -> str:
-    """Create new user and returns their token"""
-    token = str(uuid.uuid4())
-    # NOTE: tokenが衝突したらリトライする必要がある.
-    with engine.begin() as conn:
-        _ = conn.execute(
-            text(
-                """
-                INSERT
-                    INTO
-                        `user` (`name`, `token`, `leader_card_id`)
-                    VALUES
-                        (:name, :token, :leader_card_id)
-                """
-            ),
-            {"name": name, "token": token, "leader_card_id": leader_card_id},
-        )
-        # print(f"create_user(): id={result.lastrowid} {token=}")
-    return token
-
-
-def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
-    res = conn.execute(
-        text(
-            """
-            SELECT
-                `id`,
-                `name`,
-                `leader_card_id`
-            FROM
-                `user`
-            WHERE
-                `token` = :token
-            """
-        ),
-        {"token": token},
-    )
-    try:
-        row = res.one()
-    except NoResultFound:
-        return None
-    return SafeUser.from_orm(row)
-
-
-def get_user_by_token(token: str) -> Optional[SafeUser]:
-    with engine.begin() as conn:
-        return _get_user_by_token(conn, token)
-
-
-def _get_user_by_id(conn, user_id: int) -> Optional[SafeUser]:
-    row = conn.execute(
-        text(
-            """
-            SELECT
-                `id`,
-                `name`,
-                `leader_card_id`
-            FROM
-                `user`
-            WHERE
-                `id` = :user_id
-            """
-        ),
-        {"user_id": user_id},
-    )
-    try:
-        res = row.one()
-    except NoResultFound:
-        return None
-
-    return SafeUser.from_orm(res)
-
-
-def get_user_by_id(user_id: int) -> Optional[SafeUser]:
-    with engine.begin() as conn:
-        return _get_user_by_id(conn, user_id)
-
-
-def update_user(token: str, name: str, leader_card_id: int) -> None:
-    with engine.begin() as conn:
-        return _update_user(conn=conn, token=token, name=name, leader_card_id=leader_card_id)
-
-
-def _update_user(conn, token: str, name: str, leader_card_id: int) -> None:
-    # TODO: エラーハンドリング
-    _ = conn.execute(
-        text(
-            """
-            UPDATE
-                `user`
-            SET
-                `name` = :name,
-                `leader_card_id` = :leader_card_id
-            WHERE
-                `token` = :token
-            """
-        ),
-        {"name": name, "leader_card_id": leader_card_id, "token": token},
-    )
-
-    return None
-
-
-# Room
 
 # TODO: Nullable に Optional つける
 class Room(BaseModel):
@@ -331,6 +205,7 @@ def join_room(token: str, room_id: int, select_difficulty: LiveDifficulty) -> Jo
                         `room`
                     WHERE
                         `id` = :room_id
+                    FOR UPDATE
                     """
             ),
             {"room_id": room_id},
@@ -354,7 +229,7 @@ def join_room(token: str, room_id: int, select_difficulty: LiveDifficulty) -> Jo
                         INTO
                             `room_member` (`room_id`, `user_id`, `select_difficulty`, `is_host`)
                         VALUES
-                            (:room_id, :user_id, :select_difficulty, :is_host)
+                            (:room_id, :user_id, :select_difficulty, :is_host);
                     """
                 ),
                 {

@@ -169,6 +169,7 @@ class RoomWaitResponse(BaseModel):
     room_user_list: list[RoomUser]
 
 
+# FIXME 入ってきた順にしたい. オーナーが抜けたときの挙動を追加する
 @app.post("/room/wait", response_model=RoomWaitResponse)
 def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
     """Wait for a room"""
@@ -256,8 +257,18 @@ def room_result(req: RoomResultRequest):
     if res is None:
         raise HTTPException(status_code=404)
 
+    members = model.get_room_members(req.room_id)
+
     # FIXME : json.loads で壊れる
-    res = [ResultUser(user_id=r.user_id, judge_count_list=json.loads(r.judge_count_list), score=r.score) for r in res]
+    try:
+        res = [
+            ResultUser(user_id=r.user_id, judge_count_list=json.loads(r.judge_count_list), score=r.score) for r in res
+        ]
+    except Exception:
+        return RoomResultResponse(result_user_list=[])
+
+    if len(res) != len(members):
+        return RoomResultResponse(result_user_list=[])
 
     return RoomResultResponse(result_user_list=res)
 

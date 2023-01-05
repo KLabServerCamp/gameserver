@@ -409,16 +409,20 @@ def room_leave(room_id: int, token: str) -> None:
                 text("SELECT `user_id` FROM `room_member` WHERE `room_id`= :room_id"),
                 {"room_id": room_id},
             )
-            rows = result.all()
+            try:
+                rows = result.all()
 
-            print(rows[0].user_id)
-
-            conn.execute(
-                text(
-                    "UPDATE `room` SET `owner_id`= :owner_id WHERE `room_id`= :room_id"
-                ),
-                {"owner_id": rows[0].user_id, "room_id": room_id},
-            )
+                conn.execute(
+                    text(
+                        "UPDATE `room` SET `owner_id`= :owner_id WHERE `room_id`= :room_id"
+                    ),
+                    {"owner_id": rows[0].user_id, "room_id": room_id},
+                )
+            except:
+                conn.execute(
+                    text("DELETE FROM `room` WHERE `room_id` = :room_id"),
+                    {"room_id": room_id},
+                )
 
 
 if __name__ == "__main__":

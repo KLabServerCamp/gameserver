@@ -388,7 +388,7 @@ def _room_result(conn, room_id: int) -> Optional[list[ResultUser]]:
         rows = result.all()
 
         if None in [row.score for row in rows]:
-            # スコアが更新されない人がいた場合にスコア0で更新し、リザルトを表示させる。
+            # スコアが更新されない人がいた場合にスコア0で更新し、リザルトを表示させる。(一瞬モードではない想定)
             if time.time() - get_end_time(conn, room_id) >= 5:
                 for row in rows:
                     if row.score is None:

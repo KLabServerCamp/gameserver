@@ -78,7 +78,7 @@ def room_list(req: RoomListRequest):
         if users is None:
             return HTTPException(status_code=404)
 
-        if len(users) >= MAX_USER_COUNT > 0:
+        if len(users) >= MAX_USER_COUNT or len(users) <= 0:
             continue
 
         res.append(
@@ -99,8 +99,30 @@ class RoomJoinResponse(BaseModel):
 @router.post("/join", response_model=RoomJoinResponse)
 def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
     """Join a room"""
-    res = model.join_room(token, req.room_id, req.select_difficulty)
-    return RoomJoinResponse(join_room_result=res)
+    me = model.get_user_by_token(token)
+    if me is None:
+        return RoomJoinResponse(join_room_result=model.JoinRoomResult.OtherError)
+
+    members = model.get_room_members(req.room_id)
+    if members is None:
+        return RoomJoinResponse(join_room_result=model.JoinRoomResult.OtherError)
+
+    if len(members) >= MAX_USER_COUNT:
+        return RoomJoinResponse(join_room_result=model.JoinRoomResult.RoomFull)
+
+    live_status = model.get_room_status(req.room_id)
+    if live_status is None:
+        return RoomJoinResponse(join_room_result=model.JoinRoomResult.OtherError)
+
+    if live_status == model.WaitRoomStatus.Dissolution:
+        return RoomJoinResponse(join_room_result=model.JoinRoomResult.Disbanded)
+
+    try:
+        model.add_room_member(me.id, req.room_id, req.select_difficulty)
+    except Exception:
+        return RoomJoinResponse(join_room_result=model.JoinRoomResult.OtherError)
+
+    return RoomJoinResponse(join_room_result=model.JoinRoomResult.Ok)
 
 
 class RoomWaitRequest(BaseModel):
@@ -112,7 +134,7 @@ class RoomWaitResponse(BaseModel):
     room_user_list: list[RoomUser]
 
 
-# FIXME 入ってきた順にしたい. オーナーが抜けたときの挙動を追加する
+# FIXME 入ってきた順にしたい.
 @router.post("/wait", response_model=RoomWaitResponse)
 def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
     """Wait for a room"""
@@ -157,8 +179,24 @@ def room_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
     if me is None:
         raise HTTPException(status_code=404)
 
-    res = model.start_room(req.room_id, me.id)
-    if not res:
+    live_status = model.get_room_status(req.room_id)
+    if live_status is None:
+        raise HTTPException(status_code=404)
+
+    if live_status != model.WaitRoomStatus.Waiting:
+        raise HTTPException(status_code=404)
+
+    members = model.get_room_members(req.room_id)
+
+    for m in members:
+        if m.user_id == me.id:
+            if not m.is_host:
+                raise HTTPException(status_code=404)
+            break
+
+    try:
+        model.update_room_status(req.room_id, model.WaitRoomStatus.LiveStart)
+    except Exception:
         raise HTTPException(status_code=404)
 
     return {}
@@ -177,8 +215,16 @@ def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
     if me is None:
         raise HTTPException(status_code=404)
 
-    res = model.store_result(req.room_id, me.id, req.score, req.judge_count_list)
-    if not res:
+    live_status = model.get_room_status(req.room_id)
+    if live_status is None:
+        raise HTTPException(status_code=404)
+
+    if live_status != model.WaitRoomStatus.LiveStart:
+        raise HTTPException(status_code=404)
+
+    try:
+        model.store_room_member_result(req.room_id, me.id, req.score, req.judge_count_list)
+    except Exception:
         raise HTTPException(status_code=404)
 
     return {}
@@ -196,16 +242,14 @@ class RoomResultResponse(BaseModel):
 def room_result(req: RoomResultRequest):
     """Get result of a room"""
 
-    res = model.get_result(req.room_id)
-    if res is None:
+    members = model.get_room_members(req.room_id)
+    if members is None:
         raise HTTPException(status_code=404)
 
-    members = model.get_room_members(req.room_id)
-
-    # FIXME : json.loads で壊れる
     try:
         res = [
-            ResultUser(user_id=r.user_id, judge_count_list=json.loads(r.judge_count_list), score=r.score) for r in res
+            ResultUser(user_id=m.user_id, judge_count_list=json.loads(m.judge_count_list), score=m.score)
+            for m in members
         ]
     except Exception:
         return RoomResultResponse(result_user_list=[])
@@ -232,14 +276,21 @@ def room_leave(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
     if room_members is None:
         raise HTTPException(status_code=404)
 
-    res = model.leave_room(me.id, req.room_id)
-    if not res:
-        raise HTTPException(status_code=404)
+    if len(room_members) == 1:
+        model.update_room_status(req.room_id, model.WaitRoomStatus.Dissolution)
+    else:
+        # ホストを委譲する
+        remaining_members = [m for m in room_members if m.user_id != me.id]
+        try:
+            is_host = [m for m in room_members if m.user_id == me.id][0].is_host
+            if is_host:
+                model.update_room_member_host(req.room_id, remaining_members[0].user_id, True)
+        except Exception:
+            raise HTTPException(status_code=404)
 
-    for m in room_members:
-        if m.user_id == me.id:
-            if m.is_host:
-                # FIXME : ここでホストが抜けたらどうするか
-                pass
+    try:
+        model.delete_room_member(me.id, req.room_id)
+    except Exception:
+        raise HTTPException(status_code=404)
 
     return {}

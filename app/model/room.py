@@ -4,7 +4,6 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
-from app.config import MAX_USER_COUNT
 
 from app.db import engine
 
@@ -35,11 +34,10 @@ class WaitRoomStatus(IntEnum):
     Dissolution = 3
 
 
-# TODO: Nullable に Optional つける
 class Room(BaseModel):
     id: int
-    live_id: int
-    live_status: WaitRoomStatus
+    live_id: Optional[int]
+    live_status: Optional[WaitRoomStatus]
 
     class Config:
         orm_mode = True
@@ -48,8 +46,8 @@ class Room(BaseModel):
 class RoomMember(BaseModel):
     room_id: int
     user_id: int
-    select_difficulty: int
-    is_host: bool
+    select_difficulty: Optional[int]
+    is_host: Optional[bool]
     score: Optional[int]
     judge_count_list: Optional[str]
 
@@ -57,10 +55,16 @@ class RoomMember(BaseModel):
         orm_mode = True
 
 
+# Room
+
+
 def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty) -> Optional[int]:
     with engine.begin() as conn:
-        user_id = _get_user_by_token(conn, token).id
-        return _create_room(conn, user_id, live_id, select_difficulty)
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            return None
+
+        return _create_room(conn, user.id, live_id, select_difficulty)
 
 
 def _create_room(conn, user_id: int, live_id: int, select_difficulty: LiveDifficulty) -> Optional[int]:
@@ -77,11 +81,8 @@ def _create_room(conn, user_id: int, live_id: int, select_difficulty: LiveDiffic
         ),
         {"live_id": live_id, "live_status": WaitRoomStatus.Waiting.value},
     )
-    try:
-        id = res.lastrowid
-    except Exception:
-        conn.rollback()
-        return None
+
+    id = res.lastrowid
 
     _ = conn.execute(
         text(
@@ -114,11 +115,9 @@ def _get_room(conn, room_id: int) -> Optional[Room]:
         ),
         {"id": room_id},
     )
-    try:
-        res = res.one()
-        res = Room.from_orm(res)
-    except NoResultFound:
-        return None
+
+    res = res.one()
+    res = Room.from_orm(res)
 
     return res
 
@@ -144,6 +143,39 @@ def get_room_list(live_id: int) -> list[Room]:
         res = conn.execute(text(stmt), {"live_id": live_id})
 
         return [Room.from_orm(row) for row in res]
+
+
+def get_room_status(room_id: int) -> Optional[WaitRoomStatus]:
+    with engine.begin() as conn:
+        room = _get_room(conn, room_id)
+        if room is None:
+            return WaitRoomStatus.Dissolution
+
+        return room.live_status
+
+
+def update_room_status(room_id: int, status: WaitRoomStatus) -> None:
+    with engine.begin() as conn:
+        room = _get_room(conn, room_id)
+        if room is None:
+            raise Exception("Room not found")
+
+        _ = conn.execute(
+            text(
+                """
+                UPDATE
+                    `room`
+                SET
+                    `live_status` = :live_status
+                WHERE
+                    `id` = :room_id
+                """
+            ),
+            {"live_status": status.value, "room_id": room_id},
+        )
+
+
+# RoomMember
 
 
 def get_room_members(room_id: int) -> Optional[list[RoomMember]]:
@@ -178,154 +210,50 @@ def _get_room_members(conn, room_id: int) -> Optional[list[RoomMember]]:
     return res
 
 
-def join_room(token: str, room_id: int, select_difficulty: LiveDifficulty) -> JoinRoomResult:
-    # TODO : lock
+def add_room_member(user_id: int, room_id: int, select_difficulty: LiveDifficulty) -> None:
     with engine.begin() as conn:
-        # user_id = _get_user_by_token(conn, token).id
-        user = _get_user_by_token(conn, token)
-        if user is None:
-            return JoinRoomResult.OtherError
-
-        users = _get_room_members(conn, room_id)
-        if users is None:
-            return JoinRoomResult.OtherError
-
-        if len(users) >= MAX_USER_COUNT:
-            return JoinRoomResult.RoomFull
-
-        res = conn.execute(
+        conn.execute(
             text(
                 """
-                    SELECT
-                        `live_status`
-                    FROM
-                        `room`
-                    WHERE
-                        `id` = :room_id
-                    FOR UPDATE
-                    """
+                INSERT
+                    INTO
+                        `room_member` (`room_id`, `user_id`, `select_difficulty`, `is_host`)
+                    VALUES
+                        (:room_id, :user_id, :select_difficulty, :is_host);
+                """
             ),
-            {"room_id": room_id},
+            {
+                "room_id": room_id,
+                "user_id": user_id,
+                "select_difficulty": select_difficulty.value,
+                "is_host": False,
+            },
         )
 
-        try:
-            room = res.one()
-        except Exception:
-            return JoinRoomResult.OtherError
 
-        live_status = room["live_status"]
-        if live_status == WaitRoomStatus.Dissolution:
-            return JoinRoomResult.Disbanded
-
-        # TODO :エラーハンドリング
-        try:
-            conn.execute(
-                text(
-                    """
-                    INSERT
-                        INTO
-                            `room_member` (`room_id`, `user_id`, `select_difficulty`, `is_host`)
-                        VALUES
-                            (:room_id, :user_id, :select_difficulty, :is_host);
-                    """
-                ),
-                {
-                    "room_id": room_id,
-                    "user_id": user.id,
-                    "select_difficulty": select_difficulty.value,
-                    "is_host": False,
-                },
-            )
-        except Exception:
-            return JoinRoomResult.OtherError
-
-        return JoinRoomResult.Ok
-
-
-def _update_host(conn, room_id: int, user_id: int, is_host: bool) -> None:
-    conn.execute(
-        text(
-            """
-            UPDATE
-                `room_member`
-            SET
-                `is_host` = :is_host
-            WHERE
-                `room_id` = :room_id AND
-                `user_id` = :user_id
-            """
-        ),
-        {"room_id": room_id, "user_id": user_id, "is_host": is_host},
-    )
-
-
-def get_room_status(room_id: int) -> WaitRoomStatus:
+def update_room_member_host(room_id: int, user_id: int, is_host: bool) -> None:
     with engine.begin() as conn:
-        room = _get_room(conn, room_id)
-        if room is None:
-            return WaitRoomStatus.Dissolution
-
-        return room.live_status
-
-
-# TODO: 戻り値を Exception にする
-def start_room(room_id: int, user_id: int) -> bool:
-    with engine.begin() as conn:
-        room = _get_room(conn, room_id)
-        if room is None:
-            return False
-
-        if room.live_status != WaitRoomStatus.Waiting:
-            return False
-
-        members = _get_room_members(conn, room_id)
-
-        for m in members:
-            if m.user_id == user_id:
-                if not m.is_host:
-                    return False
-                break
-
-        _ = conn.execute(
+        conn.execute(
             text(
                 """
                 UPDATE
-                    `room`
+                    `room_member`
                 SET
-                    `live_status` = :live_status
+                    `is_host` = :is_host
                 WHERE
-                    `id` = :room_id
+                    `room_id` = :room_id AND
+                    `user_id` = :user_id
                 """
             ),
-            {"live_status": WaitRoomStatus.LiveStart.value, "room_id": room_id},
+            {"room_id": room_id, "user_id": user_id, "is_host": is_host},
         )
 
-        return True
 
-
-# TODO: 戻り値を Exception にする
-def store_result(room_id: int, user_id: int, score: int, judge_count: list[int]) -> bool:
+def store_room_member_result(room_id: int, user_id: int, score: int, judge_count: list[int]) -> None:
     with engine.begin() as conn:
-        room = _get_room(conn, room_id)
-        if room is None:
-            return False
-
-        if room.live_status != WaitRoomStatus.LiveStart:
-            return False
-
-        members = _get_room_members(conn, room_id)
-        if members is None:
-            return False
-
-        me = [m for m in members if m.user_id == user_id]
-        if len(me) != 1:
-            return False
-        me = me[0]
-
-        try:
-            _ = conn.execute(
-                text(
-                    """
+        _ = conn.execute(
+            text(
+                """
                     UPDATE
                         `room_member`
                     SET
@@ -335,43 +263,21 @@ def store_result(room_id: int, user_id: int, score: int, judge_count: list[int])
                         `room_id` = :room_id AND
                         `user_id` = :user_id
                     """
-                ),
-                {
-                    "score": score,
-                    "judge_count_list": json.dumps(judge_count),
-                    "room_id": room_id,
-                    "user_id": user_id,
-                },
-            )
-        except Exception:
-            return False
-
-        return True
+            ),
+            {
+                "score": score,
+                "judge_count_list": json.dumps(judge_count),
+                "room_id": room_id,
+                "user_id": user_id,
+            },
+        )
 
 
-def get_result(room_id: int) -> Optional[RoomMember]:
+def delete_room_member(user_id: int, room_id: int) -> None:
     with engine.begin() as conn:
-        room = _get_room(conn, room_id)
-        if room is None:
-            return None
-
-        if room.live_status != WaitRoomStatus.LiveStart:
-            return None
-
-        members = _get_room_members(conn, room_id)
-        if members is None:
-            return None
-
-        return members
-
-
-def leave_room(user_id: int, room_id: int) -> bool:
-    with engine.begin() as conn:
-
-        try:
-            conn.execute(
-                text(
-                    """
+        conn.execute(
+            text(
+                """
                     DELETE
                     FROM
                         `room_member`
@@ -379,10 +285,6 @@ def leave_room(user_id: int, room_id: int) -> bool:
                         `room_id` = :room_id AND
                         `user_id` = :user_id
                     """
-                ),
-                {"room_id": room_id, "user_id": user_id},
-            )
-        except Exception:
-            return False
-
-        return True
+            ),
+            {"room_id": room_id, "user_id": user_id},
+        )

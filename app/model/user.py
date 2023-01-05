@@ -112,7 +112,6 @@ def _update_user(conn, token: str, name: str, leader_card_id: int) -> None:
     me = _get_user_by_token(conn, token)
     if me is None:
         raise InvalidToken()
-    # TODO: エラーハンドリング
     _ = conn.execute(
         text(
             """

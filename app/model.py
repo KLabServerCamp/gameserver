@@ -1,4 +1,5 @@
 import json
+import time
 import uuid
 from enum import Enum, IntEnum
 from typing import Optional
@@ -7,17 +8,15 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
-import time
 
 from .db import engine
 
 MAX_ROOM_USER_COUNT = 4
 LIVE_ID_NULL = 0
-ROOM_MATCHING_TIME_OUT = 5*60  # マッチング部屋のタイムアウト
-ROOM_LIVE_TIME_OUT = 5*60       # ライブのタイムアウト
-ROOM_WAIT_TIME_OUT = 10          # マッチング部屋でのroom/waitのタイムアウト
-ROOM_END_TIME_OUT = 10              # endが呼び出されてからのタイムアウト
-
+ROOM_MATCHING_TIME_OUT = 5 * 60  # マッチング部屋のタイムアウト
+ROOM_LIVE_TIME_OUT = 5 * 60  # ライブのタイムアウト
+ROOM_WAIT_TIME_OUT = 10  # マッチング部屋でのroom/waitのタイムアウト
+ROOM_END_TIME_OUT = 10  # endが呼び出されてからのタイムアウト
 
 
 class InvalidToken(Exception):
@@ -50,7 +49,7 @@ def create_user(name: str, leader_card_id: int) -> str:
                 "INSERT INTO `user` (name, token, leader_card_id) VALUES (:name, :token, :leader_card_id)"
             ),
             {
-                "name": name, 
+                "name": name,
                 "token": token,
                 "leader_card_id": leader_card_id,
             },
@@ -84,8 +83,8 @@ def _update_user(conn, token: str, name: str, leader_card_id: int) -> None:
             "UPDATE `user` SET `name`=:name, `leader_card_id`=:leader_card_id WHERE `token`=:token"
         ),
         {
-            "name": name, 
-            "token": token, 
+            "name": name,
+            "token": token,
             "leader_card_id": leader_card_id,
         },
     )
@@ -116,9 +115,9 @@ def _create_room(
             "INSERT INTO `room` SET `live_id`=:live_id, `max_user_count`=:max_user_count, `time_to_live`=:time_to_live",
         ),
         {
-            "live_id": live_id, 
-            "max_user_count": MAX_ROOM_USER_COUNT, 
-            "time_to_live": now+ROOM_MATCHING_TIME_OUT
+            "live_id": live_id,
+            "max_user_count": MAX_ROOM_USER_COUNT,
+            "time_to_live": now + ROOM_MATCHING_TIME_OUT,
         },
     )
 
@@ -134,7 +133,7 @@ def _create_room(
             "room_id": room_id,
             "user_id": user_id,
             "select_difficulty": int(select_difficulty),
-            "time_to_live": now+ROOM_WAIT_TIME_OUT
+            "time_to_live": now + ROOM_WAIT_TIME_OUT,
         },
     )
     return room_id
@@ -170,7 +169,7 @@ def _list_room(conn, live_id: int) -> list[RoomInfo]:
             ),
             {
                 "time_to_live": now,
-            }
+            },
         )
     else:
         _update_joined_user_count_by_live_id(conn=conn, live_id=live_id, now=now)
@@ -210,9 +209,7 @@ def _join_room(
     now = int(time.time())
     # 抜けた部屋への再入場対策
     result = conn.execute(
-        text(
-            "DELETE FROM `room_user` WHERE `user_id`=:user_id"
-        ),
+        text("DELETE FROM `room_user` WHERE `user_id`=:user_id"),
         {
             "user_id": user.id,
             "time_to_live": now,
@@ -250,7 +247,7 @@ def _join_room(
             "room_id": room_id,
             "user_id": user.id,
             "select_difficulty": int(select_difficulty),
-            "time_to_live": now+ROOM_WAIT_TIME_OUT,
+            "time_to_live": now + ROOM_WAIT_TIME_OUT,
         },
     )
     result = conn.execute(
@@ -259,7 +256,7 @@ def _join_room(
         ),
         {
             "room_id": room_id,
-            "time_to_live": now+ROOM_MATCHING_TIME_OUT,
+            "time_to_live": now + ROOM_MATCHING_TIME_OUT,
         },
     )
 
@@ -306,7 +303,9 @@ def _wait_room(conn, token: str, room_id: int) -> WaitRoomResult:
     now = int(time.time())
 
     result = conn.execute(
-        text("SELECT `is_playing` FROM `room` WHERE `room_id`=:room_id AND `time_to_live`>:time_to_live FOR UPDATE"),
+        text(
+            "SELECT `is_playing` FROM `room` WHERE `room_id`=:room_id AND `time_to_live`>:time_to_live FOR UPDATE"
+        ),
         {
             "room_id": room_id,
             "time_to_live": now,
@@ -327,7 +326,7 @@ def _wait_room(conn, token: str, room_id: int) -> WaitRoomResult:
         {
             "room_id": room_id,
             "time_to_live": now,
-        }
+        },
     )
     rows = result.fetchall()
 
@@ -375,7 +374,7 @@ def _wait_room(conn, token: str, room_id: int) -> WaitRoomResult:
             {
                 "room_id": room_id,
                 "user_id": user.id,
-                "time_to_live": now+ROOM_LIVE_TIME_OUT,
+                "time_to_live": now + ROOM_LIVE_TIME_OUT,
             },
         )
         return WaitRoomResult(
@@ -389,9 +388,9 @@ def _wait_room(conn, token: str, room_id: int) -> WaitRoomResult:
             {
                 "room_id": room_id,
                 "user_id": user.id,
-                "time_to_live": now+ROOM_WAIT_TIME_OUT,
+                "time_to_live": now + ROOM_WAIT_TIME_OUT,
             },
-        )        
+        )
         return WaitRoomResult(
             status=WaitRoomStatus.Waiting, room_user_list=room_user_list
         )
@@ -411,18 +410,22 @@ def _start_room(conn, token: str, room_id: int) -> None:
     now = int(time.time())
 
     result = conn.execute(
-        text("UPDATE `room` SET `is_playing`=TRUE, `time_to_live`=:time_to_live WHERE `room_id`=:room_id"),
+        text(
+            "UPDATE `room` SET `is_playing`=TRUE, `time_to_live`=:time_to_live WHERE `room_id`=:room_id"
+        ),
         {
             "room_id": room_id,
-            "time_to_live": now+ROOM_WAIT_TIME_OUT,
+            "time_to_live": now + ROOM_WAIT_TIME_OUT,
         },
     )
     result = conn.execute(
-        text("UPDATE `room_user` SET `time_to_live`=:time_to_live WHERE `room_id`=:room_id AND `user_id`=:user_id"),
+        text(
+            "UPDATE `room_user` SET `time_to_live`=:time_to_live WHERE `room_id`=:room_id AND `user_id`=:user_id"
+        ),
         {
             "room_id": room_id,
             "user_id": user.id,
-            "time_to_live": now+ROOM_LIVE_TIME_OUT,
+            "time_to_live": now + ROOM_LIVE_TIME_OUT,
         },
     )
 
@@ -439,7 +442,7 @@ def _end_room(
     user = _get_user_by_token(conn=conn, token=token)
     if user is None:
         raise InvalidToken
-    
+
     now = int(time.time())
 
     judge_count_str = ""
@@ -449,26 +452,26 @@ def _end_room(
 
     result = conn.execute(
         text(
-            "UPDATE `room_user` SET `judge_count_list`=:judge_count_str, `score`=:score WHERE `room_id`=:room_id AND `user_id`=:user_id"
+            "UPDATE `room_user` SET `judge_count_list`=:judge_count_str, `score`=:score, `time_to_live`=:time_to_live WHERE `room_id`=:room_id AND `user_id`=:user_id"
         ),
         {
             "judge_count_str": judge_count_str,
             "score": score,
             "room_id": room_id,
             "user_id": user.id,
+            "time_to_live": now + ROOM_LIVE_TIME_OUT,
         },
     )
 
     result = conn.execute(
         text(
-            "UPDATE `room_user` SET `time_to_live`=:time_to_live WHERE `room_id`=:room_id"
+            "UPDATE `room_user` SET `time_to_live`=:time_to_live WHERE `room_id`=:room_id AND `judge_count_list` IS NULL"
         ),
         {
             "room_id": room_id,
-            "time_to_live": now+ROOM_END_TIME_OUT,
+            "time_to_live": now + ROOM_END_TIME_OUT,
         },
     )
-
 
 
 def end_room(token: str, room_id: int, judge_count_list: list[int], score: int) -> None:
@@ -542,7 +545,9 @@ def _leave_room(conn, token: str, room_id: int) -> None:
             "user_id": user.id,
         },
     )
-    _update_joined_user_count_by_room_id(conn=conn, room_id=room_id, now=int(time.time()))
+    _update_joined_user_count_by_room_id(
+        conn=conn, room_id=room_id, now=int(time.time())
+    )
 
 
 def leave_room(token: str, room_id: int) -> None:
@@ -552,7 +557,9 @@ def leave_room(token: str, room_id: int) -> None:
 
 def _update_joined_user_count_by_room_id(conn, room_id: int, now: int) -> None:
     conn.execute(
-        text("UPDATE `room` SET `joined_user_count` = IFNULL((SELECT COUNT(`user_id`) FROM `room_user` WHERE `room_id`=:room_id AND `time_to_live`>:time_to_live GROUP BY `room_id`),0) WHERE `room_id`=:room_id AND `time_to_live`>:time_to_live"),
+        text(
+            "UPDATE `room` SET `joined_user_count` = IFNULL((SELECT COUNT(`user_id`) FROM `room_user` WHERE `room_id`=:room_id AND `time_to_live`>:time_to_live GROUP BY `room_id`),0) WHERE `room_id`=:room_id AND `time_to_live`>:time_to_live"
+        ),
         {
             "room_id": room_id,
             "time_to_live": now,
@@ -566,7 +573,9 @@ def _update_joined_user_count_by_live_id(conn, live_id: int, now: int) -> None:
         return
 
     result = conn.execute(
-        text("SELECT `room_id` FROM `room` WHERE `live_id`=:live_id AND `time_to_live`>:time_to_live AND `joined_user_count` BETWEEN 1 AND `max_user_count`"),
+        text(
+            "SELECT `room_id` FROM `room` WHERE `live_id`=:live_id AND `time_to_live`>:time_to_live AND `joined_user_count` BETWEEN 1 AND `max_user_count`"
+        ),
         {
             "live_id": live_id,
             "time_to_live": now,
@@ -589,15 +598,17 @@ def _update_joined_user_count_all(conn, now: int) -> None:
         _update_joined_user_count_by_room_id(conn, room["room_id"], now)
 
 
-
 def _erase_timeout(conn) -> None:
     now = int(time.time())
     conn.execute(
-        text("DELETE FROM `room` WHERE `time_to_live`<:time_to_live OR `joined_user_count`=0"),
+        text(
+            "DELETE FROM `room` WHERE `time_to_live`<:time_to_live OR `joined_user_count`=0"
+        ),
         {"time_to_live": now},
     )
     conn.execute(
-        text("DELETE FROM `room_user` WHERE `time_to_live`<:time_to_live OR `joined_user_count`=0"),
+        text(
+            "DELETE FROM `room_user` WHERE `time_to_live`<:time_to_live OR `joined_user_count`=0"
+        ),
         {"time_to_live": now},
     )
-

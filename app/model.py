@@ -102,9 +102,6 @@ class RoomInfo(BaseModel):
     joined_user_count: int
     max_user_count: int = config.ROOM_MAX_USER_COUNT
 
-    class Config:
-        orm_mode = True
-
 
 class RoomUser(BaseModel):
     user_id: int
@@ -113,9 +110,6 @@ class RoomUser(BaseModel):
     select_difficulty: LiveDifficulty
     is_me: bool
     is_host: bool
-
-    class Config:
-        orm_mode = True
 
 
 class ResultUser(BaseModel):
@@ -296,7 +290,9 @@ def join_room(
         return _join_room(conn, user.id, room_id, select_difficulty)
 
 
-def _get_room_user_list(conn: Connection, request_user_id: int, room_id: int) -> list[RoomUser]:
+def _get_room_user_list(
+    conn: Connection, request_user_id: int, room_id: int
+) -> list[RoomUser]:
     res: CursorResult = conn.execute(
         text(
             "SELECT "

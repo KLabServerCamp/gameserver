@@ -91,7 +91,7 @@ def _room_close(room_id: int):
 def create_room(live_id: int, difficulty: LiveDifficulty, token: str):
     with engine.begin() as conn:
         # NOTE: 必要情報の設定。
-        room_id = rand.getrandbits(10)
+        room_id = rand.getrandbits(32)
         result = conn.execute(
             text("SELECT `id` FROM `user` WHERE `token`=:token"),
             {"token": token},

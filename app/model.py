@@ -120,16 +120,6 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
     return None
 
 
-# CREATE TABLE `room_member` (
-#   `user_id` bigint NOT NULL,
-#   `room_id` bigint NOT NULL,
-#   `select_difficulty` int NOT NULL,
-#   `role` ENUM('host', 'guest') NOT NULL,
-#   `score` int,
-#   `judge_count_list` varchar(255),
-#   PRIMARY KEY (`room_id`, `user_id`)
-# );
-
 
 class WaitRoomStatus(Enum):
     Waiting = 1  # ホストがライブ開始ボタン押すのを待っている
@@ -295,17 +285,35 @@ def _join_room(
     user_id: int,
     room_id: int,
     select_difficulty: LiveDifficulty,
-    role: Union[Literal["host"], Literal["guest"]],
-) -> JoinRoomResult:
+    role: Union[Literal["host"], Literal["guest"]],):
     result = conn.execute(
         text(
-            "SELECT COUNT(user_id) FROM `room_member` WHERE room_id=:room_id FOR UPDATE"
+            "SELECT `joined_user_count`, `max_user_count` FROM `room` WHERE id=:room_id FOR UPDATE"
         ),
         {"room_id": room_id},
     )
-    if result.one()[0] >= MAX_USER_COUNT:
+    try:
+        row = result.one()
+    except NoResultFound:
+        return JoinRoomResult.OtherError.value
+
+    if row['joined_user_count'] >= row['max_user_count']:
         conn.execute(text("ROLLBACK"))
-        return JoinRoomResult.RoomFull
+        return JoinRoomResult.RoomFull.value
+
+    result = conn.execute(
+        text(
+            "SELECT `wait_room_status` FROM `room` WHERE `id`=:room_id"
+        ),
+        {"room_id": room_id}
+    )
+    try:
+        wait_room_status: WaitRoomStatus = result.one()["wait_room_status"]
+    except NoResultFound:
+        return JoinRoomResult.OtherError.value
+    if wait_room_status != WaitRoomStatus.Waiting.value:
+        return JoinRoomResult.OtherError.value
+    
     result = conn.execute(
         text(
             "INSERT INTO `room_member` (user_id, room_id, select_difficulty, role) VALUES (:user_id, :room_id, :select_difficulty, :role)"
@@ -317,8 +325,15 @@ def _join_room(
             "role": role,
         },
     )
+    result = conn.execute(
+        text(
+            "UPDATE `room` SET joined_user_count=joined_user_count+1 WHERE id=:room_id"
+        ),
+        {"room_id": room_id}
+    )
+
     conn.execute(text("COMMIT"))
-    return JoinRoomResult.Ok
+    return JoinRoomResult.Ok.value
 
 
 def join_room(

@@ -180,8 +180,7 @@ class RoomJoinResponse(BaseModel):
 def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
     user = model.get_user_by_token(token)
     join_room_result = model.join_room(user.id, req.room_id, req.select_difficulty)
-    # return RoomJoinResponse(join_room_result=join_room_result)
-    return join_room_result
+    return RoomJoinResponse(join_room_result=join_room_result)
 
 
 class RoomLeaveRequest(BaseModel):

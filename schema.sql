@@ -30,5 +30,5 @@ CREATE TABLE `room_member` (
   FOREIGN KEY (`user_id`) REFERENCES `user` (`id`),
   FOREIGN KEY (`room_id`) REFERENCES `room` (`id`),
   PRIMARY KEY (`id`),
-  UNIQUE KEY (`user_id`, `room_id`)
+  UNIQUE KEY (`user_id`)
 );

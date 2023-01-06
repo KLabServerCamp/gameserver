@@ -171,7 +171,7 @@ class RoomEndRequest(BaseModel):
 def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
     """ライブが終了し、データベースに結果を登録する"""
     # print(req)
-    room_model.room_end(req.judge_count_list, req.score, token)
+    room_model.room_end(req.room_id, req.judge_count_list, req.score, token)
     return {}
 
 

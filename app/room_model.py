@@ -78,7 +78,7 @@ def _create_room(
                 "SELECT `room_id` FROM `room` "
                 "WHERE `owner_id` = :owner_id AND `status` NOT IN (:status)"
             ),
-            {"owner_id": user.id, "status": WaitRoomStatus.Dissolution.value},
+            {"owner_id": user.id, "status": WaitRoomStatus.LiveStart.value},
         )
         row = result.one()
 
@@ -338,13 +338,13 @@ def get_end_time(conn, room_id: int) -> Optional[int]:
 
 
 # ライブの終了
-def room_end(judge_count_list: list[int], score: int, token: str) -> None:
+def room_end(room_id: int, judge_count_list: list[int], score: int, token: str) -> None:
     with engine.begin() as conn:
         user = model._get_user_by_token(conn, token)
         conn.execute(
             text(
                 "UPDATE `room_member` SET `score`= :score, `perfect`= :perfect, `great`= :great, "
-                "`good`= :good, `bad`= :bad, `miss`= :miss WHERE `user_id`= :user_id"
+                "`good`= :good, `bad`= :bad, `miss`= :miss WHERE `user_id`= :user_id AND `room_id`= :room_id"
             ),
             {
                 "score": score,
@@ -354,14 +354,9 @@ def room_end(judge_count_list: list[int], score: int, token: str) -> None:
                 "bad": judge_count_list[3],
                 "miss": judge_count_list[4],
                 "user_id": user.id,
+                "room_id": room_id,
             },
         )
-
-        result = conn.execute(
-            text("SELECT `room_id` FROM `room_member` WHERE `user_id`= :user_id"),
-            {"user_id": user.id},
-        )
-        room_id = result.one().room_id
 
         end_time = get_end_time(conn, room_id)
 
@@ -395,7 +390,7 @@ def _room_result(conn, room_id: int) -> Optional[list[ResultUser]]:
                         conn.execute(
                             text(
                                 "UPDATE `room_member` SET `score`= :score, `perfect`= :perfect, `great`= :great, "
-                                "`good`= :good, `bad`= :bad, `miss`= :miss WHERE `user_id`= :user_id"
+                                "`good`= :good, `bad`= :bad, `miss`= :miss WHERE `user_id`= :user_id AND `room_id`= :room_id"
                             ),
                             {
                                 "score": 0,
@@ -405,6 +400,7 @@ def _room_result(conn, room_id: int) -> Optional[list[ResultUser]]:
                                 "bad": 0,
                                 "miss": 0,
                                 "user_id": row.user_id,
+                                "room_id": room_id,
                             },
                         )
             return []

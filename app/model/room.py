@@ -10,8 +10,6 @@ from app.db import engine
 
 from enum import IntEnum
 
-from .user import _get_user_by_token
-
 
 # Enum
 
@@ -59,13 +57,10 @@ class RoomMember(BaseModel):
 # Room
 
 
-def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty) -> Optional[int]:
+def create_room(user_id: int, live_id: int, select_difficulty: LiveDifficulty) -> Optional[int]:
     with engine.begin() as conn:
-        user = _get_user_by_token(conn, token)
-        if user is None:
-            return None
 
-        return _create_room(conn, user.id, live_id, select_difficulty)
+        return _create_room(conn, user_id, live_id, select_difficulty)
 
 
 def _create_room(conn, user_id: int, live_id: int, select_difficulty: LiveDifficulty) -> Optional[int]:
@@ -213,6 +208,33 @@ def update_room_status(room_id: int, status: WaitRoomStatus) -> None:
 
 
 # RoomMember
+
+
+def find_room_member_by_user_id(user_id: int) -> Optional[RoomMember]:
+    with engine.begin() as conn:
+        return _find_room_member_by_user_id(conn, user_id)
+
+
+def _find_room_member_by_user_id(conn, user_id: int) -> Optional[list[RoomMember]]:
+    res = conn.execute(
+        text(
+            """
+            SELECT
+                `room_id`,
+                `user_id`,
+                `select_difficulty`,
+                `is_host`,
+                `score`,
+                `judge_count_list`
+            FROM
+                `room_member`
+            WHERE
+                `user_id` = :user_id
+            """
+        ),
+        {"user_id": user_id},
+    )
+    return [RoomMember.from_orm(row) for row in res]
 
 
 def get_room_members(room_id: int) -> Optional[list[RoomMember]]:

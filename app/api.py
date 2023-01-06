@@ -106,10 +106,6 @@ class RoomCreateResponse(BaseModel):
 @handle_invalid_token
 def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
     room_id = model.create_room(token, req.live_id, req.select_difficulty)
-    if room_id is None:
-        # user not found
-        # failed to crate room
-        raise HTTPException(status_code=404)
     return RoomCreateResponse(room_id=room_id)
 
 

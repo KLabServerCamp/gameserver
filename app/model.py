@@ -124,7 +124,7 @@ class ResultUser(BaseModel):
         return v
 
 
-def _create_room(conn: Connection, user_id: int, live_id: int) -> Optional[int]:
+def _create_room(conn: Connection, user_id: int, live_id: int) -> int:
     res: CursorResult = conn.execute(
         text(
             "INSERT INTO `room` (`host_id`, `live_id`, `status`) "
@@ -216,16 +216,12 @@ def _join_room(
     return JoinRoomResult.OK
 
 
-def create_room(
-    token: str, live_id: int, select_difficulty: LiveDifficulty
-) -> Optional[int]:
+def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty) -> int:
     with engine.begin() as conn:
         conn = cast(Connection, conn)
         host = _get_user_by_token(conn, token)
 
         room_id = _create_room(conn, host.id, live_id)
-        if room_id is None:
-            return None
 
         _join_room(conn, host.id, room_id, select_difficulty)
 

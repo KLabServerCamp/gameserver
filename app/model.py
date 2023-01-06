@@ -44,21 +44,21 @@ def create_user(name: str, leader_card_id: int) -> str:
     return token
 
 
-def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
+def _get_user_by_token(conn: Connection, token: str) -> SafeUser:
     # TODO: 実装
-    res = conn.execute(
+    res: CursorResult = conn.execute(
         text("SELECT `id`, `name`, `leader_card_id` FROM user WHERE `token` = :token"),
         {"token": token},
     )
     try:
         row = res.one()
     except NoResultFound:
-        return None
+        raise InvalidToken
 
     return SafeUser.from_orm(row)
 
 
-def get_user_by_token(token: str) -> Optional[SafeUser]:
+def get_user_by_token(token: str) -> SafeUser:
     with engine.begin() as conn:
         return _get_user_by_token(conn, token)
 
@@ -222,8 +222,6 @@ def create_room(
     with engine.begin() as conn:
         conn = cast(Connection, conn)
         host = _get_user_by_token(conn, token)
-        if host is None:
-            return None
 
         room_id = _create_room(conn, host.id, live_id)
         if room_id is None:
@@ -284,8 +282,6 @@ def join_room(
     with engine.begin() as conn:
         conn = cast(Connection, conn)
         user = _get_user_by_token(conn, token)
-        if user is None:
-            return None
 
         return _join_room(conn, user.id, room_id, select_difficulty)
 
@@ -314,8 +310,6 @@ def wait_room(
     with engine.begin() as conn:
         conn = cast(Connection, conn)
         user = _get_user_by_token(conn, token)
-        if user is None:
-            return None
 
         status = _get_room_status(conn, room_id)
         if status is None:
@@ -359,8 +353,6 @@ def leave_room(token: str, room_id: int):
     with engine.begin() as conn:
         conn = cast(Connection, conn)
         user = _get_user_by_token(conn, token)
-        if user is None:
-            return
 
         _leave_room(conn, user.id, room_id)
 
@@ -373,8 +365,6 @@ def start_room(token: str, room_id: int):
     with engine.begin() as conn:
         conn = cast(Connection, conn)
         user = _get_user_by_token(conn, token)
-        if user is None:
-            return
 
         # host only
         if _is_host(conn, user.id, room_id):
@@ -407,8 +397,6 @@ def end_room(token: str, room_id: int, judge_count_list: list[int], score: int):
     with engine.begin() as conn:
         conn = cast(Connection, conn)
         user = _get_user_by_token(conn, token)
-        if user is None:
-            return
 
         _end_room(conn, user.id, room_id, judge_count_list, score)
 
@@ -446,8 +434,6 @@ def get_result(token: str, room_id: int) -> list[ResultUser]:
     with engine.begin() as conn:
         conn = cast(Connection, conn)
         user = _get_user_by_token(conn, token)
-        if user is None:
-            return []
 
         if _has_all_live_ended(conn, room_id):
             res = _get_result(conn, room_id)

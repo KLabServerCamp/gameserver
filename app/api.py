@@ -1,5 +1,6 @@
 from enum import Enum
-from typing import TypeAlias
+from functools import wraps
+from typing import Callable, ParamSpec, TypeAlias, TypeVar
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
@@ -7,6 +8,7 @@ from pydantic import BaseModel
 
 from . import model
 from .model import (
+    InvalidToken,
     JoinRoomResult,
     LiveDifficulty,
     ResultUser,
@@ -55,11 +57,25 @@ def get_auth_token(cred: HTTPAuthorizationCredentials = Depends(bearer)) -> str:
     return cred.credentials
 
 
+P = ParamSpec("P")
+R = TypeVar("R")
+
+
+def handle_invalid_token(func: Callable[P, R]) -> Callable[P, R]:
+    @wraps(func)
+    def _wrapper(*args: P.args, **kwargs: P.kwargs):
+        try:
+            return func(*args, **kwargs)
+        except InvalidToken:
+            raise HTTPException(status_code=404)
+
+    return _wrapper
+
+
 @app.get("/user/me", response_model=SafeUser)
+@handle_invalid_token
 def user_me(token: str = Depends(get_auth_token)):
     user = model.get_user_by_token(token)
-    if user is None:
-        raise HTTPException(status_code=404)
     # print(f"user_me({token=}, {user=})")
     return user
 
@@ -69,6 +85,7 @@ class Empty(BaseModel):
 
 
 @app.post("/user/update", response_model=Empty)
+@handle_invalid_token
 def update(req: UserCreateRequest, token: str = Depends(get_auth_token)):
     """Update user attributes"""
     # print(req)
@@ -86,6 +103,7 @@ class RoomCreateResponse(BaseModel):
 
 
 @app.post("/room/create", response_model=RoomCreateResponse)
+@handle_invalid_token
 def room_create(req: RoomCreateRequest, token: str = Depends(get_auth_token)):
     room_id = model.create_room(token, req.live_id, req.select_difficulty)
     if room_id is None:
@@ -119,6 +137,7 @@ class RoomJoinResponse(BaseModel):
 
 
 @app.post("/room/join", response_model=RoomJoinResponse)
+@handle_invalid_token
 def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
     join_room_result = model.join_room(token, req.room_id, req.select_difficulty)
     if join_room_result is None:
@@ -136,6 +155,7 @@ class RoomWaitResponse(BaseModel):
 
 
 @app.post("/room/wait", response_model=RoomWaitResponse)
+@handle_invalid_token
 def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
     status_and_list = model.wait_room(token, req.room_id)
     if status_and_list is None:
@@ -150,6 +170,7 @@ class RoomLeaveRequest(BaseModel):
 
 
 @app.post("/room/leave", response_model=Empty)
+@handle_invalid_token
 def room_leave(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
     model.leave_room(token, req.room_id)
     return {}
@@ -159,6 +180,7 @@ RoomStartRequest: TypeAlias = RoomLeaveRequest
 
 
 @app.post("/room/start", response_model=Empty)
+@handle_invalid_token
 def room_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
     model.start_room(token, req.room_id)
     return {}
@@ -171,6 +193,7 @@ class RoomEndRequest(BaseModel):
 
 
 @app.post("/room/end", response_model=Empty)
+@handle_invalid_token
 def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
     model.end_room(token, req.room_id, req.judge_count_list, req.score)
     return {}
@@ -184,6 +207,7 @@ class RoomResultResponse(BaseModel):
 
 
 @app.post("/room/result", response_model=RoomResultResponse)
+@handle_invalid_token
 def room_result(req: RoomResultRequest, token: str = Depends(get_auth_token)):
     result_user_list = model.get_result(token, req.room_id)
     return RoomResultResponse(result_user_list=result_user_list)

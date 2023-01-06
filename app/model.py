@@ -145,18 +145,28 @@ class RoomMemberRecord(BaseModel):
         orm_mode = True
 
 
-def _valitate_duplicate_member(conn: Connection, user_id: int):
+def _valitate_duplicate_member(conn: Connection, user_id: int, room_id: int = 0):
+    """
+    すでに他の部屋に入っていたら退出する
+    room_idは無視したい部屋(これから入る部屋)を指定する
+    """
     for (room_id,) in conn.execute(
-        text("SELECT `room_id` FROM `room_member` WHERE `user_id`=:user_id"),
-        {"user_id": user_id},
+        text(
+            "SELECT `room_id` FROM `room_member` WHERE `user_id`=:user_id and `room_id`!=:room_id"
+        ),
+        {"user_id": user_id, "room_id": room_id},
     ):
         _leave_room(conn, user_id, room_id)
 
 
 def _leave_expired_member(conn: Connection):
-    for (user_id, room_id,) in conn.execute(
-        text("SELECT `user_id`, `room_id` FROM `room_member` WHERE `ttl` < NOW()")
-    ):
+    """
+    TTLの切れたroom_memberレコードを削除する
+    """
+    execute_text = text(
+        "SELECT `user_id`, `room_id` FROM `room_member` WHERE `ttl` < NOW()"
+    )
+    for (user_id, room_id) in conn.execute(execute_text):
         _leave_room(conn, user_id, room_id)
 
 
@@ -166,6 +176,9 @@ def _update_member_ttl(
     user_id: Optional[int] = None,
     time: timedelta = timedelta(seconds=TTL_POLLING_INTERVAL),
 ):
+    """
+    TTLを更新する
+    """
     conn.execute(
         text(
             "UPDATE `room_member` SET `ttl`=ADDTIME(NOW(), :time) "
@@ -182,8 +195,20 @@ def _join_room(
     select_difficulty: LiveDifficulty,
     is_host: bool = False,
 ) -> JoinRoomResult:
+    """
+    部屋に参加する
+    """
+
     # room_memberバリテーション
-    _valitate_duplicate_member(conn, user_id)
+    _valitate_duplicate_member(conn, user_id, room_id)
+
+    # 参加済みチェック
+    execute_text = text(
+        "SELECT * FROM `room_member` WHERE `user_id`=:user_id and `room_id`=:room_id"
+    )
+    result = conn.execute(execute_text, {"user_id": user_id, "room_id": room_id})
+    if result.one_or_none() is not None:
+        return JoinRoomResult.OK
 
     # room検索
     room_row = conn.execute(

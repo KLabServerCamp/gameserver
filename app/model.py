@@ -296,18 +296,18 @@ def join_room(
         return _join_room(conn, user.id, room_id, select_difficulty)
 
 
-def _get_room_user_list(conn: Connection, me_id: int, room_id: int) -> list[RoomUser]:
+def _get_room_user_list(conn: Connection, request_user_id: int, room_id: int) -> list[RoomUser]:
     res: CursorResult = conn.execute(
         text(
             "SELECT "
             "`user_id`, `name`, `leader_card_id`, `select_difficulty`, "
-            "`user_id` = :me_id AS `is_me`, `user_id` = `host_id` AS `is_host` "
+            "`user_id` = :request_user_id AS `is_me`, `user_id` = `host_id` AS `is_host` "
             "FROM `user` "
             "INNER JOIN `room_member` ON `user`.`id` = `user_id` "
             "INNER JOIN `room` ON `room_id` = `room`.`id` "
             "WHERE `room_id` = :room_id"
         ),
-        {"me_id": me_id, "room_id": room_id},
+        {"request_user_id": request_user_id, "room_id": room_id},
     )
     return [RoomUser(**row) for row in res]
 

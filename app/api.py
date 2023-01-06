@@ -96,7 +96,7 @@ class RoomJoinRequest(BaseModel):
 
 
 class RoomJoinResponse(BaseModel):
-    result: JoinRoomResult
+    join_room_result: JoinRoomResult
 
 
 class RoomWaitRequest(BaseModel):

@@ -81,7 +81,7 @@ def _room_close(room_id: int):
             text("SELECT `joined_user_count` FROM `room` WHERE `room_id`=:room_id"),
             {"room_id": room_id},
         )
-        if result.fetchone()[0] < 1:
+        if result.one()[0] < 1:
             _ = conn.execute(
                 text("DELETE FROM `room` WHERE `room_id`=:room_id"),
                 {"room_id": room_id},
@@ -203,10 +203,12 @@ def room_wait(room_id: int, token: str):
             {"room_id": room_id},
         )
         try:
-            row = result.one()
+            row = result.fetchall()
         except NoResultFound:
+            print("------------------------------flag")
+            _room_close(room_id=room_id)
             return WaitRoomStatus.Dissolution, []
-        if row[0] == 1:
+        if row[0][0] == 1:
             return WaitRoomStatus.Waiting, _room_member_list(room_id=room_id, user_id=user_id)
         else:
             return WaitRoomStatus.LiveStart, _room_member_list(room_id=room_id, user_id=user_id)

@@ -65,12 +65,27 @@ class SafeRoom(BaseModel):
 
 
 def _get_user_by_token(token: str):
+    # NOTE: tokenからユーザー情報をもらう
     with engine.begin() as conn:
         result = conn.execute(
             text("SELECT `id` FROM `user` WHERE `token`=:token"),
             {"token": token},
         )
         return result.one()
+
+
+def _room_close(room_id: int):
+    # NOTE: room内部に一人もいなかった場合削除。
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("SELECT `joined_user_count` FROM `room` WHERE `room_id`=:room_id"),
+            {"room_id": room_id},
+        )
+        if result.fetchone()[0] < 1:
+            _ = conn.execute(
+                text("DELETE FROM `room` WHERE `room_id`=:room_id"),
+                {"room_id": room_id},
+            )
 
 
 def create_room(live_id: int, difficulty: LiveDifficulty, token: str):
@@ -98,16 +113,16 @@ def create_room(live_id: int, difficulty: LiveDifficulty, token: str):
         return room_id
 
 
-def room_list(live_id: int):
+def room_list(live_id: int, token: str):
     with engine.begin() as conn:
         if live_id == 0:
             result = conn.execute(
-                text("SELECT `room_id`,`live_id`,`joined_user_count`,`max_user_count` FROM `room`"),
+                text("SELECT `room_id`,`live_id`,`joined_user_count`,`max_user_count` FROM `room` WHERE `status`=1"),
                 {"live_id": live_id},
             )
         else:
             result = conn.execute(
-                text("SELECT `room_id`,`live_id`,`joined_user_count`,`max_user_count` FROM `room` WHERE `live_id`=:live_id"),
+                text("SELECT `room_id`,`live_id`,`joined_user_count`,`max_user_count` FROM `room` WHERE `live_id`=:live_id AND `status`=1"),
                 {"live_id": live_id},
             )
         rows = result.fetchall()
@@ -117,15 +132,8 @@ def room_list(live_id: int):
 
 def room_join(room_id: int, difficulty: LiveDifficulty, token: str) -> JoinRoomResult:
     with engine.begin() as conn:
-        result = conn.execute(
-            text("SELECT `id` FROM `user` WHERE `token`=:token"),
-            {"token": token},
-        )
-        try:
-            row = result.one()
-        except NoResultFound:
-            return JoinRoomResult.OtherError
-        player_id = row[0]
+        user = _get_user_by_token(token=token)
+        player_id = user[0]
         result = conn.execute(
             text("SELECT `joined_user_count`,`max_user_count` FROM `room` WHERE `room_id`=:room_id FOR UPDATE"),
             {"room_id": room_id}
@@ -277,13 +285,9 @@ def room_leave(room_id: int, token: str):
             text("DELETE FROM `room_member` WHERE `room_id`=:room_id AND `player_id`=:user_id"),
             {"room_id": room_id, "user_id": user[0]},
         )
-        '''
-        result = conn.execute(
-            text("SELECT ``")
-        )
-        '''
         _ = conn.execute(
             text("UPDATE `room` SET `joined_user_count`=`joined_user_count`-1 WHERE `room_id`=:room_id"),
             {"room_id": room_id},
         )
+        _room_close(room_id=room_id)
     pass

@@ -99,12 +99,6 @@ class RoomJoinResponse(BaseModel):
     result: JoinRoomResult
 
 
-class ResultUser(BaseModel):
-    user_id: int
-    judge_count_list: list[int]
-    score: int
-
-
 class RoomWaitRequest(BaseModel):
     room_id: int
 
@@ -143,13 +137,13 @@ def room_create(req: CreateRoomRequest, token: str = Depends(get_auth_token)):
 
 
 @app.post("/room/list", response_model=RoomListResponse)
-def list_room(req: RoomListRequest):
-    return RoomListResponse(room_info_list=room.room_list(req.live_id))
+def list_room(req: RoomListRequest, token: str = Depends(get_auth_token)):
+    return RoomListResponse(room_info_list=room.room_list(req.live_id, token=token))
 
 
 @app.post("/room/join", response_model=RoomJoinResponse)
 def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)) -> RoomJoinResponse:
-    return RoomJoinResponse(result=JoinRoomResult(room.room_join(req.room_id, req.select_difficulty, token)))
+    return RoomJoinResponse(result=room.room_join(req.room_id, req.select_difficulty, token))
 
 
 @app.post("/room/wait", response_model=RoomWaitResponse)
@@ -161,7 +155,7 @@ def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)) -> Roo
 @app.post("/room/start", response_model=Empty)
 def room_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
     room.room_start(req.room_id, token)
-    pass
+    return Empty()
 
 
 @app.post("/room/end", response_model=Empty)
@@ -170,7 +164,7 @@ def room_end(req: RoomEndRequest, token: str = Depends(get_auth_token)):
                   judge_count_list=req.judge_count_list,
                   score=req.score,
                   token=token)
-    pass
+    return Empty()
 
 
 @app.post("/room/result", response_model=RoomResultResponse)
@@ -181,4 +175,4 @@ def room_result(req: RoomResultRequest):
 @app.post("/room/leave", response_model=Empty)
 def room_leave(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
     room.room_leave(room_id=req.room_id, token=token)
-    pass
+    return Empty()

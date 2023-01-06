@@ -351,5 +351,10 @@ def leave_room(user_id: int, room_id: int) -> None:
             ),
             {"user_id": user_id, "room_id": room_id},
         )
+        result = conn.execute(
+            text(
+                "UPDATE `room` SET `joined_user_count`=`joined_user_count`-1 WHERE `id`=:room_id"
+            )
+        )
 
     return None

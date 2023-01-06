@@ -204,7 +204,7 @@ def _join_room(
 
     # 参加済みチェック
     execute_text = text(
-        "SELECT * FROM `room_member` WHERE `user_id`=:user_id and `room_id`=:room_id"
+        "SELECT `id` FROM `room_member` WHERE `user_id`=:user_id and `room_id`=:room_id"
     )
     result = conn.execute(execute_text, {"user_id": user_id, "room_id": room_id})
     if result.one_or_none() is not None:
@@ -306,14 +306,12 @@ def get_room_wait_status(
         user = _get_user_by_token_strict(conn, token)
 
         # memberバリテーション
-        member = RoomMemberRecord.from_orm(
-            conn.execute(
-                text(
-                    "SELECT * FROM `room_member` WHERE `user_id`=:user_id and `room_id`=:room_id LIMIT 1"
-                ),
-                {"user_id": user.id, "room_id": room_id},
-            ).one()
-        )
+        conn.execute(
+            text(
+                "SELECT `id` FROM `room_member` WHERE `user_id`=:user_id and `room_id`=:room_id LIMIT 1"
+            ),
+            {"user_id": user.id, "room_id": room_id},
+        ).one()
 
         status_result = conn.execute(
             text("SELECT `wait_room_status` FROM `room` WHERE `id`=:room_id"),

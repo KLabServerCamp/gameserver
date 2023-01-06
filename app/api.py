@@ -11,7 +11,6 @@ app = FastAPI()
 
 # Sample APIs
 
-
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
@@ -37,7 +36,6 @@ class RoomCreateRequest(BaseModel):
 class RoomCreateResponse(BaseModel):
     room_id: int
 
-
 # ルーム一覧
 class RoomListRequest(BaseModel):
     live_id: int
@@ -58,7 +56,6 @@ class joinRoomResult(Enum):
     RoomFull = 2
     Disbanded = 3
     OtherError = 4
-
 
 class RoomJoinResponse(BaseModel):
     join_room_result: int
@@ -170,7 +167,7 @@ def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
     return RoomJoinResponse(join_room_result=join_room_result)
 
 
-# ルーム検索
+# ルーム待ち
 @app.post("/room/wait", response_model=RoomWaitResponse)
 def room_wait(req: RoomWaitRequest, token: str = Depends(get_auth_token)):
     user_id = model.get_user_by_token(token).id
@@ -204,14 +201,12 @@ def room_end(req: RoomResultRequest, token: str = Depends(get_auth_token)):
     room_id = req.room_id
 
     result_user_list = model.result_room(room_id)
-    return RoomWaitResponse(result_user_list=result_user_list)
-
+    return RoomResultResponse(result_user_list=result_user_list)
 
 # ルーム退去
 @app.post("/room/leave")
-def room_end(req: RoomResultRequest, token: str = Depends(get_auth_token)):
+def room_end(req: RoomLeaveRequest, token: str = Depends(get_auth_token)):
     user_id = model.get_user_by_token(token).id
     room_id = req.room_id
 
-    result_user_list = model.result_room(room_id)
-    return RoomWaitResponse(result_user_list=result_user_list)
+    result_user_list = model.leave_room(user_id,room_id)

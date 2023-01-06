@@ -49,7 +49,7 @@ class RoomUser(BaseModel):
     room_id: int
     name: str
     leader_card_id: int
-    select_difficulty: LiveDifficulty
+    select_difficulty: int
     is_me: bool
     is_host: bool
 
@@ -82,7 +82,7 @@ def _get_user_by_token(conn, token: str) -> Optional[SafeUser]:
     )
     try:
         row = result.one()
-    except NoResultFund:
+    except NoResultFound:
         return None
     return SafeUser.from_orm(row)
 
@@ -224,7 +224,8 @@ def join_room(
     user_id: int, room_id: int, select_difficulty: int
 ) -> Optional[joinRoomResult]:
     if get_numofpeople_inroom_by_roomid(room_id) == 4:
-        update_status_by_roomid(roomid, api.joinRoomResult.RoomFull)
+        update_status_by_roomid(roomid, 2)
+        return 2
 
     # get_numofpeople_inroom_by_roomid
     with engine.begin() as conn:
@@ -240,7 +241,7 @@ def join_room(
             },
         )
 
-    return api.joinRoomResult.Ok
+    return 1
 
 
 # wating処理
@@ -291,7 +292,7 @@ def end_room(user_id: int, room_id: int, judge_count_list: list, score: int):
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "UPDATE `room_member` set `score`=:score, `judge`=:judge_count_list where `room_id`=:room_id AND `user_id`=:user_id"
+                "UPDATE `room_member` set `score`=:score, `judge`=:judge where `room_id`=:room_id AND `user_id`=:user_id"
             ),
             {
                 "room_id": room_id,
@@ -308,7 +309,7 @@ def result_room(room_id: int) -> Optional[ResultUser]:
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "SELECT `user_id`, `judge_count_list`, `score` FROM `room_member` WHERE `room_id` =:room_id"
+                "SELECT `user_id`, `judge`, `score` FROM `room_member` WHERE `room_id` =:room_id"
             ),
             {"room_id": room_id},
         )

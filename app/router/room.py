@@ -71,10 +71,10 @@ def _pass_host_to_next_member(room_id: int, user_id: int) -> None:
     if len(room_members) == 1:
         return
 
-    try:
-        me = [m for m in room_members if m.user_id == user_id][0]
-    except Exception:
+    if user_id not in room_members:
         raise Exception("ユーザーが存在しません")
+
+    me = [m for m in room_members if m.user_id == user_id][0]
 
     if not me.is_host:
         return

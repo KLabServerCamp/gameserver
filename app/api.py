@@ -103,7 +103,7 @@ class RoomListResponse(BaseModel):
 
 
 @app.post("/room/list", response_model=RoomListResponse)
-def room_list(req: RoomListRequest):
+def room_list(req: RoomListRequest, token: str = Depends(get_auth_token)):
     room_info_list = model.list_room(live_id=req.live_id)
     return RoomListResponse(room_info_list=room_info_list)
 
@@ -119,7 +119,7 @@ class RoomJoinResponse(BaseModel):
 
 
 @app.post("/room/join", response_model=RoomJoinResponse)
-def room_list(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
+def room_join(req: RoomJoinRequest, token: str = Depends(get_auth_token)):
     join_room_result = model.join_room(
         token=token, room_id=req.room_id, select_difficulty=req.select_difficulty
     )
@@ -143,7 +143,7 @@ class RoomStartRequest(BaseModel):
 
 @app.post("/room/start", response_model=Empty)
 def room_start(req: RoomStartRequest, token: str = Depends(get_auth_token)):
-    model.start_room(room_id=req.room_id)
+    model.start_room(token=token, room_id=req.room_id)
     return {}
 
 

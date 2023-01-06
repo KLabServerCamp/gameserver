@@ -46,7 +46,7 @@ def _test_room_join(i, room_id, difficulty=1):
     return join_room_result
 
 
-def _test_room_2():
+def test_room_2():
     room_id = _test_room_create(0)
     room_id2 = _test_room_create(1)
     assert room_id != room_id2

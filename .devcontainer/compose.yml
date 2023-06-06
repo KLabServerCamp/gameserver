@@ -6,9 +6,10 @@ services:
 
     volumes:
       # This is where VS Code should expect to find your project's source code and the value of "workspaceFolder" in .devcontainer/devcontainer.json
-      - ..:/workspace:cached
+      - ..:/workspaces/gameserver:cached
 
-      # Use Docker from inside the container. See https://aka.ms/vscode-remote/samples/docker-from-docker-compose for details.
+      # Use Docker from inside the container.
+      # See https://aka.ms/vscode-remote/samples/docker-from-docker-compose for details.
       - /var/run/docker.sock:/var/run/docker.sock 
 
     # Overrides default command so things don't shut down after the process ends.

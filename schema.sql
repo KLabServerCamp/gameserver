@@ -1,3 +1,5 @@
+use webapp;
+
 DROP TABLE IF EXISTS `user`;
 CREATE TABLE `user` (
   `id` bigint NOT NULL AUTO_INCREMENT,

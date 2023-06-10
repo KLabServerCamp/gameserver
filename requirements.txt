@@ -1,6 +1,7 @@
 black
 fastapi
 httpx>=0.22.0
+ipython
 isort
 mycli
 pymysql

@@ -78,10 +78,30 @@ class LiveDifficulty(IntEnum):
     hard = 2
 
 
-def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
+def create_room(token: str, live_id: int, difficulty: LiveDifficulty) -> int:
     """部屋を作ってroom_idを返します"""
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
         if user is None:
             raise InvalidToken
-        # TODO: 実装
+        result = conn.execute(
+            text(
+                "INSERT INTO `room` SET `live_id`=:live_id, `leader_id`=:leader_id, `joined_user_count`=:joined_user_count"
+            ),
+            {
+                "live_id": live_id,
+                "leader_id": user.id,
+                "joined_user_count": 1,
+            },
+        )
+        conn.execute(
+            text(
+                "INSERT INTO `room_user` SET `room_id`=:room_id, `user_id`=:user_id, `difficulty`=:difficulty"
+            ),
+            {
+                "room_id": result.lastrowid,
+                "user_id": user.id,
+                "difficulty": difficulty.value,
+            },
+        )
+    return result.lastrowid

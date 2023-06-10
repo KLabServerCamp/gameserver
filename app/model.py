@@ -38,7 +38,8 @@ def create_user(name: str, leader_card_id: int) -> str:
             ),
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
-        print(f"create_user(): {result.lastrowid=}")  # DB側で生成されたPRIMARY KEYを参照できる
+        # DB側で生成されたPRIMARY KEYを参照できる
+        print(f"create_user(): {result.lastrowid=}")
     return token
 
 

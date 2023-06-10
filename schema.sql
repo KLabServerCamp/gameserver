@@ -17,7 +17,7 @@ CREATE TABLE `room` (
   `leader_id` bigint NOT NULL,
   `joined_user_count` int NOT NULL,
   PRIMARY KEY (`room_id`)
-)
+);
 
 DROP TABLE IF EXISTS `room_user`;
 CREATE TABLE `room_user` (

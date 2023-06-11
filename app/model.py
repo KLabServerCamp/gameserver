@@ -12,6 +12,10 @@ class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げるエラー"""
 
 
+class NotOwner(Exception):
+    """APIの実行者がルームのオーナーではなかったときに投げるエラー"""
+
+
 class SafeUser(BaseModel):
     """token を含まないUser"""
 
@@ -239,3 +243,27 @@ def room_wait_status(token: str, room_id: int) -> tuple[WaitRoomStatus, list[Roo
                 )
             )
         return (status, room_users)
+
+
+def room_start(token: str, room_id: int):
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken
+
+        result = conn.execute(
+            text(
+                "SELECT `host_id`, `joined_user_count`, `wait_room_status`"
+                " FROM `room` WHERE `room_id`=:room_id"
+                " FOR UPDATE"
+            ),
+            {"room_id": room_id},
+        )
+        row = result.one()
+        if row.host_id != user.id:
+            raise NotOwner
+
+        conn.execute(
+            text("UPDATE `room` SET `wait_room_status`=:wait_room_status"),
+            {"wait_room_status": WaitRoomStatus.LiveStart.value},
+        )

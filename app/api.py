@@ -114,8 +114,16 @@ def join_room(req: JoinRoomRequest, token: UserToken) -> JoinRoomResult:
 
 
 @app.post("/room/wait")
-def wait_room(req: RoomID, token: UserToken):
+def wait_room(req: RoomID, token: UserToken) -> RoomWaitResponse:
     """ルーム入室リクエスト"""
     print("/room/wait", req)
     status, room_user_list = model.room_wait_status(token, req.room_id)
     return RoomWaitResponse(status=status, room_users=room_user_list)
+
+
+@app.post("/room/start")
+def start_room(req: RoomID, token: UserToken) -> Empty:
+    """ルーム開始リクエスト"""
+    print("/room/start", req)
+    model.room_start(token, req.room_id)
+    return Empty()

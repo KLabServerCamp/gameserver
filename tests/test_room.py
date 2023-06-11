@@ -45,11 +45,11 @@ def test_room_1():
     response_data = response.json()
     assert response_data.keys() == {"status", "room_users"}
 
-    # response = client.post(
-    #     "/room/start", headers=_auth_header(), json={"room_id": room_id}
-    # )
-    # assert response.status_code == 200
-    # print("room/wait response:", response.json())
+    response = client.post(
+        "/room/start", headers=_auth_header(), json={"room_id": room_id}
+    )
+    assert response.status_code == 200
+    print("room/start response:", response.json())
 
     # response = client.post(
     #     "/room/end",

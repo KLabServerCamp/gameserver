@@ -69,9 +69,33 @@ class CreateRoomRequest(BaseModel):
     select_difficulty: LiveDifficulty
 
 
+class RoomInfo(BaseModel):
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int
+
+
 @app.post("/room/create")
 def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
     """ルーム作成リクエスト"""
     print("/room/create", req)
     room_id = model.create_room(token, req.live_id, req.select_difficulty)
     return RoomID(room_id=room_id)
+
+
+@app.get("/room/list")
+def list(live_id: int) -> list[RoomInfo]:
+    rows = model.get_room_list(live_id)
+    room_list = []
+    for row in rows:
+        room_list.append(
+            RoomInfo(
+                room_id=row.room_id,
+                live_id=row.live_id,
+                joined_user_count=row.joined_user_count,
+                max_user_count=row.max_user_count,
+            )
+        )
+
+    return room_list

@@ -22,6 +22,7 @@ CREATE TABLE `room` (
 DROP TABLE IF EXISTS `room_member`;
 CREATE TABLE `room_member` (
   `user_id` bigint NOT NULL ,
+  `room_id` int NOT NULL,
   `name` varchar(255) NOT NULL ,
   `leader_card_id` int NOT NULL,
   `select_diffculty` int NOT NULL,

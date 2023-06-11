@@ -83,10 +83,32 @@ class LiveDifficulty(IntEnum):
     hard = 2
 
 
-def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
+def create_room(token: str, live_id: int, difficulty: LiveDifficulty) -> int:
     """部屋を作ってroom_idを返します"""
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
         if user is None:
             raise InvalidToken
         # TODO: 実装
+        result = conn.execute(
+            text(
+                "INSERT INTO `room` (live_id, joined_user_count, max_user_count)"
+                " VALUES (:live_id, :joined_user_count, :max_user_count)"
+            ),
+            {"live_id": live_id, "joined_user_count": 0, "max_user_count": 4},
+        )
+        print(f"create_room(): {result.lastrowid=}")
+    return result.lastrowid
+
+
+def get_room_list(live_id: int) -> list[tuple[int, int, int, int]]:
+    with engine.begin() as conn:
+        if live_id == 0:
+            result = conn.execute(text("SELECT * FROM room"))
+            return result.all()
+        else:
+            result = conn.execute(
+                text("SELECT * FROM room WHERE `live_id`=:live_id"),
+                {"live_id": live_id},
+            )
+            return result.all()

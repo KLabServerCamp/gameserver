@@ -1,3 +1,4 @@
+import json
 import uuid
 from enum import IntEnum
 
@@ -291,10 +292,23 @@ def room_end(token: str, room_id: int, judge_count_list: list[int], score: int) 
         if len(judge_count_list) != 5:
             raise InvalidScore
 
+        judge_count_dict = {
+            "perfect_count": judge_count_list[0],
+            "great_count": judge_count_list[1],
+            "good_count": judge_count_list[2],
+            "bad_count": judge_count_list[3],
+            "miss_count": judge_count_list[4],
+        }
         conn.execute(
             text(
-                "UPDATE `room_user` SET `score`=:score"
+                "UPDATE `room_user` SET `score`=:score, `is_end`=true,"
+                " `judge_count`=:judge_count"
                 " WHERE `room_id`=:room_id AND `user_id`=:user_id"
             ),
-            {"score": score, "room_id": room_id, "user_id": user.id},
+            {
+                "score": score,
+                "room_id": room_id,
+                "user_id": user.id,
+                "judge_count": json.dumps(judge_count_dict),
+            },
         )

@@ -26,6 +26,8 @@ CREATE TABLE `room_user` (
   `room_id` bigint NOT NULL,
   `user_id` bigint NOT NULL,
   `difficulty` int NOT NULL,
+  `is_end` boolean NOT NULL DEFAULT false,
+  `judge_count` json DEFAULT NULL,
   `score` bigint NOT NULL DEFAULT 0,
   PRIMARY KEY (`room_id`, `user_id`)
 );

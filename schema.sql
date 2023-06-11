@@ -14,9 +14,10 @@ DROP TABLE IF EXISTS `room`;
 CREATE TABLE `room` (
   `room_id` bigint NOT NULL AUTO_INCREMENT,
   `live_id` int NOT NULL,
-  `leader_id` bigint NOT NULL,
+  `host_id` bigint NOT NULL,
   `joined_user_count` int NOT NULL,
   `max_user_count` int NOT NULL,
+  `wait_room_status` int NOT NULL,
   PRIMARY KEY (`room_id`)
 );
 

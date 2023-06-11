@@ -78,6 +78,11 @@ class JoinRoomRequest(BaseModel):
     select_difficulty: LiveDifficulty
 
 
+class RoomWaitResponse(BaseModel):
+    status: model.WaitRoomStatus
+    room_users: list[model.RoomUser]
+
+
 @app.post("/room/create")
 def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
     """ルーム作成リクエスト"""
@@ -99,3 +104,11 @@ def join_room(req: JoinRoomRequest, token: UserToken) -> model.JoinRoomResult:
     print("/room/join", req)
     join_room_result = model.join_room(token, req.room_id, req.select_difficulty)
     return join_room_result
+
+
+@app.post("/room/wait")
+def wait_room(req: RoomID, token: UserToken):
+    """ルーム入室リクエスト"""
+    print("/room/wait", req)
+    status, room_user_list = model.room_wait_status(token, req.room_id)
+    return RoomWaitResponse(status=status, room_users=room_user_list)

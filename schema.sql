@@ -26,6 +26,6 @@ CREATE TABLE `room_member` (
   `leader_card_id` int NOT NULL,
   `select_diffculty` int NOT NULL,
   `is_me` boolean NOT NULL,
-  `is_host` boolean NOT NULL
+  `is_host` boolean NOT NULL,
   PRIMARY KEY (`user_id`)
 );

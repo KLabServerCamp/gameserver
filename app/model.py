@@ -88,6 +88,19 @@ class LiveDifficulty(IntEnum):
     hard = 2
 
 
+class JoinRoomResult(IntEnum):
+    Ok = 1
+    RoomFull = 2
+    Disbanded = 3
+    OtherError = 4
+
+
+# class WaitRoomStatus(IntEnum):
+#     Waiting = 1
+#     LiveStart = 2
+#     Dissolution = 3
+
+
 def create_room(token: str, live_id: int, difficulty: LiveDifficulty) -> int:
     """部屋を作ってroom_idを返します"""
     with engine.begin() as conn:
@@ -137,3 +150,39 @@ def room_search(live_id: int) -> list[RoomInfo]:
         rows = result.all()
         rows = [RoomInfo.from_orm(row) for row in rows]
         return rows
+
+
+def join_room(token: str, room_id: int, select_difficulty: LiveDifficulty) -> int:
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken
+
+        result = conn.execute(
+            text(
+                "SELECT `joined_user_count`, `max_user_count` FROM `room` WHERE `room_id`=:room_id"
+                " FOR UPDATE"
+            ),
+            {"room_id": room_id},
+        )
+        row = result.one()
+        if row.joined_user_count >= row.max_user_count:
+            return JoinRoomResult.RoomFull
+
+        conn.execute(
+            text(
+                "INSERT INTO `room_user` SET `room_id`=:room_id, `user_id`=:user_id, `difficulty`=:difficulty"
+            ),
+            {
+                "room_id": room_id,
+                "user_id": user.id,
+                "difficulty": select_difficulty.value,
+            },
+        )
+        conn.execute(
+            text(
+                "UPDATE `room` SET `joined_user_count`=`joined_user_count`+1 WHERE `room_id`=:room_id"
+            ),
+            {"room_id": room_id},
+        )
+    return JoinRoomResult.Ok

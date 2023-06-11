@@ -1,6 +1,7 @@
 import uuid
 from enum import IntEnum
 
+from typing import List
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
@@ -69,6 +70,18 @@ def update_user(id: int, name: str, leader_card_id: int) -> None:
 
 
 # room -------------------------------------------------------
+class Room(BaseModel):
+    id: int
+    live_id: int
+    host_id: int
+
+
+class RoomMember(BaseModel):
+    room_id: int
+    user_id: int
+    live_difficult: int
+
+
 class LiveDifficulty(IntEnum):
     normal = 1
     hard = 2
@@ -87,14 +100,50 @@ class WaitRoomStatus(IntEnum):
     Dissolution = 3
 
 
-def create_room(live_id: int, difficulty: LiveDifficulty):
+def create_room(live_id: int, difficulty: LiveDifficulty) -> int:
     """部屋を作ってroom_idを返します"""
     with engine.begin() as conn:
+        conn.execute(
+            text(""),
+        )
         # TODO: 実装
-        pass
 
 
-def get_room_list_by_live_id(live_id: int):
+def get_room(room_id: int) -> Room | None: 
     with engine.begin() as conn:
+        conn.execute(
+            text(""),
+        )
         # TODO: 実装
-        pass
+
+
+def delete_room(room_id: int) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(""),
+        )
+        # TODO: 実装
+
+
+def get_room_list_by_live_id(live_id: int) -> List[Room]:
+    with engine.begin() as conn:
+        conn.execute(
+            text(""),
+        )
+        # TODO: 実装
+
+
+def create_room_member() -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(""),
+        )
+        # TODO: 実装
+
+
+def delete_room_member() -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(""),
+        )
+        # TODO: 実装

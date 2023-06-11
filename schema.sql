@@ -13,7 +13,9 @@ CREATE TABLE `user` (
 DROP TABLE IF EXISTS `room`;
 CREATE TABLE `room` (
   `id` bigint NOT NULL AUTO_INCREMENT,
+  `host_user_id` int NOT NULL,
   `live_id` int NOT NULL,
+  FOREIGN KEY (`host_user_id`) REFERENCES `user` (`id`),
   PRIMARY KEY (`id`)
 );
 

@@ -13,10 +13,12 @@ __all__ = ["UserToken"]
 bearer = HTTPBearer()
 
 
-async def get_auth_token(cred: HTTPAuthorizationCredentials = Depends(bearer)) -> str:
+async def get_auth_token(
+        cred: HTTPAuthorizationCredentials = Depends(bearer)) -> str:
     assert cred is not None
     if not cred.credentials:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, detail="invalid credential")
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, detail="invalid credential")
     return cred.credentials
 
 

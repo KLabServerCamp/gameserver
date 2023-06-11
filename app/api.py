@@ -61,23 +61,6 @@ def update(req: UserCreateRequest, token: UserToken) -> Empty:
 # Room APIs
 
 
-class RoomID(BaseModel):
-    room_id: int
-
-
-class CreateRoomRequest(BaseModel):
-    live_id: int
-    select_difficulty: LiveDifficulty
-
-
-@app.post("/room/create")
-def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
-    """ルーム作成リクエスト"""
-    print("/room/create", req)
-    room_id = model.create_room(token, req.live_id, req.select_difficulty)
-    return RoomID(room_id=room_id)
-
-
 class LiveDifficult(Enum):
     normal = 1
     hard = 2
@@ -117,3 +100,124 @@ class ResultUser(BaseModel):
     user_id: int
     judge_count_list: list[int]
     score: int
+
+
+class CreateRoomRequest(BaseModel):
+    live_id: int
+    select_difficulty: LiveDifficulty
+
+
+class RoomID(BaseModel):
+    room_id: int
+
+
+# ルームを新規で建てる。
+@app.post("/room/create")
+def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
+    """ルーム作成リクエスト"""
+    print("/room/create", req)
+    room_id = model.create_room(token, req.live_id, req.select_difficulty)
+    return RoomID(room_id=room_id)
+
+
+class RoomListRequest(BaseModel):
+    live_id: int
+
+
+class RoomListResponse(BaseModel):
+    room_info_list: list[RoomInfo]
+
+
+# 入場可能なルーム一覧を取得
+# Request --------------
+# live_id 	int 	ルームで遊ぶ楽曲のID（※0はワイルドカード。全てのルームを対象とする）
+# Response -------------
+# room_info_list 	list[RoomInfo] 	入場可能なルーム一覧
+@app.post("/room/list")
+def list(token: UserToken, req: RoomListRequest) -> RoomListResponse:
+    print("/room/list", req)
+
+
+class RoomJoinRequest(BaseModel):
+    room_id: int
+    select_difficulty: LiveDifficulty
+
+
+class RoomJoinResponse(BaseModel):
+    join_room_result: JoinRoomResult
+
+
+# 上記listのルームに入場。
+# Request --------------
+# room_id 	int 	入るルーム
+# select_difficulty 	LiveDifficulty 	選択難易度
+# Response -------------
+# join_room_result 	JoinRoomResult 	ルーム入場結果
+@app.post("/room/join")
+def join(token: UserToken, req: RoomJoinRequest) -> RoomJoinResponse:
+    print("/room/join", req)
+
+
+class RoomWaitResponse(BaseModel):
+    status: WaitRoomStatus
+    room_user_list: list[RoomUser]
+
+
+# ルーム待機中（ポーリング）。APIの結果でゲーム開始がわかる。 クライアントはn秒間隔で投げる想定。
+# Request --------------
+# room_id 	int 	対象ルーム
+# Response -------------
+# status 	WaitRoomStatus 	結果
+# room_user_list 	list[RoomUser] 	ルームにいるプレイヤー一覧
+@app.post("/room/wait")
+def wait(token: UserToken, req: RoomID) -> RoomWaitResponse:
+    print("/room/wait", req)
+
+
+# ルームのライブ開始。部屋のオーナーがたたく。
+# Request --------------
+# room_id 	int 	対象ルーム
+@app.post("/room/start")
+def start(token: UserToken, req: RoomID) -> Empty:
+    print("/room/start", req)
+
+
+class RoomEndRequest(BaseModel):
+    room_id: int
+    judge_count_list: list[int]
+    score: int
+
+
+# /room/end
+# ルームのライブ終了時リクエスト。ゲーム終わったら各人が叩く。
+# Request --------------
+# room_id 	int 	対象ルーム
+# judge_count_list 	list[int] 	各判定数
+# score 	int 	スコア
+@app.post("/room/end")
+def end(token: UserToken, req: RoomEndRequest) -> Empty:
+    print("/room/end", req)
+
+
+class RoomResultResponse(BaseModel):
+    result_user_list: list[ResultUser]
+
+
+# /room/result
+# ルームのライブ終了後。end 叩いたあとにこれをポーリングする。 クライアントはn秒間隔で投げる想定。
+# Request --------------
+# room_id 	int 	対象ルーム
+# Response -------------
+# result_user_list 	list[ResultUser] 	自身を含む各ユーザーの結果。※全員揃っていない待機中は[]が返却される想定
+@app.post("/room/result")
+def result(token: UserToken, req: RoomID) -> RoomResultResponse:
+    print("/room/result", req)
+
+
+# /room/leave
+# ルーム退出リクエスト。オーナーも /room/join で参加した参加者も実行できる。
+# Request --------------
+# room_id 	int 	対象ルーム
+@app.post("/room/leave")
+def leave(toekn: UserToken, req: RoomID) -> Empty:
+    print("/room/leave", req)

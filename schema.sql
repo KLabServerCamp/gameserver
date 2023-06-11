@@ -13,9 +13,9 @@ CREATE TABLE `user` (
 DROP TABLE IF EXISTS `room`;
 CREATE TABLE `room` (
   `id` bigint NOT NULL AUTO_INCREMENT,
-  `host_user_id` int NOT NULL,
+  `host_user_id` bigint NOT NULL,
   `live_id` int NOT NULL,
-  FOREIGN KEY (`host_user_id`) REFERENCES `user` (`id`),
+  FOREIGN KEY (`host_user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE,
   PRIMARY KEY (`id`)
 );
 
@@ -24,7 +24,7 @@ CREATE TABLE `room_member` (
   `room_id` bigint NOT NULL,
   `user_id` bigint NOT NULL,
   `live_difficult` int NOT NULL,
-  FOREIGN KEY (`room_id`) REFERENCES `room` (`id`),
-  FOREIGN KEY (`user_id`) REFERENCES `user` (`id`),
+  FOREIGN KEY (`room_id`) REFERENCES `room` (`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`user_id`) REFERENCES `user` (`id`) ON DELETE CASCADE,
   PRIMARY KEY (`room_id`, `user_id`)
 );

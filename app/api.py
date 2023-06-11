@@ -3,7 +3,8 @@ from pydantic import BaseModel, Field
 
 from . import model
 from .auth import SafeUser
-from .model import LiveDifficulty, JoinRoomResult, WaitRoomStatus
+from .model import (
+    LiveDifficulty, JoinRoomResult, WaitRoomStatus, MAX_ROOM_MEMBER_COUNT)
 from typing import List
 
 app = FastAPI(debug=True)
@@ -95,6 +96,7 @@ class RoomID(BaseModel):
 def create(user: SafeUser, req: CreateRoomRequest) -> RoomID:
     """ルーム作成リクエスト"""
     print("/room/create", req)
+    print("/room/create", user)
     room_id = model.create_room(req.live_id, user.id, req.select_difficulty)
     return RoomID(room_id=room_id)
 
@@ -115,7 +117,16 @@ class RoomListResponse(BaseModel):
 @app.post("/room/list")
 def list(user: SafeUser, req: RoomListRequest) -> RoomListResponse:
     print("/room/list", req)
-    # rooms = model.get_room_list_by_room_id(token, req.live_id)
+    rooms = model.get_room_list_by_live_id(req.live_id)
+    return {
+        "room_info_list": [
+            {
+                "room_id": v.id,
+                "live_id": v.live_id,
+                "joined_user_count": len(v.members),
+                "max_user_count": MAX_ROOM_MEMBER_COUNT,
+            } for v in rooms]
+    }
 
 
 class RoomJoinRequest(BaseModel):

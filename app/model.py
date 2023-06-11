@@ -5,8 +5,12 @@ from typing import List
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
+from collections import defaultdict
 
 from .db import engine
+
+
+MAX_ROOM_MEMBER_COUNT = 4
 
 
 class SafeUser(BaseModel):
@@ -70,16 +74,23 @@ def update_user(id: int, name: str, leader_card_id: int) -> None:
 
 
 # room -------------------------------------------------------
-class Room(BaseModel):
-    id: int
-    live_id: int
-    host_id: int
-
-
 class RoomMember(BaseModel):
     room_id: int
     user_id: int
     live_difficult: int
+
+    class Config:
+        orm_mode = True
+
+
+class Room(BaseModel):
+    id: int
+    live_id: int
+    host_id: int
+    members: List[RoomMember]
+
+    class Config:
+        orm_mode = True
 
 
 class LiveDifficulty(IntEnum):
@@ -106,11 +117,12 @@ def create_room(
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "INSERT INTO `room` (live_id, host_user_id)"
+                "INSERT INTO `room` (`live_id`, `host_user_id`)"
                 " VALUES (:live_id, :host_user_id)"
             ),
-            {live_id: live_id, host_user_id: host_user_id}
+            {"live_id": live_id, "host_user_id": host_user_id},
         )
+
         room_id = result.lastrowid
         conn.execute(
             text(
@@ -144,10 +156,27 @@ def delete_room(room_id: int) -> None:
 
 def get_room_list_by_live_id(live_id: int) -> List[Room]:
     with engine.begin() as conn:
-        conn.execute(
-            text(""),
+        result = conn.execute(
+            text(
+                "SELECT *"
+                " FROM `room`"
+                " LEFT JOIN `room_member`"
+                " ON room.id = room_member.room_id"
+                " WHERE `live_id`=:live_id"
+            ),
+            {"live_id": live_id},
         )
-        # TODO: 実装
+        rows = result.all()
+        rooms = {}
+        members = defaultdict(lambda: [])
+        for r in rows:
+            if (r.id not in rooms):
+                rooms[r.id] = dict(r._mapping)
+                print(dict(r._mapping))
+            members[r.id].append(RoomMember.from_orm(r))
+        return [Room.parse_obj(
+            {**r, "host_id": r["host_user_id"], "members": members[r["id"]]}
+            ) for r in rooms.values()]
 
 
 def create_room_member(difficulty: LiveDifficulty) -> None:

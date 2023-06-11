@@ -264,6 +264,6 @@ def room_start(token: str, room_id: int):
             raise NotOwner
 
         conn.execute(
-            text("UPDATE `room` SET `wait_room_status`=:wait_room_status"),
-            {"wait_room_status": WaitRoomStatus.LiveStart.value},
+            text("UPDATE `room` SET `wait_room_status`=:wait_room_status WHERE `room_id`=:room_id"),
+            {"wait_room_status": WaitRoomStatus.LiveStart.value, "room_id": room_id},
         )

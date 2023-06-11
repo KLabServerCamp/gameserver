@@ -84,7 +84,7 @@ def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
     return RoomID(room_id=room_id)
 
 
-@app.get("/room/list")
+@app.post("/room/list")
 def list(live_id: int) -> list[RoomInfo]:
     rows = model.get_room_list(live_id)
     room_list = []
@@ -99,3 +99,9 @@ def list(live_id: int) -> list[RoomInfo]:
         )
 
     return room_list
+
+
+@app.post("/room/join")
+def join(token: UserToken, room_id: int, difficulty: int) -> int:
+    result = model.join_room(token, room_id, difficulty)
+    return result

@@ -112,3 +112,61 @@ def get_room_list(live_id: int) -> list[tuple[int, int, int, int]]:
                 {"live_id": live_id},
             )
             return result.all()
+
+
+class JoinRoomResult(IntEnum):
+    """難易度"""
+
+    Ok = 1  # 入場OK
+    RoomFull = 2  # 満員
+    Disbanded = 3  # 解放済み
+    OtherError = 4  # その他エラー
+
+
+def join_room(
+    token: str, room_id: int, select_difficulty: LiveDifficulty
+) -> JoinRoomResult:
+    with engine.begin() as conn:
+        try:
+            user = _get_user_by_token(conn, token)
+            if user is None:
+                raise InvalidToken
+        except InvalidToken:
+            return JoinRoomResult.OtherError
+
+        result = conn.execute(
+            text("SELECT * FROM room WHERE `room_id`=:room_id FOR UPDATE"),
+            {"room_id": room_id},
+        )
+        try:
+            row = result.one()
+        except NoResultFound:
+            return JoinRoomResult.Disbanded
+        max_user_count = row.max_user_count
+
+        # 部屋のメンバー数を取得
+        result = conn.execute(
+            text("SELECT COUNT(*) FROM `room_member` WHERE `room_id`=:room_id"),
+            {"room_id": room_id},
+        )
+        member_count = result.scalar()
+
+        if member_count < max_user_count:
+            conn.execute(
+                text(
+                    "INSERT INTO `room_member` (user_id,room_id,name,leader_card_id,select_diffculty,is_me,is_host)"
+                    "VALUES (:user_id,:room_id,:name,:leader_card_id,:select_diffculty,:is_me,:is_host)"
+                ),
+                {
+                    "user_id": user.id,
+                    "room_id": room_id,
+                    "name": user.name,
+                    "leader_card_id": user.leader_card_id,
+                    "select_diffculty": select_difficulty,
+                    "is_me": True,
+                    "is_host": False,
+                },
+            )
+            return JoinRoomResult.Ok
+        else:
+            return JoinRoomResult.RoomFull

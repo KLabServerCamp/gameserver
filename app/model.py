@@ -87,11 +87,13 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty) -> int:
         result = conn.execute(
             text(
                 "INSERT INTO `room` SET `live_id`=:live_id, `leader_id`=:leader_id, `joined_user_count`=:joined_user_count"
+                ", `max_user_count`=:max_user_count"
             ),
             {
                 "live_id": live_id,
                 "leader_id": user.id,
                 "joined_user_count": 1,
+                "max_user_count": 4,
             },
         )
         conn.execute(

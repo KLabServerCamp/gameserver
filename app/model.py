@@ -72,14 +72,25 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
         )
 
 
-# IntEnum の使い方の例
 class LiveDifficulty(IntEnum):
-    """難易度"""
-
     normal = 1
     hard = 2
 
 
+class JoinRoomResult(IntEnum):
+    Ok = 1
+    RoomFull = 2
+    Disbanded = 3
+    OtherError = 4
+
+
+class WaitRoomStatus(IntEnum):
+    Waiting = 1
+    LiveStart = 2
+    Dissolution = 3
+
+
+# room
 def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
     """部屋を作ってroom_idを返します"""
     with engine.begin() as conn:

@@ -1,10 +1,11 @@
 from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
-from enum import Enum
 
 from . import model
 from .auth import UserToken
 from .model import LiveDifficulty
+from .model import JoinRoomResult
+from .model import WaitRoomStatus
 
 app = FastAPI(debug=True)
 
@@ -59,24 +60,6 @@ def update(req: UserCreateRequest, token: UserToken) -> Empty:
 
 
 # Room APIs
-
-
-class LiveDifficult(Enum):
-    normal = 1
-    hard = 2
-
-
-class JoinRoomResult(Enum):
-    Ok = 1
-    RoomFull = 2
-    Disbanded = 3
-    OtherError = 4
-
-
-class WaitRoomStatus(Enum):
-    Waiting = 1
-    LiveStart = 2
-    Dissolution = 3
 
 
 class RoomInfo(BaseModel):

@@ -1,11 +1,10 @@
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
 from . import model
-from .auth import UserToken
-from .model import LiveDifficulty
-from .model import JoinRoomResult
-from .model import WaitRoomStatus
+from .auth import SafeUser
+from .model import LiveDifficulty, JoinRoomResult, WaitRoomStatus
+from typing import List
 
 app = FastAPI(debug=True)
 
@@ -38,10 +37,7 @@ def user_create(req: UserCreateRequest) -> UserCreateResponse:
 # 認証のサンプルAPI
 # ゲームでは使わない
 @app.get("/user/me")
-def user_me(token: UserToken) -> model.SafeUser:
-    user = model.get_user_by_token(token)
-    if user is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND)
+def user_me(user: SafeUser) -> model.SafeUser:
     # print(f"user_me({token=}, {user=})")
     # 開発中以外は token をログに残してはいけない。
     return user
@@ -52,10 +48,10 @@ class Empty(BaseModel):
 
 
 @app.post("/user/update")
-def update(req: UserCreateRequest, token: UserToken) -> Empty:
+def update(user: SafeUser, req: UserCreateRequest) -> Empty:
     """Update user attributes"""
     # print(req)
-    model.update_user(token, req.user_name, req.leader_card_id)
+    model.update_user(user.id, req.user_name, req.leader_card_id)
     return Empty()
 
 
@@ -96,10 +92,10 @@ class RoomID(BaseModel):
 
 # ルームを新規で建てる。
 @app.post("/room/create")
-def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
+def create(user: SafeUser, req: CreateRoomRequest) -> RoomID:
     """ルーム作成リクエスト"""
     print("/room/create", req)
-    room_id = model.create_room(token, req.live_id, req.select_difficulty)
+    room_id = model.create_room(req.live_id, req.select_difficulty)
     return RoomID(room_id=room_id)
 
 
@@ -108,7 +104,7 @@ class RoomListRequest(BaseModel):
 
 
 class RoomListResponse(BaseModel):
-    room_info_list: list[RoomInfo]
+    room_info_list: List[RoomInfo]
 
 
 # 入場可能なルーム一覧を取得
@@ -117,8 +113,9 @@ class RoomListResponse(BaseModel):
 # Response -------------
 # room_info_list 	list[RoomInfo] 	入場可能なルーム一覧
 @app.post("/room/list")
-def list(token: UserToken, req: RoomListRequest) -> RoomListResponse:
+def list(user: SafeUser, req: RoomListRequest) -> RoomListResponse:
     print("/room/list", req)
+    # rooms = model.get_room_list_by_room_id(token, req.live_id)
 
 
 class RoomJoinRequest(BaseModel):
@@ -137,13 +134,13 @@ class RoomJoinResponse(BaseModel):
 # Response -------------
 # join_room_result 	JoinRoomResult 	ルーム入場結果
 @app.post("/room/join")
-def join(token: UserToken, req: RoomJoinRequest) -> RoomJoinResponse:
+def join(user: SafeUser, req: RoomJoinRequest) -> RoomJoinResponse:
     print("/room/join", req)
 
 
 class RoomWaitResponse(BaseModel):
     status: WaitRoomStatus
-    room_user_list: list[RoomUser]
+    room_user_list: List[RoomUser]
 
 
 # ルーム待機中（ポーリング）。APIの結果でゲーム開始がわかる。 クライアントはn秒間隔で投げる想定。
@@ -153,7 +150,7 @@ class RoomWaitResponse(BaseModel):
 # status 	WaitRoomStatus 	結果
 # room_user_list 	list[RoomUser] 	ルームにいるプレイヤー一覧
 @app.post("/room/wait")
-def wait(token: UserToken, req: RoomID) -> RoomWaitResponse:
+def wait(user: SafeUser, req: RoomID) -> RoomWaitResponse:
     print("/room/wait", req)
 
 
@@ -161,13 +158,13 @@ def wait(token: UserToken, req: RoomID) -> RoomWaitResponse:
 # Request --------------
 # room_id 	int 	対象ルーム
 @app.post("/room/start")
-def start(token: UserToken, req: RoomID) -> Empty:
+def start(user: SafeUser, req: RoomID) -> Empty:
     print("/room/start", req)
 
 
 class RoomEndRequest(BaseModel):
     room_id: int
-    judge_count_list: list[int]
+    judge_count_list: List[int]
     score: int
 
 
@@ -178,12 +175,12 @@ class RoomEndRequest(BaseModel):
 # judge_count_list 	list[int] 	各判定数
 # score 	int 	スコア
 @app.post("/room/end")
-def end(token: UserToken, req: RoomEndRequest) -> Empty:
+def end(user: SafeUser, req: RoomEndRequest) -> Empty:
     print("/room/end", req)
 
 
 class RoomResultResponse(BaseModel):
-    result_user_list: list[ResultUser]
+    result_user_list: List[ResultUser]
 
 
 # /room/result
@@ -193,7 +190,7 @@ class RoomResultResponse(BaseModel):
 # Response -------------
 # result_user_list 	list[ResultUser] 	自身を含む各ユーザーの結果。※全員揃っていない待機中は[]が返却される想定
 @app.post("/room/result")
-def result(token: UserToken, req: RoomID) -> RoomResultResponse:
+def result(user: SafeUser, req: RoomID) -> RoomResultResponse:
     print("/room/result", req)
 
 
@@ -202,5 +199,5 @@ def result(token: UserToken, req: RoomID) -> RoomResultResponse:
 # Request --------------
 # room_id 	int 	対象ルーム
 @app.post("/room/leave")
-def leave(toekn: UserToken, req: RoomID) -> Empty:
+def leave(user: SafeUser, req: RoomID) -> Empty:
     print("/room/leave", req)

@@ -8,10 +8,6 @@ from sqlalchemy.exc import NoResultFound
 from .db import engine
 
 
-class InvalidToken(Exception):
-    """指定されたtokenが不正だったときに投げるエラー"""
-
-
 class SafeUser(BaseModel):
     """token を含まないUser"""
 
@@ -60,18 +56,19 @@ def get_user_by_token(token: str) -> SafeUser | None:
         return _get_user_by_token(conn, token)
 
 
-def update_user(token: str, name: str, leader_card_id: int) -> None:
+def update_user(id: int, name: str, leader_card_id: int) -> None:
     with engine.begin() as conn:
         conn.execute(
             text(
                 "UPDATE user "
                 "SET name=:name, leader_card_id=:leader_card_id "
-                "WHERE token=:token"
+                "WHERE id=:id"
             ),
-            {"token": token, "name": name, "leader_card_id": leader_card_id},
+            {"id": id, "name": name, "leader_card_id": leader_card_id},
         )
 
 
+# room -------------------------------------------------------
 class LiveDifficulty(IntEnum):
     normal = 1
     hard = 2
@@ -90,11 +87,14 @@ class WaitRoomStatus(IntEnum):
     Dissolution = 3
 
 
-# room
-def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
+def create_room(live_id: int, difficulty: LiveDifficulty):
     """部屋を作ってroom_idを返します"""
     with engine.begin() as conn:
-        user = _get_user_by_token(conn, token)
-        if user is None:
-            raise InvalidToken
         # TODO: 実装
+        pass
+
+
+def get_room_list_by_live_id(live_id: int):
+    with engine.begin() as conn:
+        # TODO: 実装
+        pass

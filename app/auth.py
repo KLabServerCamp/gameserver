@@ -1,25 +1,30 @@
 """
 認証モジュール
 
-引数に `token: UserToken` を指定することで認証を行い、そのユーザーの
-tokenを取得できる。
+引数に `token: UserToken` を指定することで認証を行い、そのユーザーを取得できる。
 """
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
+from .model import SafeUser as SafeUserBase, get_user_by_token
 
-__all__ = ["UserToken"]
+__all__ = ["SafeUser"]
 bearer = HTTPBearer()
 
 
-async def get_auth_token(
-        cred: HTTPAuthorizationCredentials = Depends(bearer)) -> str:
+def get_auth_user(
+        cred: HTTPAuthorizationCredentials = Depends(bearer)) -> SafeUserBase:
     assert cred is not None
     if not cred.credentials:
         raise HTTPException(
             status.HTTP_401_UNAUTHORIZED, detail="invalid credential")
-    return cred.credentials
+    token = cred.credentials
+    user = get_user_by_token(token)
+    if user is None:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, detail="unauthorized user")
+    return user
 
 
-UserToken = Annotated[str, Depends(get_auth_token)]
+SafeUser = Annotated[SafeUserBase, Depends(get_auth_user)]

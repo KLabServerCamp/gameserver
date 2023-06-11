@@ -292,13 +292,6 @@ def room_end(token: str, room_id: int, judge_count_list: list[int], score: int) 
         if len(judge_count_list) != 5:
             raise InvalidScore
 
-        judge_count_dict = {
-            "perfect_count": judge_count_list[0],
-            "great_count": judge_count_list[1],
-            "good_count": judge_count_list[2],
-            "bad_count": judge_count_list[3],
-            "miss_count": judge_count_list[4],
-        }
         conn.execute(
             text(
                 "UPDATE `room_user` SET `score`=:score, `is_end`=true,"
@@ -309,6 +302,43 @@ def room_end(token: str, room_id: int, judge_count_list: list[int], score: int) 
                 "score": score,
                 "room_id": room_id,
                 "user_id": user.id,
-                "judge_count": json.dumps(judge_count_dict),
+                "judge_count": json.dumps(judge_count_list),
             },
         )
+
+
+def room_result(token: str, room_id: int) -> list[ResultUser]:
+    # 全員room_endが終わって揃っていないときは空リストを返す
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken
+
+        result = conn.execute(
+            text(
+                "SELECT `user_id`, `judge_count`, `score` FROM `room_user` WHERE `room_id`=:room_id AND `is_end`=true"
+            ),
+            {"room_id": room_id},
+        )
+        try:
+            rows = result.all()
+        except NoResultFound:
+            return []
+
+        # Check if all users have finished
+        result = conn.execute(
+            text("SELECT `joined_user_count` FROM `room` WHERE `room_id`=:room_id"),
+            {"room_id": room_id},
+        )
+        joined_user_count = result.one().joined_user_count
+        if len(rows) <= joined_user_count:
+            return []
+
+        return [
+            ResultUser(
+                user_id=row.user_id,
+                judge_count_list=json.loads(row.judge_count),
+                score=row.score,
+            )
+            for row in rows
+        ]

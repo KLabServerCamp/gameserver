@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from . import model
 from .auth import UserToken
 from .model import LiveDifficulty
+from .model import JoinRoomResult
 
 app = FastAPI(debug=True)
 
@@ -76,6 +77,15 @@ class RoomInfo(BaseModel):
     max_user_count: int
 
 
+class RoomUser(BaseModel):
+    user_id: int
+    name: str
+    leader_card_id: int
+    select_difficulty: LiveDifficulty
+    is_me: bool
+    is_host: bool
+
+
 @app.post("/room/create")
 def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
     """ルーム作成リクエスト"""
@@ -84,9 +94,18 @@ def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
     return RoomID(room_id=room_id)
 
 
+class RoomListRequest(BaseModel):
+    live_id: int
+
+
+class RoomListResponse(BaseModel):
+    room_info_list: list[RoomInfo]
+
+
 @app.post("/room/list")
-def list(live_id: int) -> list[RoomInfo]:
-    rows = model.get_room_list(live_id)
+def list(req: RoomListRequest) -> RoomListResponse:
+    print("/room/list", req)
+    rows = model.get_room_list(req.live_id)
     room_list = []
     for row in rows:
         room_list.append(
@@ -98,10 +117,19 @@ def list(live_id: int) -> list[RoomInfo]:
             )
         )
 
-    return room_list
+    return RoomListResponse(room_info_list=room_list)
+
+
+class RoomJoinRequest(BaseModel):
+    room_id: int
+    select_difficulty: LiveDifficulty
+
+
+class RoomJoinResponse(BaseModel):
+    join_room_result: JoinRoomResult
 
 
 @app.post("/room/join")
-def join(token: UserToken, room_id: int, difficulty: int) -> int:
-    result = model.join_room(token, room_id, difficulty)
-    return result
+def join(token: UserToken, req: RoomJoinRequest) -> RoomJoinResponse:
+    result = model.join_room(token, req.room_id, req.select_difficulty)
+    return RoomJoinResponse(result)

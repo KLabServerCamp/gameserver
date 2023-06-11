@@ -6,6 +6,7 @@ from .auth import UserToken
 from .model import (
     JoinRoomResult,
     LiveDifficulty,
+    ResultUser,
     RoomInfo,
     RoomUser,
     SafeUser,
@@ -141,3 +142,11 @@ def end_room(req: RoomEndRequest, token: UserToken) -> Empty:
     print("/room/end", req)
     model.room_end(token, req.room_id, req.judge_count_list, req.score)
     return Empty()
+
+
+@app.post("/room/result")
+def result_room(req: RoomID, token: UserToken) -> list[ResultUser]:
+    """リザルト表示リクエスト(n秒ごとにポーリング)"""
+    print("/room/result", req)
+    result = model.room_result(token, req.room_id)
+    return result

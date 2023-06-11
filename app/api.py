@@ -94,8 +94,8 @@ def list_room(req: ListRoomRequest) -> list[model.RoomInfo]:
 
 
 @app.post("/room/join")
-def join_room(req: JoinRoomRequest, token: UserToken) -> Empty:
+def join_room(req: JoinRoomRequest, token: UserToken) -> model.JoinRoomResult:
     """ルーム入室リクエスト"""
     print("/room/join", req)
-    model.join_room(token, req.room_id, req.select_difficulty)
-    return Empty()
+    join_room_result = model.join_room(token, req.room_id, req.select_difficulty)
+    return join_room_result

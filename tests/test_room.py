@@ -91,3 +91,5 @@ def test_room_2():
         json={"room_id": room_id, "select_difficulty": 2},
     )
     assert response.status_code == 200
+    response_data = response.json()
+    assert response_data == 1  # JoinRoomResult.Ok

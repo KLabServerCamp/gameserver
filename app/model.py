@@ -24,16 +24,6 @@ class SafeUser(BaseModel):
         orm_mode = True
 
 
-class RoomInfo(BaseModel):
-    room_id: int
-    live_id: int
-    joined_user_count: int
-    max_user_count: int
-
-    class Config:
-        orm_mode = True
-
-
 def create_user(name: str, leader_card_id: int) -> str:
     """Create new user and returns their token"""
     # UUID4は天文学的な確率だけど衝突する確率があるので、気にするならリトライする必要がある。
@@ -95,10 +85,29 @@ class JoinRoomResult(IntEnum):
     OtherError = 4
 
 
-# class WaitRoomStatus(IntEnum):
-#     Waiting = 1
-#     LiveStart = 2
-#     Dissolution = 3
+class WaitRoomStatus(IntEnum):
+    Waiting = 1
+    LiveStart = 2
+    Dissolution = 3
+
+
+class RoomInfo(BaseModel):
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int
+
+    class Config:
+        orm_mode = True
+
+
+class RoomUser(BaseModel):
+    user_id: int
+    name: str
+    leader_card_id: int
+    select_difficulty: LiveDifficulty
+    is_me: bool
+    is_host: bool
 
 
 def create_room(token: str, live_id: int, difficulty: LiveDifficulty) -> int:
@@ -109,14 +118,15 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty) -> int:
             raise InvalidToken
         result = conn.execute(
             text(
-                "INSERT INTO `room` SET `live_id`=:live_id, `leader_id`=:leader_id, `joined_user_count`=:joined_user_count"
-                ", `max_user_count`=:max_user_count"
+                "INSERT INTO `room` SET `live_id`=:live_id, `host_id`=:host_id, `joined_user_count`=:joined_user_count"
+                ", `max_user_count`=:max_user_count, `wait_room_status`=:wait_room_status"
             ),
             {
                 "live_id": live_id,
-                "leader_id": user.id,
+                "host_id": user.id,
                 "joined_user_count": 1,
                 "max_user_count": 4,
+                "wait_room_status": WaitRoomStatus.Waiting.value,
             },
         )
         conn.execute(
@@ -152,7 +162,9 @@ def room_search(live_id: int) -> list[RoomInfo]:
         return rows
 
 
-def join_room(token: str, room_id: int, select_difficulty: LiveDifficulty) -> JoinRoomResult:
+def join_room(
+    token: str, room_id: int, select_difficulty: LiveDifficulty
+) -> JoinRoomResult:
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
         if user is None:
@@ -186,3 +198,44 @@ def join_room(token: str, room_id: int, select_difficulty: LiveDifficulty) -> Jo
             {"room_id": room_id},
         )
     return JoinRoomResult.Ok
+
+
+def room_wait_status(token: str, room_id: int) -> tuple[WaitRoomStatus, list[RoomUser]]:
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken
+
+        result = conn.execute(
+            text(
+                "SELECT `host_id`, `wait_room_status` FROM `room` WHERE `room_id`=:room_id"
+            ),
+            {"room_id": room_id},
+        )
+        row = result.one()
+        host_id = row.host_id
+        status = WaitRoomStatus(row.wait_room_status)
+        result = conn.execute(
+            text(
+                "SELECT `user_id`, `difficulty` FROM `room_user` WHERE `room_id`=:room_id"
+            ),
+            {"room_id": room_id},
+        )
+        try:
+            rows = result.all()
+        except NoResultFound:
+            return (status, [])
+
+        room_users: list[RoomUser] = []
+        for row in rows:
+            room_users.append(
+                RoomUser(
+                    user_id=row.user_id,
+                    name=user.name,
+                    leader_card_id=user.leader_card_id,
+                    select_difficulty=LiveDifficulty(row.difficulty),
+                    is_me=row.user_id == user.id,
+                    is_host=row.user_id == host_id,
+                )
+            )
+        return (status, room_users)

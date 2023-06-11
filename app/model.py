@@ -152,7 +152,7 @@ def room_search(live_id: int) -> list[RoomInfo]:
         return rows
 
 
-def join_room(token: str, room_id: int, select_difficulty: LiveDifficulty) -> int:
+def join_room(token: str, room_id: int, select_difficulty: LiveDifficulty) -> JoinRoomResult:
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
         if user is None:

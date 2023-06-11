@@ -95,7 +95,7 @@ class RoomID(BaseModel):
 def create(user: SafeUser, req: CreateRoomRequest) -> RoomID:
     """ルーム作成リクエスト"""
     print("/room/create", req)
-    room_id = model.create_room(req.live_id, req.select_difficulty)
+    room_id = model.create_room(req.live_id, user.id, req.select_difficulty)
     return RoomID(room_id=room_id)
 
 

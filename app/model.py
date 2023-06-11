@@ -100,16 +100,33 @@ class WaitRoomStatus(IntEnum):
     Dissolution = 3
 
 
-def create_room(live_id: int, difficulty: LiveDifficulty) -> int:
+def create_room(
+        live_id: int, host_user_id: int, difficulty: LiveDifficulty) -> int:
     """部屋を作ってroom_idを返します"""
     with engine.begin() as conn:
-        conn.execute(
-            text(""),
+        result = conn.execute(
+            text(
+                "INSERT INTO `room` (live_id, host_user_id)"
+                " VALUES (:live_id, :host_user_id)"
+            ),
+            {live_id: live_id, host_user_id: host_user_id}
         )
-        # TODO: 実装
+        room_id = result.lastrowid
+        conn.execute(
+            text(
+                "INSERT INTO `room_member` (room_id, user_id, live_difficult)"
+                " VALUES (:room_id, :user_id, live_difficult)"
+            ),
+            {
+                "room_id": room_id,
+                "user_id": host_user_id,
+                "live_difficulty": difficulty.value,
+            }
+        )
+        return room_id
 
 
-def get_room(room_id: int) -> Room | None: 
+def get_room(room_id: int) -> Room | None:
     with engine.begin() as conn:
         conn.execute(
             text(""),
@@ -133,7 +150,7 @@ def get_room_list_by_live_id(live_id: int) -> List[Room]:
         # TODO: 実装
 
 
-def create_room_member() -> None:
+def create_room_member(difficulty: LiveDifficulty) -> None:
     with engine.begin() as conn:
         conn.execute(
             text(""),

@@ -3,7 +3,14 @@ from pydantic import BaseModel, Field
 
 from . import model
 from .auth import UserToken
-from .model import LiveDifficulty
+from .model import (
+    JoinRoomResult,
+    LiveDifficulty,
+    RoomInfo,
+    RoomUser,
+    SafeUser,
+    WaitRoomStatus,
+)
 
 app = FastAPI(debug=True)
 
@@ -36,7 +43,7 @@ def user_create(req: UserCreateRequest) -> UserCreateResponse:
 # 認証のサンプルAPI
 # ゲームでは使わない
 @app.get("/user/me")
-def user_me(token: UserToken) -> model.SafeUser:
+def user_me(token: UserToken) -> SafeUser:
     user = model.get_user_by_token(token)
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
@@ -79,8 +86,8 @@ class JoinRoomRequest(BaseModel):
 
 
 class RoomWaitResponse(BaseModel):
-    status: model.WaitRoomStatus
-    room_users: list[model.RoomUser]
+    status: WaitRoomStatus
+    room_users: list[RoomUser]
 
 
 @app.post("/room/create")
@@ -92,14 +99,14 @@ def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
 
 
 @app.post("/room/list")
-def list_room(req: ListRoomRequest) -> list[model.RoomInfo]:
+def list_room(req: ListRoomRequest) -> list[RoomInfo]:
     """ルーム一覧取得リクエスト"""
     rooms = model.room_search(req.live_id)
     return rooms
 
 
 @app.post("/room/join")
-def join_room(req: JoinRoomRequest, token: UserToken) -> model.JoinRoomResult:
+def join_room(req: JoinRoomRequest, token: UserToken) -> JoinRoomResult:
     """ルーム入室リクエスト"""
     print("/room/join", req)
     join_room_result = model.join_room(token, req.room_id, req.select_difficulty)

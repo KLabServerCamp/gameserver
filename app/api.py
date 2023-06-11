@@ -1,11 +1,22 @@
+import fastapi.exception_handlers
 from fastapi import FastAPI, HTTPException, status
+from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, Field
 
 from . import model
 from .auth import UserToken
 from .model import LiveDifficulty
 
-app = FastAPI(debug=True)
+app = FastAPI()
+
+
+@app.exception_handler(RequestValidationError)
+async def handle_request_validation_error(req, exc):
+    print("Request validation error")
+    print(f"{req.url=}\n{exc.body=}\n{exc=!s}")
+    return await fastapi.exception_handlers.request_validation_exception_handler(
+        req, exc
+    )
 
 
 # Sample API

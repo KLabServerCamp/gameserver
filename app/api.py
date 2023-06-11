@@ -90,6 +90,12 @@ class RoomWaitResponse(BaseModel):
     room_users: list[RoomUser]
 
 
+class RoomEndRequest(BaseModel):
+    room_id: int
+    judge_count_list: list[int]
+    score: int
+
+
 @app.post("/room/create")
 def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
     """ルーム作成リクエスト"""
@@ -126,4 +132,12 @@ def start_room(req: RoomID, token: UserToken) -> Empty:
     """ルーム開始リクエスト"""
     print("/room/start", req)
     model.room_start(token, req.room_id)
+    return Empty()
+
+
+@app.post("/room/end")
+def end_room(req: RoomEndRequest, token: UserToken) -> Empty:
+    """ライブ終了リクエスト"""
+    print("/room/end", req)
+    model.room_end(token, req.room_id, req.judge_count_list, req.score)
     return Empty()

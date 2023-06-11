@@ -16,6 +16,10 @@ class NotOwner(Exception):
     """APIの実行者がルームのオーナーではなかったときに投げるエラー"""
 
 
+class InvalidScore(Exception):
+    """スコアが不正だったときに投げるエラー"""
+
+
 class SafeUser(BaseModel):
     """token を含まないUser"""
 
@@ -112,6 +116,12 @@ class RoomUser(BaseModel):
     select_difficulty: LiveDifficulty
     is_me: bool
     is_host: bool
+
+
+class ResultUser(BaseModel):
+    user_id: int
+    judge_count_list: list[int]
+    score: int
 
 
 def create_room(token: str, live_id: int, difficulty: LiveDifficulty) -> int:
@@ -264,6 +274,27 @@ def room_start(token: str, room_id: int):
             raise NotOwner
 
         conn.execute(
-            text("UPDATE `room` SET `wait_room_status`=:wait_room_status WHERE `room_id`=:room_id"),
+            text(
+                "UPDATE `room` SET `wait_room_status`=:wait_room_status WHERE `room_id`=:room_id"
+            ),
             {"wait_room_status": WaitRoomStatus.LiveStart.value, "room_id": room_id},
+        )
+
+
+def room_end(token: str, room_id: int, judge_count_list: list[int], score: int) -> None:
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken
+
+        # Perfect, Great, Good, Bad, Miss の5つ
+        if len(judge_count_list) != 5:
+            raise InvalidScore
+
+        conn.execute(
+            text(
+                "UPDATE `room_user` SET `score`=:score"
+                " WHERE `room_id`=:room_id AND `user_id`=:user_id"
+            ),
+            {"score": score, "room_id": room_id, "user_id": user.id},
         )

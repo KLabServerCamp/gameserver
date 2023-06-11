@@ -24,6 +24,16 @@ class SafeUser(BaseModel):
         orm_mode = True
 
 
+class RoomInfo(BaseModel):
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int
+
+    class Config:
+        orm_mode = True
+
+
 def create_user(name: str, leader_card_id: int) -> str:
     """Create new user and returns their token"""
     # UUID4は天文学的な確率だけど衝突する確率があるので、気にするならリトライする必要がある。
@@ -107,3 +117,23 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty) -> int:
             },
         )
     return result.lastrowid
+
+
+def room_search(live_id: int) -> list[RoomInfo]:
+    with engine.begin() as conn:
+        if live_id == 0:  # Wildcard (search all rooms)
+            result = conn.execute(
+                text(
+                    "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room`"
+                )
+            )
+        else:
+            result = conn.execute(
+                text(
+                    "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `live_id`=:live_id"
+                ),
+                {"live_id": live_id},
+            )
+        rows = result.all()
+        rows = [RoomInfo.from_orm(row) for row in rows]
+        return rows

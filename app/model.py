@@ -127,12 +127,12 @@ def create_room(
         conn.execute(
             text(
                 "INSERT INTO `room_member` (room_id, user_id, live_difficult)"
-                " VALUES (:room_id, :user_id, live_difficult)"
+                " VALUES (:room_id, :user_id, :live_difficult)"
             ),
             {
                 "room_id": room_id,
                 "user_id": host_user_id,
-                "live_difficulty": difficulty.value,
+                "live_difficult": difficulty.value,
             }
         )
         return room_id
@@ -154,6 +154,7 @@ def delete_room(room_id: int) -> None:
         # TODO: 実装
 
 
+# group by と count を使った方が賢いが、汎用性を求めてしまった
 def get_room_list_by_live_id(live_id: int) -> List[Room]:
     with engine.begin() as conn:
         result = conn.execute(
@@ -172,19 +173,48 @@ def get_room_list_by_live_id(live_id: int) -> List[Room]:
         for r in rows:
             if (r.id not in rooms):
                 rooms[r.id] = dict(r._mapping)
-                print(dict(r._mapping))
             members[r.id].append(RoomMember.from_orm(r))
         return [Room.parse_obj(
             {**r, "host_id": r["host_user_id"], "members": members[r["id"]]}
             ) for r in rooms.values()]
 
 
-def create_room_member(difficulty: LiveDifficulty) -> None:
+def create_room_member(room_id: int, user_id: int, difficulty: LiveDifficulty) -> int:
     with engine.begin() as conn:
-        conn.execute(
-            text(""),
+        result = conn.execute(
+            text("SELECT * FROM `room` WHERE id=:id FOR UPDATE"),
+            {"id": room_id},
         )
-        # TODO: 実装
+        try:
+            result.one()
+        except NoResultFound:
+            return JoinRoomResult.Disbanded
+
+        result = conn.execute(
+            text(
+                "SELECT `user_id` FROM `room_member`"
+                " WHERE room_id=:room_id"
+            ),
+            {"room_id": room_id},
+        )
+        rows = result.fetchall()
+        if (user_id in [r.user_id for r in rows]):
+            return JoinRoomResult.OtherError
+        if (len(rows) >= MAX_ROOM_MEMBER_COUNT):
+            return JoinRoomResult.RoomFull
+        
+        conn.execute(
+            text(
+                "INSERT INTO `room_member` (room_id, user_id, live_difficult)"
+                " VALUES (:room_id, :user_id, :live_difficult)"
+            ),
+            {
+                "room_id": room_id,
+                "user_id": user_id,
+                "live_difficult": difficulty.value,
+            }
+        )
+        return JoinRoomResult.Ok
 
 
 def delete_room_member() -> None:

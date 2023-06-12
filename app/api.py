@@ -147,6 +147,11 @@ class RoomJoinResponse(BaseModel):
 @app.post("/room/join")
 def join(user: SafeUser, req: RoomJoinRequest) -> RoomJoinResponse:
     print("/room/join", req)
+    return {
+        "join_room_result":
+            model.create_room_member(
+                req.room_id, user.id, req.select_difficulty),
+    }
 
 
 class RoomWaitResponse(BaseModel):

@@ -83,6 +83,12 @@ class LiveDifficulty(IntEnum):
     hard = 2
 
 
+class WaitRoomStatus(IntEnum):
+    Waiting = 1  # ホストがライブ開始ボタン押すのを待っている
+    LiveStart = 2  # ライブ画面遷移OK
+    Dissolution = 3  # 解散された
+
+
 def create_room(token: str, live_id: int, difficulty: LiveDifficulty) -> int:
     """部屋を作ってroom_idを返します"""
     with engine.begin() as conn:
@@ -92,23 +98,38 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty) -> int:
         # TODO: 実装
         result = conn.execute(
             text(
-                "INSERT INTO `room` (live_id, joined_user_count, max_user_count)"
-                " VALUES (:live_id, :joined_user_count, :max_user_count)"
+                "INSERT INTO `room` (live_id, owner, status)"
+                " VALUES (:live_id, :owner, :status)"
             ),
-            {"live_id": live_id, "joined_user_count": 0, "max_user_count": 4},
+            {
+                "live_id": live_id,
+                "owner": user.id,
+                "status": int(WaitRoomStatus.Waiting),
+            },
         )
         print(f"create_room(): {result.lastrowid=}")
     return result.lastrowid
 
 
-def get_room_list(live_id: int) -> list[tuple[int, int, int, int]]:
+def get_user_count_in_room(room_id: int) -> int:
+    # 部屋のメンバー数を取得
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("SELECT COUNT(*) FROM `room_member` WHERE `room_id`=:room_id"),
+            {"room_id": room_id},
+        )
+        member_count = result.scalar()
+    return member_count
+
+
+def get_room_list(live_id: int) -> list[tuple[int, int]]:
     with engine.begin() as conn:
         if live_id == 0:
             result = conn.execute(text("SELECT * FROM room"))
             return result.all()
         else:
             result = conn.execute(
-                text("SELECT * FROM room WHERE `live_id`=:live_id"),
+                text("SELECT `room_id`,`live_id` FROM room WHERE `live_id`=:live_id"),
                 {"live_id": live_id},
             )
             return result.all()
@@ -142,31 +163,56 @@ def join_room(
             row = result.one()
         except NoResultFound:
             return JoinRoomResult.Disbanded
-        max_user_count = row.max_user_count
+        max_user_count = 4  # 仮
 
         # 部屋のメンバー数を取得
-        result = conn.execute(
-            text("SELECT COUNT(*) FROM `room_member` WHERE `room_id`=:room_id"),
-            {"room_id": room_id},
-        )
-        member_count = result.scalar()
+        member_count = get_user_count_in_room(room_id)
 
         if member_count < max_user_count:
+            owner = conn.execute(text("SELECT owner FROM room")).scalar()
+            is_host = user.id == owner
             conn.execute(
                 text(
-                    "INSERT INTO `room_member` (user_id,room_id,name,leader_card_id,select_diffculty,is_me,is_host)"
-                    "VALUES (:user_id,:room_id,:name,:leader_card_id,:select_diffculty,:is_me,:is_host)"
+                    "INSERT INTO `room_member` (room_id,user_id,select_difficulty,is_host)"
+                    "VALUES (:room_id,:user_id,:select_difficulty,:is_host)"
                 ),
                 {
-                    "user_id": user.id,
                     "room_id": room_id,
-                    "name": user.name,
-                    "leader_card_id": user.leader_card_id,
-                    "select_diffculty": select_difficulty,
-                    "is_me": True,
-                    "is_host": False,
+                    "user_id": user.id,
+                    "select_difficulty": int(select_difficulty),
+                    "is_host": is_host,
                 },
             )
             return JoinRoomResult.Ok
         else:
             return JoinRoomResult.RoomFull
+
+
+def get_wait_room_member(token: str, room_id: int):
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                """
+                SELECT
+                    room_member.user_id,
+                    user.name,
+                    user.leader_card_id,
+                    room_member.is_host,
+                    room_member.select_difficulty
+                FROM room_member
+                INNER JOIN user ON room_member.user_id = user.id
+                WHERE room_member.room_id = :room_id
+                """
+            ),
+            {"room_id": room_id},
+        )
+        return result.all()
+
+
+def get_wait_room_status(room_id: int):
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("SELECT `status` FROM room WHERE `room_id`=:room_id"),
+            {"room_id": room_id},
+        )
+        return result.scalar()

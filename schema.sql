@@ -12,21 +12,24 @@ CREATE TABLE `user` (
 
 DROP TABLE IF EXISTS `room`;
 CREATE TABLE `room` (
-  `room_id` int NOT NULL AUTO_INCREMENT,
-  `live_id` int NOT NULL,
-  `joined_user_count` int NOT NULL,
-  `max_user_count` int NOT NULL DEFAULT 4,
+  `room_id` bigint NOT NULL AUTO_INCREMENT,
+  `live_id` bigint NOT NULL,
+  `owner` bigint NOT NULL,
+  `status` int NOT NULL,
   PRIMARY KEY (`room_id`)
 );
 
 DROP TABLE IF EXISTS `room_member`;
 CREATE TABLE `room_member` (
+  `room_id` bigint NOT NULL,
   `user_id` bigint NOT NULL ,
-  `room_id` int NOT NULL,
-  `name` varchar(255) NOT NULL ,
-  `leader_card_id` int NOT NULL,
-  `select_diffculty` int NOT NULL,
-  `is_me` boolean NOT NULL,
+  `select_difficulty` int NOT NULL,
   `is_host` boolean NOT NULL,
-  PRIMARY KEY (`user_id`)
+  `score` int,
+  `judge_perfect` int DEFAULT 0,
+  `judge_great` int DEFAULT 0,
+  `judge_good` int DEFAULT 0,
+  `judge_bat` int DEFAULT 0,
+  `judge_miss` int DEFAULT 0,
+  PRIMARY KEY (`room_id`,`user_id`)
 );

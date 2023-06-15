@@ -5,6 +5,7 @@ from . import model
 from .auth import UserToken
 from .model import LiveDifficulty
 from .model import JoinRoomResult
+from .model import WaitRoomStatus
 
 app = FastAPI(debug=True)
 
@@ -91,6 +92,7 @@ def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
     """ルーム作成リクエスト"""
     print("/room/create", req)
     room_id = model.create_room(token, req.live_id, req.select_difficulty)
+    model.join_room(token, room_id, req.select_difficulty)
     return RoomID(room_id=room_id)
 
 
@@ -103,7 +105,7 @@ class RoomListResponse(BaseModel):
 
 
 @app.post("/room/list")
-def list(req: RoomListRequest) -> RoomListResponse:
+def room_list(req: RoomListRequest) -> RoomListResponse:
     print("/room/list", req)
     rows = model.get_room_list(req.live_id)
     room_list = []
@@ -112,8 +114,8 @@ def list(req: RoomListRequest) -> RoomListResponse:
             RoomInfo(
                 room_id=row.room_id,
                 live_id=row.live_id,
-                joined_user_count=row.joined_user_count,
-                max_user_count=row.max_user_count,
+                joined_user_count=model.get_user_count_in_room(row.room_id),
+                max_user_count=4,
             )
         )
 
@@ -132,4 +134,33 @@ class RoomJoinResponse(BaseModel):
 @app.post("/room/join")
 def join(token: UserToken, req: RoomJoinRequest) -> RoomJoinResponse:
     result = model.join_room(token, req.room_id, req.select_difficulty)
-    return RoomJoinResponse(result)
+    return RoomJoinResponse(int(result))
+
+
+class RoomWaitRequest(BaseModel):
+    room_id: int
+
+
+class RoomWaitResponse(BaseModel):
+    status: WaitRoomStatus
+    room_user_list: list[RoomUser]
+
+
+@app.post("/room/wait")
+def wait(token: UserToken, req: RoomWaitRequest) -> RoomWaitResponse:
+    user = model.get_user_by_token(token)
+    status = model.get_wait_room_status(req.room_id)
+    members = model.get_wait_room_member(token, req.room_id)
+    room_user_list = []
+    for member in members:
+        room_user_list.append(
+            RoomUser(
+                user_id=member.user_id,
+                name=member.name,
+                leader_card_id=member.leader_card_id,
+                select_difficulty=member.select_difficulty,
+                is_me=member.user_id == user.id,
+                is_host=member.is_host,
+            )
+        )
+    return RoomWaitResponse(status=status, room_user_list=room_user_list)

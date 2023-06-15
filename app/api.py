@@ -164,3 +164,13 @@ def wait(token: UserToken, req: RoomWaitRequest) -> RoomWaitResponse:
             )
         )
     return RoomWaitResponse(status=status, room_user_list=room_user_list)
+
+
+class RoomStartRequest(BaseModel):
+    room_id: int
+
+
+@app.post("/room/start")
+def start(token: UserToken, req: RoomStartRequest):
+    model.room_start(req.room_id)
+    return {"success": True}

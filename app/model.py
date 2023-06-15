@@ -216,3 +216,12 @@ def get_wait_room_status(room_id: int):
             {"room_id": room_id},
         )
         return result.scalar()
+
+
+def room_start(room_id: int):
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE `room` SET `status`=:status " "WHERE `room_id`=:room_id"),
+            {"status": int(WaitRoomStatus.LiveStart), "room_id": room_id},
+        )
+    return None

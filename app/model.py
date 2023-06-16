@@ -170,7 +170,7 @@ def join_room(
 
         if member_count < max_user_count:
             owner = conn.execute(text("SELECT owner FROM room")).scalar()
-            is_host = user.id == owner
+            is_host = member_count == 0
             conn.execute(
                 text(
                     "INSERT INTO `room_member` (room_id,user_id,select_difficulty,is_host)"

@@ -285,3 +285,83 @@ def get_room_result(room_id: int):
         )
         members = result.fetchall()
         return members
+
+
+def leave_room(token: str, room_id: int):
+    user = get_user_by_token(token)
+
+    with engine.begin() as connection:
+        # ユーザーがホストかどうかを確認
+        result = connection.execute(
+            text(
+                """
+                SELECT `is_host`
+                FROM `room_member`
+                WHERE `room_id`=:room_id AND `user_id`=:user_id
+                FOR UPDATE
+                """
+            ),
+            {"room_id": room_id, "user_id": user.id},
+        ).fetchone()
+
+        # ユーザーがホストの場合、別のユーザーにホストを移譲
+        if result is not None and result.is_host:
+            new_host = connection.execute(
+                text(
+                    """
+                    SELECT `user_id`
+                    FROM `room_member`
+                    WHERE `room_id`=:room_id AND `user_id`!=:user_id
+                    LIMIT 1
+                    FOR UPDATE
+                    """
+                ),
+                {"room_id": room_id, "user_id": user.id},
+            ).fetchone()
+
+            # 別のユーザーがいる場合、そのユーザーにホストを移譲
+            if new_host is not None:
+                connection.execute(
+                    text(
+                        """
+                        UPDATE `room_member`
+                        SET `is_host`=true
+                        WHERE `room_id`=:room_id AND `user_id`=:new_host_id
+                        """
+                    ),
+                    {"room_id": room_id, "new_host_id": new_host.user_id},
+                )
+
+        # ユーザーを部屋から削除
+        connection.execute(
+            text(
+                """
+                DELETE FROM `room_member`
+                WHERE `room_id`=:room_id AND `user_id`=:user_id
+                """
+            ),
+            {"room_id": room_id, "user_id": user.id},
+        )
+
+        # ユーザーが部屋にいない場合、部屋を削除
+        remaining_users = connection.execute(
+            text(
+                """
+                SELECT COUNT(*)
+                FROM `room_member`
+                WHERE `room_id`=:room_id
+                """
+            ),
+            {"room_id": room_id},
+        ).scalar()
+
+        if remaining_users == 0:
+            connection.execute(
+                text(
+                    """
+                    DELETE FROM `room`
+                    WHERE `room_id`=:room_id
+                    """
+                ),
+                {"room_id": room_id},
+            )

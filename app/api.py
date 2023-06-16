@@ -140,7 +140,7 @@ class RoomJoinResponse(BaseModel):
 @app.post("/room/join")
 def join(token: UserToken, req: RoomJoinRequest) -> RoomJoinResponse:
     result = model.join_room(token, req.room_id, req.select_difficulty)
-    return RoomJoinResponse(int(result))
+    return RoomJoinResponse(join_room_result=int(result))
 
 
 class RoomWaitRequest(BaseModel):
@@ -231,3 +231,13 @@ def result(token: UserToken, req: RoomResultRequest) -> RoomResultResponse:
         ]
 
     return RoomResultResponse(result_user_list=results)
+
+
+class RoomLeaveRequest(BaseModel):
+    room_id: int
+
+
+@app.post("/room/leave")
+def leave(token: UserToken, req: RoomLeaveRequest):
+    model.leave_room(token, req.room_id)
+    return {"success": True}

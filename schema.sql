@@ -29,7 +29,8 @@ CREATE TABLE `room_member` (
   `judge_perfect` int DEFAULT 0,
   `judge_great` int DEFAULT 0,
   `judge_good` int DEFAULT 0,
-  `judge_bat` int DEFAULT 0,
+  `judge_bad` int DEFAULT 0,
   `judge_miss` int DEFAULT 0,
+  `game_ended` boolean DEFAULT FALSE,
   PRIMARY KEY (`room_id`,`user_id`)
 );

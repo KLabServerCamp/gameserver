@@ -87,6 +87,12 @@ class RoomUser(BaseModel):
     is_host: bool
 
 
+class ResultUser(BaseModel):
+    user_id: int
+    judge_count_list: list[int]
+    score: int
+
+
 @app.post("/room/create")
 def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
     """ルーム作成リクエスト"""
@@ -174,3 +180,54 @@ class RoomStartRequest(BaseModel):
 def start(token: UserToken, req: RoomStartRequest):
     model.room_start(req.room_id)
     return {"success": True}
+
+
+class RoomEndRequest(BaseModel):
+    room_id: int
+    judge_count_list: list[int]
+    score: int
+
+
+@app.post("/room/end")
+def end(token: UserToken, req: RoomEndRequest):
+    model.room_end(token, req.room_id, req.judge_count_list, req.score)
+    return {"success": True}
+
+
+class RoomResultRequest(BaseModel):
+    room_id: int
+
+
+class RoomResultResponse(BaseModel):
+    result_user_list: list[ResultUser]
+
+
+@app.post("/room/result")
+def result(token: UserToken, req: RoomResultRequest) -> RoomResultResponse:
+    members = model.get_room_result(req.room_id)
+    results = [
+        ResultUser(
+            user_id=member.user_id,
+            judge_count_list=[],
+            score=0,
+        )
+        for member in members
+    ]
+
+    if all(member.game_ended for member in members):
+        results = [
+            ResultUser(
+                user_id=member.user_id,
+                judge_count_list=[
+                    member.judge_perfect,
+                    member.judge_great,
+                    member.judge_good,
+                    member.judge_bad,
+                    member.judge_miss,
+                ],
+                score=member.score,
+            )
+            for member in members
+        ]
+
+    return RoomResultResponse(result_user_list=results)

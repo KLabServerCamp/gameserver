@@ -225,3 +225,63 @@ def room_start(room_id: int):
             {"status": int(WaitRoomStatus.LiveStart), "room_id": room_id},
         )
     return None
+
+
+def room_end(token: str, room_id: int, judge_count_list: list[int], score: int):
+    user = get_user_by_token(token)
+    judge_perfect, judge_great, judge_good, judge_bad, judge_miss = judge_count_list
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                UPDATE `room_member`
+                SET
+                    `score`=:score,
+                    `judge_perfect`=:judge_perfect,
+                    `judge_great`=:judge_great,
+                    `judge_good`=:judge_good,
+                    `judge_bad`=:judge_bad,
+                    `judge_miss`=:judge_miss,
+                    `game_ended`=:game_ended
+                WHERE
+                    `room_id`=:room_id AND
+                    `user_id`=:user_id
+                """
+            ),
+            {
+                "room_id": room_id,
+                "user_id": user.id,
+                "score": score,
+                "judge_perfect": judge_perfect,
+                "judge_great": judge_great,
+                "judge_good": judge_good,
+                "judge_bad": judge_bad,
+                "judge_miss": judge_miss,
+                "game_ended": True,
+            },
+        )
+    return None
+
+
+def get_room_result(room_id: int):
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                """
+                SELECT
+                    `user_id`,
+                    `judge_perfect`,
+                    `judge_great`,
+                    `judge_good`,
+                    `judge_bad`,
+                    `judge_miss`,
+                    `score`,
+                    `game_ended`
+                FROM `room_member`
+                WHERE `room_id`=:room_id
+                """
+            ),
+            {"room_id": room_id},
+        )
+        members = result.fetchall()
+        return members

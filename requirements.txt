@@ -3,6 +3,7 @@ fastapi
 httpx>=0.22.0
 ipython
 isort
+ipython
 mycli
 pymysql
 pytest

@@ -304,33 +304,12 @@ def leave_room(token: str, room_id: int):
             {"room_id": room_id, "user_id": user.id},
         ).fetchone()
 
-        # ユーザーがホストの場合、別のユーザーにホストを移譲
+        # ユーザーがホストの場合、WaitRoomStatus.Dissolutionに設定
         if result is not None and result.is_host:
-            new_host = connection.execute(
-                text(
-                    """
-                    SELECT `user_id`
-                    FROM `room_member`
-                    WHERE `room_id`=:room_id AND `user_id`!=:user_id
-                    LIMIT 1
-                    FOR UPDATE
-                    """
-                ),
-                {"room_id": room_id, "user_id": user.id},
-            ).fetchone()
-
-            # 別のユーザーがいる場合、そのユーザーにホストを移譲
-            if new_host is not None:
-                connection.execute(
-                    text(
-                        """
-                        UPDATE `room_member`
-                        SET `is_host`=true
-                        WHERE `room_id`=:room_id AND `user_id`=:new_host_id
-                        """
-                    ),
-                    {"room_id": room_id, "new_host_id": new_host.user_id},
-                )
+            connection.execute(
+                text("UPDATE `room` SET `status`=:status " "WHERE `room_id`=:room_id"),
+                {"status": int(WaitRoomStatus.Dissolution), "room_id": room_id},
+            )
 
         # ユーザーを部屋から削除
         connection.execute(

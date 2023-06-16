@@ -71,6 +71,14 @@ def test_room_1():
     assert response.status_code == 200
     print("room/result response:", response.json())
 
+    # response = client.post(
+    #     "/room/leave",
+    #     headers=_auth_header(),
+    #     json={"room_id": room_id},
+    # )
+    # assert response.status_code == 200
+    # print("room/leave response:", response.json())
+
 
 def test_room_2():
     response = client.post(

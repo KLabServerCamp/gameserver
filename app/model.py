@@ -5,6 +5,7 @@ from enum import IntEnum
 from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
+from sqlalchemy.future import Connection
 
 from .db import engine
 
@@ -125,6 +126,15 @@ class ResultUser(BaseModel):
     score: int
 
 
+def _update_wait_room_status(
+    conn: Connection, room_id: int, status: WaitRoomStatus
+) -> None:
+    conn.execute(
+        text("UPDATE `room` SET `wait_room_status`=:status WHERE `id`=:room_id"),
+        {"room_id": room_id, "status": status.value},
+    )
+
+
 def create_room(token: str, live_id: int, difficulty: LiveDifficulty) -> int:
     """部屋を作ってroom_idを返します"""
     with engine.begin() as conn:
@@ -159,18 +169,20 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty) -> int:
 
 def room_search(live_id: int) -> list[RoomInfo]:
     with engine.begin() as conn:
+        # search room only wait_room_status is Waiting
         if live_id == 0:  # Wildcard (search all rooms)
             result = conn.execute(
                 text(
-                    "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room`"
-                )
+                    "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `wait_room_status`=:wait_room_status"
+                ),
+                {"wait_room_status": WaitRoomStatus.Waiting.value},
             )
         else:
             result = conn.execute(
                 text(
-                    "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `live_id`=:live_id"
+                    "SELECT `room_id`, `live_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `live_id`=:live_id AND `wait_room_status`=:wait_room_status"
                 ),
-                {"live_id": live_id},
+                {"live_id": live_id, "wait_room_status": WaitRoomStatus.Waiting.value},
             )
         rows = result.all()
         rows = [RoomInfo.from_orm(row) for row in rows]
@@ -342,3 +354,34 @@ def room_result(token: str, room_id: int) -> list[ResultUser]:
             )
             for row in rows
         ]
+
+
+def leave_room(token: str, room_id: int) -> None:
+    with engine.begin() as conn:
+        user = _get_user_by_token(engine, token)
+        if user is None:
+            raise InvalidToken
+
+        result = conn.execute(
+            text("SELECT `host_id` FROM `room` WHERE `room_id`=:room_id FOR UPDATE"),
+            {"room_id": room_id},
+        )
+        row = result.one()
+        if row.host_id == user.id:
+            # 解散
+            _update_wait_room_status(conn, room_id, WaitRoomStatus.Dissolution)
+        else:
+            # room_userから削除
+            conn.execute(
+                text(
+                    "DELETE FROM `room_user` WHERE `room_id`=:room_id AND `user_id`=:user_id"
+                ),
+                {"room_id": room_id, "user_id": user.id},
+            )
+            # roomのjoined_user_countを減らす
+            conn.execute(
+                text(
+                    "UPDATE `room` SET `joined_user_count`=`joined_user_count`-1 WHERE `room_id`=:room_id"
+                ),
+                {"room_id": room_id},
+            )

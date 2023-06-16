@@ -161,3 +161,11 @@ def result_room(req: RoomID, token: UserToken) -> list[ResultUser]:
     print("/room/result", req)
     result = model.room_result(token, req.room_id)
     return result
+
+
+@app.post("/room/leave")
+def leave_room(req: RoomID, token: UserToken) -> Empty:
+    """リザルト表示リクエスト(n秒ごとにポーリング)"""
+    print("/room/leave", req)
+    model.leave_room(token, req.room_id)
+    return Empty()

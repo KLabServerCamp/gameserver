@@ -2,12 +2,9 @@ import uuid
 from enum import IntEnum
 
 from pydantic import BaseModel
-# from sqlalchemy import text, Connection
-# from sqlalchemy.exc import NoResultFound
-# from collections import defaultdict
-
 from .db import engine
 from . import model
+import json
 
 
 MAX_ROOM_MEMBER_COUNT = 4
@@ -40,28 +37,6 @@ class RoomInfo(BaseModel):
     max_user_count:	int
 
 
-# class ResultUser(BaseModel):
-#     id: int
-#     user_id: int
-#     judge_count_list: list[int]
-#     score: int
-#
-#
-# class CreateRoomRequest(BaseModel):
-#     live_id: int
-#     select_difficulty: LiveDifficulty
-#
-#
-# class RoomID(BaseModel):
-#     room_id: int
-#
-#
-# class RoomWithMember(Room):
-#     members: list[RoomMember]
-#
-#
-#
-
 class JoinRoomResult(IntEnum):
     OK = 1
     ROOM_FULL = 2
@@ -78,20 +53,6 @@ def create_room(
         model.create_room_member(conn, room_id, host_user_id, difficulty)
         return room_id
 
-
-# def get_room(room_id: int) -> Room | None:
-#     with engine.begin() as conn:
-#         return _get_room(conn, room_id)
-#
-#
-# def delete_room(room_id: int) -> None:
-#     with engine.begin() as conn:
-#         conn.execute(
-#             text(""),
-#         )
-#         # TODO: 実装
-#
-#
 
 def get_room_info_list_by_live_id(live_id: int) -> list[RoomInfo]:
     with engine.begin() as conn:
@@ -159,26 +120,51 @@ def start_room(room_id: int, user_id: int):
             model.WaitRoomStatus.LIVE_START)
 
 
-#
-# def delete_room_member() -> list[RoomMember]:
-#     with engine.begin() as conn:
-#         conn.execute(
-#             text(""),
-#         )
-#         # TODO: 実装
-#
-#
-# def _get_room(
-#         conn: Connection,
-#         room_id: int, lock: Lock = Lock.NONE) -> Room | None:
-#     result = conn.execute(
-#         text("SELECT * FROM `room` WHERE id=:id" + lock.value()),
-#         {"id": room_id},
-#     )
-#     try:
-#         row = result.one()
-#     except NoResultFound:
-#         return None
-#     return Room.from_orm(row)
-#
-#
+def end_room(
+        room_id: int, user_id: int, score: int, judge_count_list: list[int]):
+    with engine.begin() as conn:
+        room_member = model.get_room_member(conn, room_id, user_id)
+        if room_member is None:
+            return
+        model.update_room_member(
+            conn,
+            room_id, user_id,
+            room_member.live_difficulty,
+            score,
+            json.dumps(judge_count_list),
+        )
+
+
+class ResultUser(BaseModel):
+    id: int
+    user_id: int
+    judge_count_list: list[int]
+    score: int
+
+
+def result_room(room_id: int) -> list[ResultUser]:
+    with engine.begin() as conn:
+        members = model.get_room_member_list(conn, room_id)
+        print(members)
+        return [ResultUser(
+            id=room_id,
+            user_id=m.user_id,
+            judge_count_list=eval(m.judge),
+            score=m.score,
+        ) for m in members if m.judge is not None]
+
+
+def leave_room(room_id: int, user_id: int):
+    with engine.begin() as conn:
+        room = model.get_room(conn, room_id, model.Lock.FOR_UPDATE)
+        if room is None:
+            return
+
+        model.delete_room_member(conn, room_id, user_id)
+        members = model.get_room_member_list(conn, room_id)
+        if len(members) < 1:
+            model.delete_room()
+        # ホストしか開始できないため、ホストが抜けたら部屋消滅
+        if room.status == model.WaitRoomStatus.WAITING & \
+                room.host_user_id == user_id:
+            model.delete_room()

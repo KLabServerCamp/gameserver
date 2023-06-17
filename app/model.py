@@ -50,7 +50,7 @@ def update_user(
 
 def get_user_by_token(conn: Connection, token: str) -> SafeUser | None:
     result = conn.execute(
-        text("SELECT * From `user` Where `token`=:token"),
+        text("SELECT * FROM `user` WHERE `token`=:token"),
         {"token": token},
     )
     try:
@@ -184,6 +184,22 @@ def create_room_member(
     )
 
 
+def get_room_member(
+        conn: Connection, room_id: int, user_id: int) -> RoomMember | None:
+    result = conn.execute(
+        text(
+            "SELECT * From `room_member`"
+            " WHERE `room_id`=:room_id AND `user_id`=:user_id"
+        ),
+        {"room_id": room_id, "user_id": user_id},
+    )
+    try:
+        row = result.one()
+    except NoResultFound:
+        return None
+    return RoomMember.from_orm(row)
+
+
 def get_room_member_list(conn: Connection, room_id: int) -> list[RoomMember]:
     rows = conn.execute(
         text(
@@ -193,6 +209,36 @@ def get_room_member_list(conn: Connection, room_id: int) -> list[RoomMember]:
         {"room_id": room_id},
     )
     return [RoomMember.from_orm(row) for row in rows]
+
+
+def update_room_member(
+        conn: Connection, room_id: int, user_id: int,
+        live_difficulty: LiveDifficulty,
+        score: int | None, judge: str | None):
+    conn.execute(
+        text(
+            "UPDATE `room_member`"
+            " SET live_difficulty=:live_difficulty, score=:score, judge=:judge"
+            " WHERE room_id=:room_id AND user_id=:user_id"
+        ),
+        {
+            "room_id": room_id,
+            "user_id": user_id,
+            "live_difficulty": live_difficulty.value,
+            "score": score,
+            "judge": judge,
+        },
+    )
+
+
+def delete_room_member(conn: Connection, room_id: int, user_id: int):
+    conn.execute(
+        text(
+            "DELETE FROM `room_member`"
+            " WHERE room_id=:room_id AND user_id=:user_id"
+        ),
+        {"room_id": room_id, "user_id": user_id},
+    )
 
 
 class UserOrRoomMember(SafeUser, RoomMember):

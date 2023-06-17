@@ -53,20 +53,6 @@ def update(user: SafeUser, req: UserCreateRequest) -> Empty:
 
 
 # Room APIs
-# class RoomUser(BaseModel):
-#     user_id: int
-#     name: str
-#     leader_card_id: int
-#     select_difficulty: model.LiveDifficulty
-#     is_me: bool
-#     is_host: bool
-
-
-class ResultUser(BaseModel):
-    id: int
-    user_id: int
-    judge_count_list: list[int]
-    score: int
 
 
 class CreateRoomRequest(BaseModel):
@@ -141,43 +127,35 @@ def start(user: SafeUser, req: RoomID) -> Empty:
     return Empty()
 
 
-# class RoomEndRequest(BaseModel):
-#     room_id: int
-#     judge_count_list: List[int]
-#     score: int
-#
-#
-# # /room/end
-# # ルームのライブ終了時リクエスト。ゲーム終わったら各人が叩く。
-# # Request --------------
-# # room_id 	int 	対象ルーム
-# # judge_count_list 	list[int] 	各判定数
-# # score 	int 	スコア
-# @app.post("/room/end")
-# def end(user: SafeUser, req: RoomEndRequest) -> Empty:
-#     print("/room/end", req)
-#
-#
-# class RoomResultResponse(BaseModel):
-#     result_user_list: List[ResultUser]
-#
-#
-# # /room/result
-# # ルームのライブ終了後。end 叩いたあとにこれをポーリングする。 クライアントはn秒間隔で投げる想定。
-# # Request --------------
-# # room_id 	int 	対象ルーム
-# # Response -------------
-# # result_user_list 	list[ResultUser] 	自身を含む各ユーザーの結果。※全員揃っていない待機中は[]が返却される想定
-# @app.post("/room/result")
-# def result(user: SafeUser, req: RoomID) -> RoomResultResponse:
-#     print("/room/result", req)
-#
-#
-# # /room/leave
-# # ルーム退出リクエスト。オーナーも /room/join で参加した参加者も実行できる。
-# # Request --------------
-# # room_id 	int 	対象ルーム
-# @app.post("/room/leave")
-# def leave(user: SafeUser, req: RoomID) -> Empty:
-#     print("/room/leave", req)
-#
+class RoomEndRequest(BaseModel):
+    room_id: int
+    judge_count_list: list[int]
+    score: int
+
+
+# ルームのライブ終了時リクエスト。ゲーム終わったら各人が叩く。
+@app.post("/room/end")
+def end(user: SafeUser, req: RoomEndRequest) -> Empty:
+    print("/room/end", req)
+    service.end_room(req.room_id, user.id, req.score, req.judge_count_list)
+    return Empty()
+
+
+class RoomResultResponse(BaseModel):
+    result_user_list: list[service.ResultUser]
+
+
+# ルームのライブ終了後。end 叩いたあとにこれをポーリングする。 クライアントはn秒間隔で投げる想定。
+@app.post("/room/result")
+def result(user: SafeUser, req: RoomID) -> RoomResultResponse:
+    print("/room/result", req)
+    return RoomResultResponse(
+        result_user_list=service.result_room(req.room_id))
+
+
+# ルーム退出リクエスト。オーナーも /room/join で参加した参加者も実行できる。
+@app.post("/room/leave")
+def leave(user: SafeUser, req: RoomID) -> Empty:
+    print("/room/leave", req)
+    service.leave_room(req.room_id, user.id)
+    return Empty()

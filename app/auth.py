@@ -1,13 +1,14 @@
 """
 認証モジュール
 
-引数に `token: UserToken` を指定することで認証を行い、そのユーザーを取得できる。
+引数に `user: SafeUser` を指定することで認証を行い、そのユーザーを取得できる。
 """
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
-from .model import SafeUser as SafeUserBase, get_user_by_token
+from .model import SafeUser as SafeUserBase
+from .service import get_user_by_token
 
 __all__ = ["SafeUser"]
 bearer = HTTPBearer()

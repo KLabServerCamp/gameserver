@@ -92,20 +92,32 @@ class ListRoomRequest(BaseModel):
     live_id: int
 
 
+class RoomInfoList(BaseModel):
+    room_info_list: list[RoomInfo]
+
+
 class JoinRoomRequest(BaseModel):
     room_id: int
     select_difficulty: LiveDifficulty
 
 
+class JoinRoomResponse(BaseModel):
+    join_room_result: JoinRoomResult
+
+
 class RoomWaitResponse(BaseModel):
     status: WaitRoomStatus
-    room_users: list[RoomUser]
+    room_user_list: list[RoomUser]
 
 
 class RoomEndRequest(BaseModel):
     room_id: int
     judge_count_list: list[int]
     score: int
+
+
+class RoomResultResponse(BaseModel):
+    result_user_list: list[ResultUser]
 
 
 @app.post("/room/create")
@@ -117,18 +129,18 @@ def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
 
 
 @app.post("/room/list")
-def list_room(req: ListRoomRequest) -> list[RoomInfo]:
+def list_room(req: ListRoomRequest) -> RoomInfoList:
     """ルーム一覧取得リクエスト"""
     rooms = model.room_search(req.live_id)
-    return rooms
+    return RoomInfoList(room_info_list=rooms)
 
 
 @app.post("/room/join")
-def join_room(req: JoinRoomRequest, token: UserToken) -> JoinRoomResult:
+def join_room(req: JoinRoomRequest, token: UserToken) -> JoinRoomResponse:
     """ルーム入室リクエスト"""
     print("/room/join", req)
     join_room_result = model.join_room(token, req.room_id, req.select_difficulty)
-    return join_room_result
+    return JoinRoomResponse(join_room_result=join_room_result)
 
 
 @app.post("/room/wait")
@@ -136,7 +148,7 @@ def wait_room(req: RoomID, token: UserToken) -> RoomWaitResponse:
     """ルーム待機中(n秒ごとにポーリング)"""
     print("/room/wait", req)
     status, room_user_list = model.room_wait_status(token, req.room_id)
-    return RoomWaitResponse(status=status, room_users=room_user_list)
+    return RoomWaitResponse(status=status, room_user_list=room_user_list)
 
 
 @app.post("/room/start")
@@ -156,11 +168,11 @@ def end_room(req: RoomEndRequest, token: UserToken) -> Empty:
 
 
 @app.post("/room/result")
-def result_room(req: RoomID, token: UserToken) -> list[ResultUser]:
+def result_room(req: RoomID, token: UserToken) -> RoomResultResponse:
     """リザルト表示リクエスト(n秒ごとにポーリング)"""
     print("/room/result", req)
-    result = model.room_result(token, req.room_id)
-    return result
+    result_user_list = model.room_result(token, req.room_id)
+    return RoomResultResponse(result_user_list=result_user_list)
 
 
 @app.post("/room/leave")

@@ -4,8 +4,8 @@ from enum import IntEnum
 
 from pydantic import BaseModel
 from sqlalchemy import text
+from sqlalchemy.engine import Connection
 from sqlalchemy.exc import NoResultFound
-from sqlalchemy.future import Connection
 
 from .db import engine
 
@@ -130,7 +130,7 @@ def _update_wait_room_status(
     conn: Connection, room_id: int, status: WaitRoomStatus
 ) -> None:
     conn.execute(
-        text("UPDATE `room` SET `wait_room_status`=:status WHERE `id`=:room_id"),
+        text("UPDATE `room` SET `wait_room_status`=:status WHERE `room_id`=:room_id"),
         {"room_id": room_id, "status": status.value},
     )
 
@@ -199,12 +199,14 @@ def join_room(
 
         result = conn.execute(
             text(
-                "SELECT `joined_user_count`, `max_user_count` FROM `room` WHERE `room_id`=:room_id"
+                "SELECT `joined_user_count`, `max_user_count`, `wait_room_status` FROM `room` WHERE `room_id`=:room_id"
                 " FOR UPDATE"
             ),
             {"room_id": room_id},
         )
         row = result.one()
+        if row.wait_room_status == WaitRoomStatus.Dissolution.value:
+            return JoinRoomResult.Disbanded
         if row.joined_user_count >= row.max_user_count:
             return JoinRoomResult.RoomFull
 
@@ -255,11 +257,16 @@ def room_wait_status(token: str, room_id: int) -> tuple[WaitRoomStatus, list[Roo
 
         room_users: list[RoomUser] = []
         for row in rows:
+            result = conn.execute(
+                text("SELECT `name`, `leader_card_id` FROM `user` WHERE `id`=:user_id"),
+                {"user_id": row.user_id},
+            )
+            row_user = result.one()
             room_users.append(
                 RoomUser(
                     user_id=row.user_id,
-                    name=user.name,
-                    leader_card_id=user.leader_card_id,
+                    name=row_user.name,
+                    leader_card_id=row_user.leader_card_id,
                     select_difficulty=LiveDifficulty(row.difficulty),
                     is_me=row.user_id == user.id,
                     is_host=row.user_id == host_id,
@@ -343,10 +350,10 @@ def room_result(token: str, room_id: int) -> list[ResultUser]:
             {"room_id": room_id},
         )
         joined_user_count = result.one().joined_user_count
-        if len(rows) <= joined_user_count:
+        if len(rows) < joined_user_count:
             return []
 
-        return [
+        result_user = [
             ResultUser(
                 user_id=row.user_id,
                 judge_count_list=json.loads(row.judge_count),
@@ -355,10 +362,12 @@ def room_result(token: str, room_id: int) -> list[ResultUser]:
             for row in rows
         ]
 
+        return result_user
+
 
 def leave_room(token: str, room_id: int) -> None:
     with engine.begin() as conn:
-        user = _get_user_by_token(engine, token)
+        user = _get_user_by_token(conn, token)
         if user is None:
             raise InvalidToken
 

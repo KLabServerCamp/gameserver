@@ -205,14 +205,7 @@ class RoomResultResponse(BaseModel):
 @app.post("/room/result")
 def result(token: UserToken, req: RoomResultRequest) -> RoomResultResponse:
     members = model.get_room_result(req.room_id)
-    results = [
-        ResultUser(
-            user_id=member.user_id,
-            judge_count_list=[],
-            score=0,
-        )
-        for member in members
-    ]
+    results = []
 
     if all(member.game_ended for member in members):
         results = [
@@ -229,6 +222,7 @@ def result(token: UserToken, req: RoomResultRequest) -> RoomResultResponse:
             )
             for member in members
         ]
+        model.set_room_status(req.room_id, model.WaitRoomStatus.Dissolution)
 
     return RoomResultResponse(result_user_list=results)
 

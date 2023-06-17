@@ -125,12 +125,17 @@ def get_user_count_in_room(room_id: int) -> int:
 def get_room_list(live_id: int) -> list[tuple[int, int]]:
     with engine.begin() as conn:
         if live_id == 0:
-            result = conn.execute(text("SELECT * FROM room"))
+            result = conn.execute(
+                text("SELECT * FROM room WHERE status = :status"),
+                {"status": int(WaitRoomStatus.Waiting)},
+            )
             return result.all()
         else:
             result = conn.execute(
-                text("SELECT `room_id`,`live_id` FROM room WHERE `live_id`=:live_id"),
-                {"live_id": live_id},
+                text(
+                    "SELECT `room_id`,`live_id` FROM room WHERE `live_id`=:live_id AND status = :status"
+                ),
+                {"live_id": live_id, "status": int(WaitRoomStatus.Waiting)},
             )
             return result.all()
 
@@ -224,6 +229,7 @@ def room_start(room_id: int):
             text("UPDATE `room` SET `status`=:status " "WHERE `room_id`=:room_id"),
             {"status": int(WaitRoomStatus.LiveStart), "room_id": room_id},
         )
+
     return None
 
 
@@ -284,7 +290,17 @@ def get_room_result(room_id: int):
             {"room_id": room_id},
         )
         members = result.fetchall()
+
         return members
+
+
+def set_room_status(room_id: int, status: WaitRoomStatus):
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE `room` SET `status`=:status " "WHERE `room_id`=:room_id"),
+            {"status": int(WaitRoomStatus.Dissolution), "room_id": room_id},
+        )
+    return None
 
 
 def leave_room(token: str, room_id: int):

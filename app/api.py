@@ -84,7 +84,7 @@ class RoomListResponse(BaseModel):
 @app.post("/room/list")
 def room_list(user:  SafeUser, req: RoomListRequest) -> RoomListResponse:
     print("/room/list", req)
-    room_infos = service.get_room_info_list_by_live_id(req.live_id)
+    room_infos = service.get_room_list(req.live_id)
     return RoomListResponse(room_info_list=room_infos)
 
 

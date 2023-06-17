@@ -54,7 +54,7 @@ def create_room(
         return room_id
 
 
-def get_room_info_list_by_live_id(live_id: int) -> list[RoomInfo]:
+def get_room_list(live_id: int) -> list[RoomInfo]:
     with engine.begin() as conn:
         rooms = model.get_room_with_members_num_list_by_live_id(conn, live_id)
         return [RoomInfo(
@@ -62,15 +62,18 @@ def get_room_info_list_by_live_id(live_id: int) -> list[RoomInfo]:
             live_id=room.live_id,
             joined_user_count=room.members_num,
             max_user_count=MAX_ROOM_MEMBER_COUNT,
-        ) for room in rooms]
+        ) for room in rooms if room.status == model.WaitRoomStatus.WAITING]
 
 
 def join_room(
   room_id: int,
   user_id: int, difficulty: model.LiveDifficulty) -> JoinRoomResult:
     with engine.begin() as conn:
-        if model.get_room(conn, room_id, model.Lock.FOR_UPDATE) is None:
-            return JoinRoomResult.Disbanded
+        room = model.get_room(conn, room_id, model.Lock.FOR_UPDATE)
+        if room is None:
+            return JoinRoomResult.DISBANDED
+        if room.status != model.WaitRoomStatus.WAITING:
+            return JoinRoomResult.DISBANDED
         members = model.get_room_member_list(conn, room_id)
         if (user_id in [r.user_id for r in members]):
             return JoinRoomResult.OTHER_ERROR
@@ -163,8 +166,8 @@ def leave_room(room_id: int, user_id: int):
         model.delete_room_member(conn, room_id, user_id)
         members = model.get_room_member_list(conn, room_id)
         if len(members) < 1:
-            model.delete_room()
+            model.delete_room(conn, room_id)
         # ホストしか開始できないため、ホストが抜けたら部屋消滅
         if room.status == model.WaitRoomStatus.WAITING & \
                 room.host_user_id == user_id:
-            model.delete_room()
+            model.delete_room(conn, room_id)

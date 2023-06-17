@@ -292,13 +292,7 @@ def room_start(token: str, room_id: int):
         row = result.one()
         if row.host_id != user.id:
             raise NotOwner
-
-        conn.execute(
-            text(
-                "UPDATE `room` SET `wait_room_status`=:wait_room_status WHERE `room_id`=:room_id"
-            ),
-            {"wait_room_status": WaitRoomStatus.LiveStart.value, "room_id": room_id},
-        )
+        _update_wait_room_status(conn, room_id, WaitRoomStatus.LiveStart)
 
 
 def room_end(token: str, room_id: int, judge_count_list: list[int], score: int) -> None:

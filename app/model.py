@@ -127,6 +127,20 @@ class RoomWithMembersNum(Room):
 
 
 # 仕様上 COALESCE はいらないが備忘録も兼ねて
+def get_room_with_members_num_list(
+        conn: Connection) -> list[RoomWithMembersNum]:
+    result = conn.execute(
+        text(
+            "SELECT *, COALESCE(t2.count, 0) as members_num"
+            " FROM `room`"
+            " LEFT OUTER JOIN"
+            " (SELECT `room_id`, COUNT(*) AS count"
+            "  FROM `room_member` GROUP BY `room_id`) as `t2`"
+            " ON id = room_id"
+        ))
+    return [RoomWithMembersNum.from_orm(row) for row in result]
+
+
 def get_room_with_members_num_list_by_live_id(
         conn: Connection, live_id: int) -> list[RoomWithMembersNum]:
     result = conn.execute(

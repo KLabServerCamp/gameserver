@@ -56,7 +56,11 @@ def create_room(
 
 def get_room_list(live_id: int) -> list[RoomInfo]:
     with engine.begin() as conn:
-        rooms = model.get_room_with_members_num_list_by_live_id(conn, live_id)
+        if live_id == 0:
+            rooms = model.get_room_with_members_num_list(conn)
+        else:
+            rooms = model.get_room_with_members_num_list_by_live_id(
+                conn, live_id)
         return [RoomInfo(
             room_id=room.id,
             live_id=room.live_id,
@@ -148,13 +152,15 @@ class ResultUser(BaseModel):
 def result_room(room_id: int) -> list[ResultUser]:
     with engine.begin() as conn:
         members = model.get_room_member_list(conn, room_id)
-        print(members)
+        isWait = next(filter(lambda m: m.judge is None, members), None)
+        if isWait:
+            return []
         return [ResultUser(
             id=room_id,
             user_id=m.user_id,
             judge_count_list=eval(m.judge),
             score=m.score,
-        ) for m in members if m.judge is not None]
+        ) for m in members]
 
 
 def leave_room(room_id: int, user_id: int):
@@ -168,6 +174,6 @@ def leave_room(room_id: int, user_id: int):
         if len(members) < 1:
             model.delete_room(conn, room_id)
         # ホストしか開始できないため、ホストが抜けたら部屋消滅
-        if room.status == model.WaitRoomStatus.WAITING & \
+        if room.status.value == model.WaitRoomStatus.WAITING and \
                 room.host_user_id == user_id:
             model.delete_room(conn, room_id)

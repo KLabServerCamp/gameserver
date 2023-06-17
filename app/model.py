@@ -329,6 +329,14 @@ def room_result(token: str, room_id: int) -> list[ResultUser]:
 
         result = conn.execute(
             text(
+                "SELECT `host_id` FROM `room` WHERE `room_id`=:room_id FOR UPDATE"
+            ),
+            {"room_id": room_id},
+        )
+        owner_id = result.one().host_id
+
+        result = conn.execute(
+            text(
                 "SELECT `user_id`, `judge_count`, `score` FROM `room_user` WHERE `room_id`=:room_id AND `is_end`=true"
             ),
             {"room_id": room_id},
@@ -355,6 +363,15 @@ def room_result(token: str, room_id: int) -> list[ResultUser]:
             )
             for row in rows
         ]
+
+        # Roomのステータスを解散(Dissolution)にする
+        if user.id == owner_id:
+            conn.execute(
+                text(
+                    "UPDATE `room` SET `wait_room_status`=:wait_room_status WHERE `room_id`=:room_id"
+                ),
+                {"wait_room_status": WaitRoomStatus.Dissolution.value, "room_id": room_id},
+            )
 
         return result_user
 

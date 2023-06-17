@@ -1,3 +1,4 @@
+import datetime
 import json
 import uuid
 from enum import IntEnum
@@ -7,6 +8,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import Connection
 from sqlalchemy.exc import NoResultFound
 
+from . import config
 from .db import engine
 
 
@@ -133,6 +135,10 @@ def _update_wait_room_status(
         text("UPDATE `room` SET `wait_room_status`=:status WHERE `room_id`=:room_id"),
         {"room_id": room_id, "status": status.value},
     )
+
+
+def _get_current_datatime_str() -> str:
+    return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def create_room(token: str, live_id: int, difficulty: LiveDifficulty) -> int:
@@ -276,6 +282,7 @@ def room_wait_status(token: str, room_id: int) -> tuple[WaitRoomStatus, list[Roo
 
 
 def room_start(token: str, room_id: int):
+    start_time = _get_current_datatime_str()
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
         if user is None:
@@ -292,7 +299,17 @@ def room_start(token: str, room_id: int):
         row = result.one()
         if row.host_id != user.id:
             raise NotOwner
-        _update_wait_room_status(conn, room_id, WaitRoomStatus.LiveStart)
+        conn.execute(
+            text(
+                "UPDATE `room` SET `wait_room_status`=:wait_room_status, `start_time`=:start_time"
+                " WHERE `room_id`=:room_id"
+            ),
+            {
+                "wait_room_status": WaitRoomStatus.LiveStart.value,
+                "start_time": start_time,
+                "room_id": room_id,
+            },
+        )
 
 
 def room_end(token: str, room_id: int, judge_count_list: list[int], score: int) -> None:
@@ -329,11 +346,13 @@ def room_result(token: str, room_id: int) -> list[ResultUser]:
 
         result = conn.execute(
             text(
-                "SELECT `host_id` FROM `room` WHERE `room_id`=:room_id FOR UPDATE"
+                "SELECT `host_id`, `start_time` FROM `room` WHERE `room_id`=:room_id FOR UPDATE"
             ),
             {"room_id": room_id},
         )
-        owner_id = result.one().host_id
+        row = result.one()
+        owner_id = row.host_id
+        start_time = row.start_time
 
         result = conn.execute(
             text(
@@ -345,14 +364,23 @@ def room_result(token: str, room_id: int) -> list[ResultUser]:
             rows = result.all()
         except NoResultFound:
             return []
-
         # Check if all users have finished
         result = conn.execute(
             text("SELECT `joined_user_count` FROM `room` WHERE `room_id`=:room_id"),
             {"room_id": room_id},
         )
         joined_user_count = result.one().joined_user_count
-        if len(rows) < joined_user_count:
+        # Return empty list if not all users have finished.
+        # But if config.TIMEOUT_MINUTES minutes have passed since the start,
+        # return the result only for users who have finished
+        now_datetime = datetime.datetime.strptime(
+            _get_current_datatime_str(), "%Y-%m-%d %H:%M:%S"
+        )
+        time_diff_sec = datetime.timedelta.total_seconds(now_datetime - start_time)
+        if (
+            len(rows) < joined_user_count
+            and time_diff_sec < int(config.TIMEOUT_MINUTES) * 60
+        ):
             return []
 
         result_user = [
@@ -370,7 +398,10 @@ def room_result(token: str, room_id: int) -> list[ResultUser]:
                 text(
                     "UPDATE `room` SET `wait_room_status`=:wait_room_status WHERE `room_id`=:room_id"
                 ),
-                {"wait_room_status": WaitRoomStatus.Dissolution.value, "room_id": room_id},
+                {
+                    "wait_room_status": WaitRoomStatus.Dissolution.value,
+                    "room_id": room_id,
+                },
             )
 
         return result_user

@@ -18,6 +18,7 @@ CREATE TABLE `room` (
   `joined_user_count` int NOT NULL,
   `max_user_count` int NOT NULL,
   `wait_room_status` int NOT NULL,
+  `start_time` datetime DEFAULT NULL,
   PRIMARY KEY (`room_id`)
 );
 

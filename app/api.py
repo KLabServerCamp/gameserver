@@ -1,15 +1,17 @@
 import fastapi.exception_handlers
 from fastapi import FastAPI, HTTPException, status
 from fastapi.exceptions import RequestValidationError
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from . import model
 from .auth import UserToken
-from .model import LiveDifficulty
+from .model import StrictBase, LiveDifficulty
 
 app = FastAPI()
 
 
+# リクエストのvalidation errorをprintする
+# このエラーが出たら、リクエストのModel定義が間違っている
 @app.exception_handler(RequestValidationError)
 async def handle_request_validation_error(req, exc):
     print("Request validation error")
@@ -28,12 +30,12 @@ async def root() -> dict:
 # User APIs
 
 
-class UserCreateRequest(BaseModel):
+class UserCreateRequest(StrictBase):
     user_name: str = Field(title="ユーザー名")
     leader_card_id: int = Field(title="リーダーカードのID")
 
 
-class UserCreateResponse(BaseModel):
+class UserCreateResponse(StrictBase):
     user_token: str
 
 
@@ -44,8 +46,8 @@ def user_create(req: UserCreateRequest) -> UserCreateResponse:
     return UserCreateResponse(user_token=token)
 
 
-# 認証のサンプルAPI
-# ゲームでは使わない
+# 認証動作確認用のサンプルAPI
+# ゲームアプリは使わない
 @app.get("/user/me")
 def user_me(token: UserToken) -> model.SafeUser:
     user = model.get_user_by_token(token)
@@ -56,7 +58,7 @@ def user_me(token: UserToken) -> model.SafeUser:
     return user
 
 
-class Empty(BaseModel):
+class Empty(StrictBase):
     pass
 
 
@@ -71,11 +73,11 @@ def update(req: UserCreateRequest, token: UserToken) -> Empty:
 # Room APIs
 
 
-class RoomID(BaseModel):
+class RoomID(StrictBase):
     room_id: int
 
 
-class CreateRoomRequest(BaseModel):
+class CreateRoomRequest(StrictBase):
     live_id: int
     select_difficulty: LiveDifficulty
 

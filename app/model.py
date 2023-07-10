@@ -1,27 +1,29 @@
 import uuid
 from enum import IntEnum
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
 from .db import engine
 
 
+class StrictBase(BaseModel):
+    """DBを利用するためのBaseModel"""
+    # strictモードを有効にする
+    model_config = ConfigDict(strict=True)
+
+
 class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げるエラー"""
 
 
-class SafeUser(BaseModel):
+class SafeUser(StrictBase):
     """token を含まないUser"""
 
     id: int
     name: str
     leader_card_id: int
-
-    # SafeUser.from_orm(row) できるようにする
-    class Config:
-        orm_mode = True
 
 
 def create_user(name: str, leader_card_id: int) -> str:

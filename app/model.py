@@ -10,6 +10,7 @@ from .db import engine
 
 class StrictBase(BaseModel):
     """DBを利用するためのBaseModel"""
+
     # strictモードを有効にする
     model_config = ConfigDict(strict=True)
 
@@ -46,7 +47,16 @@ def create_user(name: str, leader_card_id: int) -> str:
 
 def _get_user_by_token(conn, token: str) -> SafeUser | None:
     # TODO: 実装(わからなかったら資料を見ながら)
-    ...
+    result = conn.execute(
+        text("SELECT `id`, `name`, `leader_card_id` FROM `user` WHERE `token`=:token"),
+        {"token": token},
+    )
+
+    try:
+        row = result.one()
+    except NoResultFound:
+        return None
+    return SafeUser.model_validate(row, from_attributes=True)
 
 
 def get_user_by_token(token: str) -> SafeUser | None:
@@ -57,7 +67,17 @@ def get_user_by_token(token: str) -> SafeUser | None:
 def update_user(token: str, name: str, leader_card_id: int) -> None:
     with engine.begin() as conn:
         # TODO: 実装
-        ...
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken
+        conn.execute(
+            text(
+                "UPDATE `user`"
+                " SET name=:name, leader_card_id=:leader_card_id"
+                " WHERE id=:id"
+            ),
+            {"name": name, "leader_card_id": leader_card_id, "id": str(user.id)},
+        )
 
 
 # IntEnum の使い方の例

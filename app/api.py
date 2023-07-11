@@ -5,7 +5,7 @@ from pydantic import Field
 
 from . import model
 from .auth import UserToken
-from .model import StrictBase, LiveDifficulty
+from .model import LiveDifficulty, StrictBase
 
 app = FastAPI()
 

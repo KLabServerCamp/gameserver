@@ -2,7 +2,7 @@ import uuid
 from enum import IntEnum
 
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import text
+from sqlalchemy import Connection, text
 from sqlalchemy.exc import NoResultFound
 
 from .db import engine
@@ -10,6 +10,7 @@ from .db import engine
 
 class StrictBase(BaseModel):
     """DBを利用するためのBaseModel"""
+
     # strictモードを有効にする
     model_config = ConfigDict(strict=True)
 
@@ -44,9 +45,20 @@ def create_user(name: str, leader_card_id: int) -> str:
     return token
 
 
-def _get_user_by_token(conn, token: str) -> SafeUser | None:
-    # TODO: 実装(わからなかったら資料を見ながら)
-    ...
+def _get_user_by_token(conn: Connection, token: str) -> SafeUser | None:
+    res = conn.execute(
+        text(
+            "select `id`, `name`, `leader_card_id` from `user` where `token`=:token"
+        ),
+        parameters={"token": token},
+    )
+    try:
+        row = res.one()
+    except Exception as e:
+        print(e)
+        return None
+    else:
+        return SafeUser.model_validate(row, from_attributes=True)
 
 
 def get_user_by_token(token: str) -> SafeUser | None:
@@ -54,10 +66,23 @@ def get_user_by_token(token: str) -> SafeUser | None:
         return _get_user_by_token(conn, token)
 
 
+def _update_user(conn: Connection, token: str, name: str, leader_card_id: int) -> None:
+    res = conn.execute(
+        text(
+            "update `user` set name=:name, leader_card_id=:leader_card_id "
+            "where `token`=:token"
+        ),
+        parameters={
+            "name": name,
+            "leader_card_id": leader_card_id,
+            "token": token,
+        },
+    )
+
+
 def update_user(token: str, name: str, leader_card_id: int) -> None:
     with engine.begin() as conn:
-        # TODO: 実装
-        ...
+        _update_user(conn, token, name, leader_card_id)
 
 
 # IntEnum の使い方の例

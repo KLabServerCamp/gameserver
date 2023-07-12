@@ -109,7 +109,7 @@ class RoomListResponse(StrictBase):
 
 
 @app.post("/room/list", response_model=RoomListResponse)
-def list(req: RoomListRequest) -> RoomListResponse:
+def room_list(req: RoomListRequest) -> RoomListResponse:
     print("Room List", req)
     return RoomListResponse(room_info_list=model.get_room_list(live_id=req.live_id))
 
@@ -124,9 +124,26 @@ class RoomJoinResponse(StrictBase):
 
 
 @app.post("/room/join")
-def room_join(token: UserToken, req: RoomJoinRequest):
+def room_join(token: UserToken, req: RoomJoinRequest) -> RoomJoinResponse:
     print("Room Join Request: ", req)
     response = model.join_room(
         token=token, room_id=req.room_id, difficulty=req.select_difficulty
     )
-    return response
+    return RoomJoinResponse(join_room_result=response)
+
+
+class RoomWaitRequest(StrictBase):
+    room_id: int
+
+
+class RoomWaitResponse(StrictBase):
+    status: int  # WaitRoomStatus
+    room_user_list: list[RoomUser]
+
+
+@app.post("/room/wait")
+def room_wait(token: UserToken, req: RoomWaitRequest) -> RoomWaitResponse:
+    print("Room Wait Request: ", req)
+
+    res = model.room_wait(token=token, room_id=req.room_id)
+    return RoomWaitResponse(status=res[0], room_user_list=res[1])

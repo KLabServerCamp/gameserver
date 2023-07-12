@@ -1,5 +1,6 @@
 import uuid
 from enum import IntEnum
+from typing import Tuple
 
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import text
@@ -301,3 +302,55 @@ def join_room(token: str, room_id: int, difficulty: LiveDifficulty) -> JoinRoomR
             return JoinRoomResult.OtherError
 
         return _join_room(conn, room_id=room_id, difficulty=difficulty, user=user)
+
+
+def get_room_user(conn, user: SafeUser, room_id: int) -> list[RoomUser]:
+    result = conn.execute(
+        text(
+            "SELECT `u`.*, `rm`.`select_difficulty`, `r`.`owner_id` "
+            "FROM `user` as `u` "
+            "JOIN `room_member` as `rm` "
+            "ON u.id=rm.user_id "
+            "JOIN `room` as `r` "
+            "ON r.room_id=rm.room_id "
+            "WHERE `rm`.`room_id`=:room_id"
+        ),
+        {"room_id": room_id},
+    )
+
+    try:
+        rows = result.all()
+    except NoResultFound:
+        return []
+
+    room_user_list: RoomUser = []
+    for row in rows:
+        print("WAIT ROW: ", row)
+        room_user = RoomUser(
+            user_id=user.id,
+            name=row.name,
+            leader_card_id=row.leader_card_id,
+            select_difficulty=LiveDifficulty(row.select_difficulty),
+            is_me=True if row.id == user.id else False,
+            is_host=True if row.owner_id == row.id else False,
+        )
+        room_user_list.append(room_user)
+    print(room_user_list)
+    return room_user_list
+
+
+def _room_wait(
+    conn, user: SafeUser, room_id: int
+) -> tuple[WaitRoomStatus, list[RoomUser]]:
+    status = check_room_status(conn, room_id=room_id)
+    member = get_room_user(conn, user, room_id=room_id)
+
+    return (status, member)
+
+
+def room_wait(token: str, room_id: int) -> tuple[WaitRoomStatus, list[RoomUser]]:
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token=token)
+        if user is None:
+            raise InvalidToken
+        return _room_wait(conn, user=user, room_id=room_id)

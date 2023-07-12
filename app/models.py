@@ -56,6 +56,13 @@ class CreateRoomRequest(BaseModel):
     select_difficulty: LiveDifficulty
 
 
+class RoomInfo(StrictBase):
+    room_id: int  # 部屋識別子
+    live_id: int  # プレイ対象の楽曲識別子
+    joined_user_count: int  # 部屋に入っている人数
+    max_user_count: int  # 部屋の最大人数
+
+
 """
 Exception definitions
 """

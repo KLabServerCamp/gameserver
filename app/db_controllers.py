@@ -94,3 +94,32 @@ def create_room(token: str, live_id: int, difficulty: models.LiveDifficulty) -> 
         room_id = _create_room(conn, token, live_id, difficulty, user.id)
         print(f"create_room(): {room_id=}")
         return room_id
+
+
+def _get_room_list(conn: Connection, live_id: int) -> list[models.RoomInfo]:
+    room_infos: list[models.RoomInfo] = []
+    results = conn.execute(
+        text(
+            "SELECT id as room_id, live_id, COALESCE(mem_cnt, 0) as joined_user_count, max_user_count FROM room "
+            "LEFT OUTER JOIN (SELECT room_id, COUNT(*) as mem_cnt FROM room_member GROUP BY room_id) AS mem_cnts "
+            "ON room.id=mem_cnts.room_id"
+        ),
+    )
+    for result in results:
+        room_info = models.RoomInfo.model_validate(result, from_attributes=True)
+        room_infos.append(room_info)
+    return room_infos
+
+
+def get_room_list(live_id: int) -> list[models.RoomInfo]:
+    """
+    入場可能なルーム一覧を取得
+
+    Args:
+        live_id (int): ルームで遊ぶ楽曲のID（※0はワイルドカード。全てのルームを対象とする）
+
+    Returns:
+        room_info_list (list[RoomInfo]): 入場可能なルーム一覧
+    """
+    with engine.begin() as conn:
+        return _get_room_list(conn, live_id=0)

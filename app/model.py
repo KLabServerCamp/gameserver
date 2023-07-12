@@ -47,9 +47,7 @@ def create_user(name: str, leader_card_id: int) -> str:
 
 def _get_user_by_token(conn: Connection, token: str) -> SafeUser | None:
     res = conn.execute(
-        text(
-            "select `id`, `name`, `leader_card_id` from `user` where `token`=:token"
-        ),
+        text("select `id`, `name`, `leader_card_id` from `user` where `token`=:token"),
         parameters={"token": token},
     )
     try:

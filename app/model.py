@@ -149,7 +149,7 @@ def _create_room(conn, live_id: int, difficulty: LiveDifficulty, user: SafeUser)
         ),
         {"owner_id": user.id, "status": WaitRoomStatus.LiveStart.value},
     )
-    
+
     row = result.one()
 
     # UserをRoomに追加する
@@ -187,10 +187,7 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
 
 def _get_room(conn, room_id: int, live_id: int) -> RoomInfo:
     res = conn.execute(
-        text(
-            "SELECT `user_id` FROM `room_member`"
-            " WHERE `room_id`=:room_id"
-        ),
+        text("SELECT `user_id` FROM `room_member`" " WHERE `room_id`=:room_id"),
         {"room_id": room_id},
     )
 
@@ -206,10 +203,7 @@ def _get_room(conn, room_id: int, live_id: int) -> RoomInfo:
 def _get_room_list(conn, live_id: int) -> list[RoomInfo]:
     if live_id == 0:
         result = conn.execute(
-            text(
-                "SELECT `room_id`, `live_id`, `status` FROM `room`"
-            ),
-            {}
+            text("SELECT `room_id`, `live_id`, `status` FROM `room`"), {}
         )
     else:
         result = conn.execute(
@@ -241,3 +235,69 @@ def get_room_list(live_id: int) -> list[RoomInfo]:
         room_list = _get_room_list(conn, live_id=live_id)
         print("Room_List: " + f"{room_list}")
         return room_list
+
+
+def check_room_status(conn, room_id: int) -> WaitRoomStatus:
+    result = conn.execute(
+        text("SELECT `status` FROM `room`" " WHERE `room_id`=:room_id" " FOR UPDATE"),
+        {"room_id": room_id},
+    )
+
+    # もし見つからなければ、解散されたことにする
+    try:
+        status = result.one().status
+    except NoResultFound:
+        return WaitRoomStatus.Dissolution
+
+    return status
+
+
+def _join_room(
+    conn, room_id: int, difficulty: LiveDifficulty, user: SafeUser
+) -> JoinRoomResult:
+    # userをinsert?
+
+    result = conn.execute(
+        text(
+            "SELECT `user_id` FROM `room_member`" " WHERE `room_id`=:room_id FOR UPDATE"
+        ),
+        {"room_id": room_id},
+    )
+
+    if len(result.all()) >= 4:
+        return JoinRoomResult.RoomFull
+
+    result = conn.execute(
+        text(
+            "INSERT INTO `room_member`  (room_id, user_id, select_difficulty)"
+            " VALUES (:room_id, :user_id, :difficulty)"
+        ),
+        {"room_id": room_id, "user_id": user.id, "difficulty": difficulty},
+    )
+
+    return JoinRoomResult.Ok
+
+
+def join_room(token: str, room_id: int, difficulty: LiveDifficulty) -> JoinRoomResult:
+    with engine.begin() as conn:
+        status: WaitRoomStatus = check_room_status(conn, room_id=room_id)
+
+        if status == WaitRoomStatus.Dissolution:
+            return JoinRoomResult.Disbanded
+
+        user = _get_user_by_token(conn=conn, token=token)
+        if user is None:
+            return JoinRoomResult.OtherError
+
+        if (
+            conn.execute(
+                text("SELECT `owner_id` FROM `room` WHERE `room_id`=:room_id"),
+                {"room_id": room_id},
+            )
+            .one()
+            .owner_id
+            == user.id
+        ):
+            return JoinRoomResult.OtherError
+
+        return _join_room(conn, room_id=room_id, difficulty=difficulty, user=user)

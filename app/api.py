@@ -87,14 +87,16 @@ class RoomID(StrictBase):
 
 class CreateRoomRequest(StrictBase):
     live_id: int
-    select_difficulty: LiveDifficulty
+    select_difficulty: int  # LiveDifficulty
 
 
 @app.post("/room/create")
 def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
     """ルーム作成リクエスト"""
     print("/room/create", req)
-    room_id = model.create_room(token=token, live_id=req.live_id, difficulty=req.select_difficulty)
+    room_id = model.create_room(
+        token=token, live_id=req.live_id, difficulty=req.select_difficulty
+    )
     return RoomID(room_id=room_id)
 
 
@@ -111,3 +113,20 @@ def list(req: RoomListRequest) -> RoomListResponse:
     print("Room List", req)
     return RoomListResponse(room_info_list=model.get_room_list(live_id=req.live_id))
 
+
+class RoomJoinRequest(StrictBase):
+    room_id: int
+    select_difficulty: int  # LiveDifficulty
+
+
+class RoomJoinResponse(StrictBase):
+    join_room_result: JoinRoomResult
+
+
+@app.post("/room/join")
+def room_join(token: UserToken, req: RoomJoinRequest):
+    print("Room Join Request: ", req)
+    response = model.join_room(
+        token=token, room_id=req.room_id, difficulty=req.select_difficulty
+    )
+    return response

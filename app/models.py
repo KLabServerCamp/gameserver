@@ -63,6 +63,14 @@ class RoomInfo(StrictBase):
     max_user_count: int  # 部屋の最大人数
 
 
+class RoomListRequest(StrictBase):
+    live_id: int = Field(title="ライブID")
+
+
+class RoomListResponse(StrictBase):
+    room_info_list: list[RoomInfo]
+
+
 """
 Exception definitions
 """

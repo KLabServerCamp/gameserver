@@ -68,7 +68,8 @@ def create(token: UserToken, req: models.CreateRoomRequest) -> models.RoomID:
 
 
 @app.post("/room/list")
-def room_list() -> list[models.RoomInfo]:
+def room_list(req: models.RoomListRequest) -> models.RoomListResponse:
     """ルーム作成リクエスト"""
-    print("/room/list")
-    return controllers.get_room_list(0)
+    print("/room/list", req)
+    room_list = controllers.get_room_list(req.live_id)
+    return models.RoomListResponse(room_info_list=room_list)

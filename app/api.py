@@ -69,7 +69,15 @@ def create(token: UserToken, req: models.CreateRoomRequest) -> models.RoomID:
 
 @app.post("/room/list")
 def room_list(req: models.RoomListRequest) -> models.RoomListResponse:
-    """ルーム作成リクエスト"""
+    """ルームリスト取得リクエスト"""
     print("/room/list", req)
     room_list = controllers.get_room_list(req.live_id)
     return models.RoomListResponse(room_info_list=room_list)
+
+
+@app.post("/room/join")
+def join(token: UserToken, req: models.JoinRoomRequest) -> models.JoinRoomResponse:
+    """ルーム入場リクエスト"""
+    print("/room/join", req)
+    join_room_result = controllers.join_room(token, req.room_id, req.select_difficulty)
+    return models.JoinRoomResponse(join_room_result=join_room_result)

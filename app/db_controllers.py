@@ -130,3 +130,64 @@ def get_room_list(live_id: int) -> list[models.RoomInfo]:
     """
     with engine.begin() as conn:
         return _get_room_list(conn, live_id=live_id)
+
+
+def _join_room(
+    conn: Connection, room_id: int, user_id: int, difficulty: models.LiveDifficulty
+) -> models.JoinRoomResult:
+    room_info: models.RoomInfo
+    
+    # TODO: リクエストしたユーザが、既に他の部屋に入場していないか確認する必要がある。
+    
+    # 指定された room_id に該当する room が DB に存在しているか確認します。
+    # FOR UPDATE を追記することで、このクエリ以降、排他処理します。
+    res = conn.execute(
+        text(
+            "SELECT id as room_id, live_id, COALESCE(mem_cnt, 0) as joined_user_count, max_user_count FROM room "
+            "LEFT OUTER JOIN (SELECT room_id, COUNT(*) as mem_cnt FROM room_member GROUP BY room_id) AS mem_cnts "
+            "ON room.id=mem_cnts.room_id "
+            "WHERE room.id=:room_id "
+            "FOR UPDATE"
+        ),
+        parameters={"room_id": room_id},
+    )
+
+    # 存在しない場合、既に解散しているとみなします
+    try:
+        row = res.one()
+    except Exception as e:
+        print(e)
+        return models.JoinRoomResult.Disbanded
+    else:
+        room_info = models.RoomInfo.model_validate(row, from_attributes=True)
+
+    # room_info に基づいて、入場済みメンバー数が定員が超えていないか確認します。
+    if room_info.joined_user_count >= room_info.max_user_count:
+        return models.JoinRoomResult.RoomFull
+
+    conn.execute(
+        text(
+            "INSERT INTO `room_member` (room_id, user_id, selected_difficulty) "
+            "VALUES (:room_id, :user_id, :difficulty)"
+        ),
+        parameters={"room_id": room_id, "user_id": user_id, "difficulty": difficulty.value},
+    )
+
+    return models.JoinRoomResult.Ok
+
+
+def join_room(
+    token: str, room_id: int, difficulty: models.LiveDifficulty
+) -> models.JoinRoomResult:
+    # JoinRoomResult
+    # Ok	1	入場OK
+    # RoomFull	2	満員
+    # Disbanded	3	解散済み
+    # OtherError	4	その他エラー
+    
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            return models.JoinRoomResult.OtherError
+        return _join_room(conn, room_id=room_id, user_id=user.id, difficulty=difficulty)
+    

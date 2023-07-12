@@ -14,6 +14,15 @@ class LiveDifficulty(IntEnum):
     hard = 2
 
 
+class JoinRoomResult(IntEnum):
+    """ルーム入場結果"""
+
+    Ok = 1  # 入場OK
+    RoomFull = 2  # 満員
+    Disbanded = 3  # 解散済み
+    OtherError = 4  # その他エラー
+
+
 """
 Models for requests / responses
 """
@@ -69,6 +78,15 @@ class RoomListRequest(StrictBase):
 
 class RoomListResponse(StrictBase):
     room_info_list: list[RoomInfo]
+
+
+class JoinRoomRequest(BaseModel):
+    room_id: StrictInt
+    select_difficulty: LiveDifficulty
+
+
+class JoinRoomResponse(StrictBase):
+    join_room_result: JoinRoomResult
 
 
 """

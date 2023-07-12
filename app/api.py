@@ -1,11 +1,10 @@
 import fastapi.exception_handlers
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
-from pydantic import Field
 
-from . import model
+from . import db_controllers as controllers
+from . import models
 from .auth import UserToken
-from .model import StrictBase, LiveDifficulty
 
 app = FastAPI()
 
@@ -13,7 +12,7 @@ app = FastAPI()
 # リクエストのvalidation errorをprintする
 # このエラーが出たら、リクエストのModel定義が間違っている
 @app.exception_handler(RequestValidationError)
-async def handle_request_validation_error(req, exc):
+async def handle_request_validation_error(req: Request, exc: RequestValidationError):
     print("Request validation error")
     print(f"{req.url=}\n{exc.body=}\n{exc=!s}")
     return await fastapi.exception_handlers.request_validation_exception_handler(
@@ -23,34 +22,25 @@ async def handle_request_validation_error(req, exc):
 
 # Sample API
 @app.get("/")
-async def root() -> dict:
+async def root() -> dict[str, str]:
     return {"message": "Hello World"}
 
 
 # User APIs
 
 
-class UserCreateRequest(StrictBase):
-    user_name: str = Field(title="ユーザー名")
-    leader_card_id: int = Field(title="リーダーカードのID")
-
-
-class UserCreateResponse(StrictBase):
-    user_token: str
-
-
 @app.post("/user/create")
-def user_create(req: UserCreateRequest) -> UserCreateResponse:
+def user_create(req: models.UserCreateRequest) -> models.UserCreateResponse:
     """新規ユーザー作成"""
-    token = model.create_user(req.user_name, req.leader_card_id)
-    return UserCreateResponse(user_token=token)
+    token = controllers.create_user(req.user_name, req.leader_card_id)
+    return models.UserCreateResponse(user_token=token)
 
 
 # 認証動作確認用のサンプルAPI
 # ゲームアプリは使わない
 @app.get("/user/me")
-def user_me(token: UserToken) -> model.SafeUser:
-    user = model.get_user_by_token(token)
+def user_me(token: UserToken) -> models.SafeUser:
+    user = controllers.get_user_by_token(token)
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
     # print(f"user_me({token=}, {user=})")
@@ -58,33 +48,20 @@ def user_me(token: UserToken) -> model.SafeUser:
     return user
 
 
-class Empty(StrictBase):
-    pass
-
-
 @app.post("/user/update")
-def update(req: UserCreateRequest, token: UserToken) -> Empty:
+def update(req: models.UserCreateRequest, token: UserToken) -> models.Empty:
     """Update user attributes"""
     # print(req)
-    model.update_user(token, req.user_name, req.leader_card_id)
-    return Empty()
+    controllers.update_user(token, req.user_name, req.leader_card_id)
+    return models.Empty()
 
 
 # Room APIs
 
 
-class RoomID(StrictBase):
-    room_id: int
-
-
-class CreateRoomRequest(StrictBase):
-    live_id: int
-    select_difficulty: LiveDifficulty
-
-
 @app.post("/room/create")
-def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
+def create(token: UserToken, req: models.CreateRoomRequest) -> models.RoomID:
     """ルーム作成リクエスト"""
     print("/room/create", req)
-    room_id = model.create_room(token, req.live_id, req.select_difficulty)
-    return RoomID(room_id=room_id)
+    room_id = controllers.create_room(token, req.live_id, req.select_difficulty)
+    return models.RoomID(room_id=room_id)

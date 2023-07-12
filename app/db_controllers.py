@@ -1,30 +1,13 @@
 import uuid
-from enum import IntEnum
 
-from pydantic import BaseModel, ConfigDict
 from sqlalchemy import Connection, text
-from sqlalchemy.exc import NoResultFound
 
+from . import models
 from .db import engine
 
-
-class StrictBase(BaseModel):
-    """DBを利用するためのBaseModel"""
-
-    # strictモードを有効にする
-    model_config = ConfigDict(strict=True)
-
-
-class InvalidToken(Exception):
-    """指定されたtokenが不正だったときに投げるエラー"""
-
-
-class SafeUser(StrictBase):
-    """token を含まないUser"""
-
-    id: int
-    name: str
-    leader_card_id: int
+"""
+User controllers
+"""
 
 
 def create_user(name: str, leader_card_id: int) -> str:
@@ -45,11 +28,9 @@ def create_user(name: str, leader_card_id: int) -> str:
     return token
 
 
-def _get_user_by_token(conn: Connection, token: str) -> SafeUser | None:
+def _get_user_by_token(conn: Connection, token: str) -> models.SafeUser | None:
     res = conn.execute(
-        text(
-            "select `id`, `name`, `leader_card_id` from `user` where `token`=:token"
-        ),
+        text("select `id`, `name`, `leader_card_id` from `user` where `token`=:token"),
         parameters={"token": token},
     )
     try:
@@ -58,16 +39,16 @@ def _get_user_by_token(conn: Connection, token: str) -> SafeUser | None:
         print(e)
         return None
     else:
-        return SafeUser.model_validate(row, from_attributes=True)
+        return models.SafeUser.model_validate(row, from_attributes=True)
 
 
-def get_user_by_token(token: str) -> SafeUser | None:
+def get_user_by_token(token: str) -> models.SafeUser | None:
     with engine.begin() as conn:
         return _get_user_by_token(conn, token)
 
 
 def _update_user(conn: Connection, token: str, name: str, leader_card_id: int) -> None:
-    res = conn.execute(
+    conn.execute(
         text(
             "update `user` set name=:name, leader_card_id=:leader_card_id "
             "where `token`=:token"
@@ -85,18 +66,31 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
         _update_user(conn, token, name, leader_card_id)
 
 
-# IntEnum の使い方の例
-class LiveDifficulty(IntEnum):
-    """難易度"""
-
-    normal = 1
-    hard = 2
+"""
+Room controllers
+"""
 
 
-def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
+def _create_room(
+    conn: Connection,
+    token: str,
+    live_id: int,
+    difficulty: models.LiveDifficulty,
+    owner_id: int,
+) -> int:
+    result = conn.execute(
+        text("INSERT INTO `room` (live_id, owner_id)" " VALUES (:live_id, :owner_id)"),
+        {"live_id": live_id, "owner_id": owner_id},
+    )
+    return result.lastrowid
+
+
+def create_room(token: str, live_id: int, difficulty: models.LiveDifficulty) -> int:
     """部屋を作ってroom_idを返します"""
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
         if user is None:
-            raise InvalidToken
-        # TODO: 実装
+            raise models.InvalidToken
+        room_id = _create_room(conn, token, live_id, difficulty, user.id)
+        print(f"create_room(): {room_id=}")
+        return room_id

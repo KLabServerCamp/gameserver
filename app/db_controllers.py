@@ -1,4 +1,5 @@
 import uuid
+from typing import Any
 
 from sqlalchemy import Connection, text
 
@@ -98,13 +99,19 @@ def create_room(token: str, live_id: int, difficulty: models.LiveDifficulty) -> 
 
 def _get_room_list(conn: Connection, live_id: int) -> list[models.RoomInfo]:
     room_infos: list[models.RoomInfo] = []
-    results = conn.execute(
-        text(
-            "SELECT id as room_id, live_id, COALESCE(mem_cnt, 0) as joined_user_count, max_user_count FROM room "
-            "LEFT OUTER JOIN (SELECT room_id, COUNT(*) as mem_cnt FROM room_member GROUP BY room_id) AS mem_cnts "
-            "ON room.id=mem_cnts.room_id"
-        ),
+
+    query_text: str = (
+        "SELECT id as room_id, live_id, COALESCE(mem_cnt, 0) as joined_user_count, max_user_count FROM room "
+        "LEFT OUTER JOIN (SELECT room_id, COUNT(*) as mem_cnt FROM room_member GROUP BY room_id) AS mem_cnts "
+        "ON room.id=mem_cnts.room_id"
     )
+    query_params: dict[str, Any] = {}
+
+    if live_id != 0:
+        query_text += " WHERE room.live_id=:live_id"
+        query_params["live_id"] = live_id
+
+    results = conn.execute(text(query_text), parameters=query_params)
     for result in results:
         room_info = models.RoomInfo.model_validate(result, from_attributes=True)
         room_infos.append(room_info)
@@ -122,4 +129,4 @@ def get_room_list(live_id: int) -> list[models.RoomInfo]:
         room_info_list (list[RoomInfo]): 入場可能なルーム一覧
     """
     with engine.begin() as conn:
-        return _get_room_list(conn, live_id=0)
+        return _get_room_list(conn, live_id=live_id)

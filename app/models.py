@@ -89,6 +89,10 @@ class JoinRoomResponse(StrictBase):
     join_room_result: JoinRoomResult
 
 
+class LeaveRoomRequest(StrictBase):
+    room_id: int
+
+
 """
 Exception definitions
 """

@@ -81,3 +81,11 @@ def join(token: UserToken, req: models.JoinRoomRequest) -> models.JoinRoomRespon
     print("/room/join", req)
     join_room_result = controllers.join_room(token, req.room_id, req.select_difficulty)
     return models.JoinRoomResponse(join_room_result=join_room_result)
+
+
+@app.post("/room/leave")
+def leave(token: UserToken, req: models.LeaveRoomRequest) -> models.Empty:
+    """ルーム退場リクエスト"""
+    print("/room/leave", req)
+    controllers.leave_room(token, req.room_id)
+    return models.Empty()

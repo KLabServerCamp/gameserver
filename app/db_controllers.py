@@ -136,9 +136,9 @@ def _join_room(
     conn: Connection, room_id: int, user_id: int, difficulty: models.LiveDifficulty
 ) -> models.JoinRoomResult:
     room_info: models.RoomInfo
-    
+
     # TODO: リクエストしたユーザが、既に他の部屋に入場していないか確認する必要がある。
-    
+
     # 指定された room_id に該当する room が DB に存在しているか確認します。
     # FOR UPDATE を追記することで、このクエリ以降、排他処理します。
     res = conn.execute(
@@ -170,7 +170,11 @@ def _join_room(
             "INSERT INTO `room_member` (room_id, user_id, selected_difficulty) "
             "VALUES (:room_id, :user_id, :difficulty)"
         ),
-        parameters={"room_id": room_id, "user_id": user_id, "difficulty": difficulty.value},
+        parameters={
+            "room_id": room_id,
+            "user_id": user_id,
+            "difficulty": difficulty.value,
+        },
     )
 
     return models.JoinRoomResult.Ok
@@ -184,10 +188,24 @@ def join_room(
     # RoomFull	2	満員
     # Disbanded	3	解散済み
     # OtherError	4	その他エラー
-    
+
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
         if user is None:
             return models.JoinRoomResult.OtherError
         return _join_room(conn, room_id=room_id, user_id=user.id, difficulty=difficulty)
-    
+
+
+def _leave_room(conn: Connection, room_id: int, user_id: int) -> None:
+    conn.execute(
+        text("DELETE FROM `room_member` WHERE room_id=:room_id AND user_id=:user_id"),
+        parameters={"room_id": room_id, "user_id": user_id},
+    )
+
+
+def leave_room(token: str, room_id: int) -> None:
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise models.InvalidToken
+        _leave_room(conn, room_id=room_id, user_id=user.id)

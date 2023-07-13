@@ -163,6 +163,24 @@ def room_start(token: UserToken, req: RoomStartRequest):
     return {}
 
 
+class RoomLiveEndRequest(StrictBase):
+    room_id: int
+    judge_count_list: list[int]  # 各判定数
+    score: int
+
+
+@app.post("/room/end")
+def room_end(token: UserToken, req: RoomLiveEndRequest):
+    print("Room Live End")
+    model.room_end(
+        token=token,
+        room_id=req.room_id,
+        judge_count_list=req.judge_count_list,
+        score=req.score,
+    )
+    return {}
+
+
 class RoomLeaveRequest(StrictBase):
     room_id: int
 

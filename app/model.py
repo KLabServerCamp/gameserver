@@ -371,6 +371,43 @@ def room_start(token: str, room_id: int) -> None:
         _room_start(conn, user, room_id=room_id)
 
 
+def _room_end(
+    conn, user: SafeUser, room_id: int, judge_count_list: list[int], score: int
+) -> None:
+    # room_member にscoreなどを保存する
+    conn.execute(
+        text(
+            "UPDATE `room_member`"
+            "SET "
+            "`score`=:score, "
+            "`judge`=:judge "
+            " WHERE `room_id`=:room_id"
+            " AND `user_id`=:user_id"
+        ),
+        {
+            "score": score,
+            "judge": ",".join(map(str, judge_count_list)),
+            "room_id": room_id,
+            "user_id": user.id,
+        },
+    )
+
+
+def room_end(token: str, room_id: int, judge_count_list: list[int], score: int) -> None:
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token=token)
+        if user is None:
+            raise InvalidToken
+
+        _room_end(
+            conn=conn,
+            user=user,
+            room_id=room_id,
+            judge_count_list=judge_count_list,
+            score=score,
+        )
+
+
 def _room_leave(conn, user: SafeUser, room_id: int):
     # User を退出させる
     conn.execute(

@@ -422,22 +422,63 @@ def _room_result(conn, room_id) -> list[ResultUser]:
             "room_id": room_id,
         },
     )
-    result_user_list: list[ResultUser] = []
 
-    for row in result.all():
+    result_user_list: list[ResultUser] = []
+    rows = result.all()
+    print("RESULT ROWS LENGTH: ", len(rows))
+
+    for row in rows:
+        print(row)
+        score = row.score
+        judge = row.judge
+        print("score: ", score)
+        if score is None:
+            continue
+
         user = ResultUser(
             user_id=row.user_id,
-            judge_count_list=list(map(int, row.judge.split(","))),
-            score=row.score,
+            judge_count_list=list(map(int, judge.split(","))),
+            score=score,
         )
         result_user_list.append(user)
 
-    return result_user_list
+    print("RESULT USERLIST", result_user_list)
+
+    if len(result_user_list) < len(rows):
+        return []
+    else:
+        return result_user_list
+
+
+def _room_dissolution(conn, room_id):
+    conn.execute(
+        text("UPDATE `room`" " SET `status`=:status" " WHERE `room_id`=:room_id"),
+        {"status": WaitRoomStatus.Dissolution.value, "room_id": room_id},
+    )
+
+    conn.execute(
+        text("DELETE FROM `room`" " WHERE `room_id`=:room_id" " AND `status`=:status"),
+        {
+            "room_id": room_id,
+            "status": WaitRoomStatus.Dissolution.value,
+        },
+    )
+
+    conn.execute(
+        text("DELETE FROM `room_member`" " WHERE `room_id`=:room_id"),
+        {"room_id": room_id},
+    )
 
 
 def room_result(room_id: int) -> list[ResultUser]:
     with engine.begin() as conn:
-        return _room_result(conn, room_id=room_id)
+        response = _room_result(conn, room_id=room_id)
+
+    if len(response) != 0:
+        with engine.begin() as conn:
+            _room_dissolution(conn, room_id=room_id)
+
+    return response
 
 
 def _room_leave(conn, user: SafeUser, room_id: int):
@@ -445,8 +486,8 @@ def _room_leave(conn, user: SafeUser, room_id: int):
     conn.execute(
         text(
             "DELETE FROM `room_member`"
-            " WHERE room_id=:room_id"
-            " AND user_id=:user_id"
+            " WHERE `room_id`=:room_id"
+            " AND `user_id`=:user_id"
         ),
         {"room_id": room_id, "user_id": user.id},
     )
@@ -465,8 +506,16 @@ def _room_leave(conn, user: SafeUser, room_id: int):
         },
     )
 
+    # もしownerなら、部屋のメンバーを退出させる
     conn.execute(
-        text("DELETE FROM `room` where `room_id` = :room_id AND `owner_id`=:user_id"),
+        text(
+            "DELETE `room`, `room_member`"
+            " FROM `room`"
+            " JOIN `room_member`"
+            " ON `room`.`room_id`=:room_id"
+            " AND `room_member`.`room_id`=:room_id"
+            " WHERE `room`.`owner_id`=:user_id"
+        ),
         {"room_id": room_id, "user_id": user.id},
     )
 

@@ -137,7 +137,8 @@ class ResultUser(StrictBase):
     score: int  # 獲得スコア
 
 
-
+class ResultRoomResponse(StrictBase):
+    result_user_list: list[ResultUser]  # 自身を含む各ユーザーの結果。※全員揃っていない待機中は[]が返却される想定
 
 
 """

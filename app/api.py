@@ -100,17 +100,18 @@ def start(token: UserToken, req: models.RoomID) -> models.Empty:
 @app.post("/room/end")
 def end(token: UserToken, req: models.EndRoomRequest) -> models.Empty:
     """ルームのライブ終了時リクエスト。ゲーム終わったら各人が叩く。"""
-    #controllers.end_room(token, req.room_id, req.score, *req.judge_count_list)
+    controllers.end_room(token, req.room_id, req.score, *req.judge_count_list)
     return models.Empty()
 
 
 @app.post("/room/result")
-def result(token: UserToken, req) -> models.Empty:
+def result(token: UserToken, req: models.RoomID) -> models.ResultRoomResponse:
     """
     ルームのライブ終了後。end 叩いたあとにこれをポーリングする。
     クライアントはn秒間隔で投げる想定。
     """
-    return models.Empty()
+    result_users = controllers.result_room(token, req.room_id)
+    return models.ResultRoomResponse(result_user_list=result_users)
 
 
 @app.post("/room/leave")

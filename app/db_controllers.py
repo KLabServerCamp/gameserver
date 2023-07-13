@@ -350,6 +350,63 @@ def end_room(
         )
 
 
+def _result_room(conn: Connection, room_id: int) -> list[models.ResultUser]:
+    result_users: list[models.ResultUser] = []
+
+    # まだプレイ中のユーザ数を確認します。
+    # 1人以上いた場合は、空のリストを返します。
+    res = conn.execute(
+        text(
+            "SELECT SUM(1-is_game_finished) AS unfinished_users "
+            "FROM room_member "
+            "WHERE room_id=:room_id AND is_gaming=1"
+        ),
+        parameters={"room_id": room_id},
+    )
+    try:
+        status = res.one()
+        if status.unfinished_users > 0:
+            return []
+    except Exception as e:
+        print(e)
+        return []
+
+    results = conn.execute(
+        text(
+            "SELECT user_id, latest_score, "
+            "latest_num_perfect, latest_num_great, latest_num_good, "
+            "latest_num_bad, latest_num_miss "
+            "FROM room_member "
+            "WHERE room_id=:room_id AND is_gaming=1"
+        ),
+        parameters={"room_id": room_id},
+    )
+
+    for result in results:
+        result_user = models.ResultUser(
+            user_id=result.user_id,
+            score=result.latest_score,
+            judge_count_list=[
+                result.latest_num_perfect,
+                result.latest_num_great,
+                result.latest_num_good,
+                result.latest_num_bad,
+                result.latest_num_miss,
+            ],
+        )
+        result_users.append(result_user)
+
+    return result_users
+
+
+def result_room(token: str, room_id: int) -> list[models.ResultUser]:
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise models.InvalidToken
+        return _result_room(conn, room_id=room_id)
+
+
 def _leave_room(conn: Connection, room_id: int, user_id: int) -> None:
     conn.execute(
         text("DELETE FROM `room_member` WHERE room_id=:room_id AND user_id=:user_id"),

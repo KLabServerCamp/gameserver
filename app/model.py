@@ -425,13 +425,10 @@ def _room_result(conn, room_id) -> list[ResultUser]:
 
     result_user_list: list[ResultUser] = []
     rows = result.all()
-    print("RESULT ROWS LENGTH: ", len(rows))
 
     for row in rows:
-        print(row)
         score = row.score
         judge = row.judge
-        print("score: ", score)
         if score is None:
             continue
 
@@ -441,8 +438,6 @@ def _room_result(conn, room_id) -> list[ResultUser]:
             score=score,
         )
         result_user_list.append(user)
-
-    print("RESULT USERLIST", result_user_list)
 
     if len(result_user_list) < len(rows):
         return []

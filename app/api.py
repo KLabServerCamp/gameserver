@@ -148,7 +148,19 @@ def room_wait(token: UserToken, req: RoomWaitRequest) -> RoomWaitResponse:
     print("Room Wait Request: ", req)
 
     res = model.room_wait(token=token, room_id=req.room_id)
+    print("RESPONCE", res)
     return RoomWaitResponse(status=res[0], room_user_list=res[1])
+
+
+class RoomStartRequest(StrictBase):
+    room_id: int
+
+
+@app.post("/room/start")
+def room_start(token: UserToken, req: RoomStartRequest):
+    print("Room Live Start")
+    model.room_start(token=token, room_id=req.room_id)
+    return {}
 
 
 class RoomLeaveRequest(StrictBase):

@@ -354,6 +354,23 @@ def room_wait(token: str, room_id: int) -> tuple[WaitRoomStatus, list[RoomUser]]
         return _room_wait(conn, user=user, room_id=room_id)
 
 
+def _room_start(conn, user: SafeUser, room_id: int):
+    # 部屋のオーナーなら部屋のステータスを更新する
+    conn.execute(
+        text("UPDATE `room`" " SET `status`=:status" " WHERE `owner_id`=:user_id"),
+        {"status": WaitRoomStatus.LiveStart.value, "user_id": user.id},
+    )
+
+
+def room_start(token: str, room_id: int) -> None:
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token=token)
+        if user is None:
+            raise InvalidToken
+
+        _room_start(conn, user, room_id=room_id)
+
+
 def _room_leave(conn, user: SafeUser, room_id: int):
     # User を退出させる
     conn.execute(

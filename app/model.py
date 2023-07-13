@@ -408,6 +408,38 @@ def room_end(token: str, room_id: int, judge_count_list: list[int], score: int) 
         )
 
 
+def _room_result(conn, room_id) -> list[ResultUser]:
+    # room_memberからもろもろ持ってくる
+
+    result = conn.execute(
+        text(
+            "SELECT "
+            "`user_id`, `judge`, `score`"
+            " FROM `room_member`"
+            " WHERE `room_id`=:room_id"
+        ),
+        {
+            "room_id": room_id,
+        },
+    )
+    result_user_list: list[ResultUser] = []
+
+    for row in result.all():
+        user = ResultUser(
+            user_id=row.user_id,
+            judge_count_list=list(map(int, row.judge.split(","))),
+            score=row.score,
+        )
+        result_user_list.append(user)
+
+    return result_user_list
+
+
+def room_result(room_id: int) -> list[ResultUser]:
+    with engine.begin() as conn:
+        return _room_result(conn, room_id=room_id)
+
+
 def _room_leave(conn, user: SafeUser, room_id: int):
     # User を退出させる
     conn.execute(

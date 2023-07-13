@@ -181,6 +181,21 @@ def room_end(token: UserToken, req: RoomLiveEndRequest):
     return {}
 
 
+class RoomResultRequest(StrictBase):
+    room_id: int
+
+
+class RoomResultResponse(StrictBase):
+    result_user_list: list[ResultUser]
+
+
+@app.post("/room/result")
+def room_result(req: RoomResultRequest) -> RoomResultResponse:
+    print("ROOM RESULT")
+    res = model.room_result(room_id=req.room_id)
+    return RoomResultResponse(result_user_list=res)
+
+
 class RoomLeaveRequest(StrictBase):
     room_id: int
 

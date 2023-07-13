@@ -94,6 +94,8 @@ def create_room(token: str, live_id: int, difficulty: models.LiveDifficulty) -> 
             raise models.InvalidToken
         room_id = _create_room(conn, token, live_id, difficulty, user.id)
         print(f"create_room(): {room_id=}")
+
+        _join_room(conn, room_id=room_id, user_id=user.id, difficulty=difficulty)
         return room_id
 
 

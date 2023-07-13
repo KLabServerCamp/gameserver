@@ -1,6 +1,6 @@
 from enum import IntEnum
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
 
 """
 Enum definitions

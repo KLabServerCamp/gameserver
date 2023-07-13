@@ -1,7 +1,6 @@
 import uuid
 from typing import Any
 
-from pydantic import model_validator
 from sqlalchemy import Connection, text
 
 from . import models
@@ -219,11 +218,9 @@ def _wait_room(
 
     # 自分の状態がゲーム開始になっているか (room_member.is_gaming=1) 確認します。
     # このパラメータは、ホストがライブ開始をリクエストすると1になります。
-    # もしこのパラメータを確認できない場合は、部屋が解散されたとみなして、処理します。
+    # もしこのパラメータ自体を確認できない場合は、部屋が解散されたとみなして、処理します。
     res = conn.execute(
-        text(
-            "select is_gaming from room_member where user_id=:user_id"
-        ),
+        text("SELECT is_gaming FROM room_member WHERE user_id=:user_id"),
         parameters={"user_id": user_id},
     )
     try:
@@ -268,6 +265,25 @@ def wait_room(
         if user is None:
             raise models.InvalidToken
         return _wait_room(conn, user.id, room_id)
+
+
+def _start_room(conn: Connection, room_id: int) -> None:
+    conn.execute(
+        text(
+            "UPDATE `room_member` "
+            "SET is_gaming=1, is_game_finished=0 "
+            "WHERE `room_id`=:room_id"
+        ),
+        parameters={"room_id": room_id},
+    )
+
+
+def start_room(token: str, room_id: int) -> None:
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise models.InvalidToken
+        _start_room(conn, room_id)
 
 
 def _leave_room(conn: Connection, room_id: int, user_id: int) -> None:

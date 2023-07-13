@@ -91,8 +91,9 @@ def wait(token: UserToken, req: models.RoomID) -> models.WaitRoomResponse:
 
 
 @app.post("/room/start")
-def start(token: UserToken, req) -> models.Empty:
+def start(token: UserToken, req: models.RoomID) -> models.Empty:
     """ルームのライブ開始。部屋のオーナーがたたく。"""
+    controllers.start_room(token, room_id=req.room_id)
     return models.Empty()
 
 

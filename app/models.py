@@ -86,9 +86,15 @@ class RoomListResponse(StrictBase):
     room_info_list: list[RoomInfo]
 
 
-class JoinRoomRequest(BaseModel):
-    room_id: StrictInt
+class JoinRoomRequest(StrictBase):
+    room_id: int
     select_difficulty: LiveDifficulty
+    
+    @field_validator('select_difficulty', mode='before')
+    def value_to_enum(cls, v):
+        if isinstance(v, int):
+            return LiveDifficulty(v)
+        return v
 
 
 class JoinRoomResponse(StrictBase):

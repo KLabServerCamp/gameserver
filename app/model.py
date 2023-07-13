@@ -130,7 +130,7 @@ class ResultUser(StrictBase):
 
 def _create_room(conn, live_id: int, difficulty: LiveDifficulty, user: SafeUser) -> int:
     # 作成
-    conn.execute(
+    result = conn.execute(
         text(
             "INSERT INTO `room` (live_id, owner_id, status) "
             "VALUES (:live_id, :owner_id, :status)"
@@ -142,16 +142,8 @@ def _create_room(conn, live_id: int, difficulty: LiveDifficulty, user: SafeUser)
         },
     )
 
-    # IDを取りたい
-    result = conn.execute(
-        text(
-            "SELECT `room_id` FROM `room`"
-            " WHERE `owner_id`=:owner_id AND `status` NOT IN (:status)"
-        ),
-        {"owner_id": user.id, "status": WaitRoomStatus.LiveStart.value},
-    )
-
-    row = result.one()
+    # IDを取りたい (https://github.com/KLabServerCamp/gameserver/pull/35#discussion_r1260932496)
+    room_id = result.lastrowid
 
     # UserをRoomに追加する
     conn.execute(
@@ -160,13 +152,13 @@ def _create_room(conn, live_id: int, difficulty: LiveDifficulty, user: SafeUser)
             "VALUES (:room_id, :user_id, :select_difficulty)"
         ),
         {
-            "room_id": row.room_id,
+            "room_id": room_id,
             "user_id": user.id,
             "select_difficulty": difficulty,
         },
     )
 
-    return row
+    return room_id
 
 
 def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
@@ -183,49 +175,55 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
             user=user,
         )
         print("ROOOM:", room_id)
-        return room_id.room_id
+        return room_id
 
 
-def _get_room(conn, room_id: int, live_id: int) -> RoomInfo:
-    res = conn.execute(
-        text("SELECT `user_id` FROM `room_member`" " WHERE `room_id`=:room_id"),
-        {"room_id": room_id},
-    )
-
+def _get_room(conn, row) -> RoomInfo:
     room = RoomInfo(
-        room_id=room_id,
-        live_id=live_id,
-        joined_user_count=len(res.all()),
+        room_id=row.room_id,
+        live_id=row.live_id,
+        joined_user_count=row.juc,
         max_user_count=4,
     )
     return room
 
 
 def _get_room_list(conn, live_id: int) -> list[RoomInfo]:
+    # WaitingRoomStatus.WaitingなRoomのみをSELECT
+    # https://github.com/KLabServerCamp/gameserver/pull/35#discussion_r1260935742
     if live_id == 0:
         result = conn.execute(
-            text("SELECT `room_id`, `live_id`, `status` FROM `room`"), {}
+            text(
+                "SELECT `r`.*, count(`rm`.`room_id`) AS juc"
+                " FROM `room` AS r"
+                " JOIN `room_member` AS rm"
+                " ON `r`.`room_id`=`rm`.`room_id`"
+                " WHERE `r`.`status`=:status"
+                " GROUP BY `r`.`room_id`"
+            ),
+            {"status": WaitRoomStatus.Waiting.value},
         )
     else:
         result = conn.execute(
             text(
-                "SELECT `room_id`, `live_id`, `status` FROM `room`"
-                " WHERE `live_id`=:live_id"
+                "SELECT `r`.*, count(`rm`.`room_id`) AS juc"
+                " FROM `room` AS r"
+                " JOIN `room_member` AS rm"
+                " ON `r`.`room_id`=`rm`.`room_id`"
+                " WHERE `r`.`live_id`=:live_id"
+                " AND `r`.`status`=:status"
+                " GROUP BY `r`.`room_id`"
             ),
-            {"live_id": live_id},
+            {"live_id": live_id, "status": WaitRoomStatus.Waiting.value},
         )
 
-    try:
-        rows = result.all()
-    except NoResultFound:
-        return []
-
+    rows = result.all()
     room_list = []
 
+    # N+1をしないように上のSQLを修正
+    # https://github.com/KLabServerCamp/gameserver/pull/35#discussion_r1260934358
     for row in rows:
-        print("ROW===")
-        print(row)
-        room = _get_room(conn, row.room_id, row.live_id)
+        room = _get_room(conn, row)
         room_list.append(room)
 
     return room_list
@@ -354,3 +352,42 @@ def room_wait(token: str, room_id: int) -> tuple[WaitRoomStatus, list[RoomUser]]
         if user is None:
             raise InvalidToken
         return _room_wait(conn, user=user, room_id=room_id)
+
+
+def _room_leave(conn, user: SafeUser, room_id: int):
+    # User を退出させる
+    conn.execute(
+        text(
+            "DELETE FROM `room_member`"
+            " WHERE room_id=:room_id"
+            " AND user_id=:user_id"
+        ),
+        {"room_id": room_id, "user_id": user.id},
+    )
+
+    # もしownerだったら部屋を解散状態にしてみる
+    conn.execute(
+        text(
+            "UPDATE `room`"
+            " SET `status`=:status"
+            " WHERE room_id=:room_id AND `owner_id`=:user_id"
+        ),
+        {
+            "status": WaitRoomStatus.Dissolution.value,
+            "room_id": room_id,
+            "user_id": user.id,
+        },
+    )
+
+    conn.execute(
+        text("DELETE FROM `room` where `room_id` = :room_id AND `owner_id`=:user_id"),
+        {"room_id": room_id, "user_id": user.id},
+    )
+
+
+def room_leave(token: str, room_id: int):
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn=conn, token=token)
+        if user is None:
+            raise InvalidToken
+        _room_leave(conn, user=user, room_id=room_id)

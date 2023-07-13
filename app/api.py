@@ -1,3 +1,5 @@
+from typing import Any
+
 import fastapi.exception_handlers
 from fastapi import FastAPI, HTTPException, status
 from fastapi.exceptions import RequestValidationError
@@ -147,3 +149,14 @@ def room_wait(token: UserToken, req: RoomWaitRequest) -> RoomWaitResponse:
 
     res = model.room_wait(token=token, room_id=req.room_id)
     return RoomWaitResponse(status=res[0], room_user_list=res[1])
+
+
+class RoomLeaveRequest(StrictBase):
+    room_id: int
+
+
+@app.post("/room/leave")
+def room_leave(token: UserToken, req: RoomLeaveRequest):
+    print("Leave")
+    model.room_leave(token=token, room_id=req.room_id)
+    return {}

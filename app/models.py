@@ -1,6 +1,14 @@
 from enum import IntEnum
 
-from pydantic import BaseModel, field_validator, ConfigDict, Field, StrictInt, StrictStr
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictInt,
+    StrictStr,
+    conlist,
+    field_validator,
+)
 
 """
 Enum definitions
@@ -121,14 +129,8 @@ class WaitRoomResponse(BaseModel):
 
 class EndRoomRequest(StrictBase):
     room_id: int
-    judge_count_list: list[int]
+    judge_count_list: conlist(int, min_length=5, max_length=5)
     score: int
-    
-    @field_validator('judge_count_list')
-    def confirm_judge_count_list_length(cls, v):
-        if len(v) != 5:
-            raise ValueError('judge_count_list must contain five elements perfect, great, good, bad and miss')
-        return v
 
 
 class ResultUser(StrictBase):

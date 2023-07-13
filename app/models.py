@@ -1,6 +1,6 @@
 from enum import IntEnum
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr
+from pydantic import BaseModel, field_validator, ConfigDict, Field, StrictInt, StrictStr
 
 """
 Enum definitions
@@ -119,16 +119,25 @@ class WaitRoomResponse(BaseModel):
     room_user_list: list[RoomUser]  # ルームにいるプレイヤー一覧
 
 
+class EndRoomRequest(StrictBase):
+    room_id: int
+    judge_count_list: list[int]
+    score: int
+    
+    @field_validator('judge_count_list')
+    def confirm_judge_count_list_length(cls, v):
+        if len(v) != 5:
+            raise ValueError('judge_count_list must contain five elements perfect, great, good, bad and miss')
+        return v
+
+
 class ResultUser(StrictBase):
     user_id: int  # ユーザー識別子
     judge_count_list: list[int]  # 各判定数（良い判定から昇順）
     score: int  # 獲得スコア
 
 
-class EndRoomRequest(StrictBase):
-    room_id: int
-    judge_count_list: list[int]
-    score: int
+
 
 
 """

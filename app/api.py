@@ -98,8 +98,12 @@ def start(token: UserToken, req: models.RoomID) -> models.Empty:
 
 
 @app.post("/room/end")
-def end(token: UserToken, req) -> models.Empty:
+def end(token: UserToken, req: models.EndRoomRequest) -> models.Empty:
     """ルームのライブ終了時リクエスト。ゲーム終わったら各人が叩く。"""
+    # judge_count_list が 5要素でなければエラー
+    if len(req.judge_count_list) != 5:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST)
+    controllers.end_room(token, req.room_id, req.score, *req.judge_count_list)
     return models.Empty()
 
 

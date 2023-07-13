@@ -119,6 +119,12 @@ class ResultUser(StrictBase):
     score: int  # 獲得スコア
 
 
+class EndRoomRequest(StrictBase):
+    room_id: int
+    judge_count_list: list[int]
+    score: int
+
+
 """
 Exception definitions
 """

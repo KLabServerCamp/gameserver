@@ -286,6 +286,70 @@ def start_room(token: str, room_id: int) -> None:
         _start_room(conn, room_id)
 
 
+def _end_room(
+    conn: Connection,
+    user_id: int,
+    room_id: int,
+    score: int,
+    n_perfects: int,
+    n_greats: int,
+    n_goods: int,
+    n_bads: int,
+    n_misses: int,
+) -> None:
+    conn.execute(
+        text(
+            "UPDATE `room_member` "
+            "SET "
+            "is_game_finished=1, "
+            "latest_score=:latest_score, "
+            "latest_num_perfect=:n_perfects, "
+            "latest_num_great=:n_greats, "
+            "latest_num_good=:n_goods, "
+            "latest_num_bad=:n_bads, "
+            "latest_num_miss=:n_misses "
+            "WHERE `room_id`=:room_id AND `user_id`=:user_id"
+        ),
+        parameters={
+            "user_id": user_id,
+            "room_id": room_id,
+            "latest_score": score,
+            "n_perfects": n_perfects,
+            "n_greats": n_greats,
+            "n_goods": n_goods,
+            "n_bads": n_bads,
+            "n_misses": n_misses,
+        },
+    )
+
+
+def end_room(
+    token: str,
+    room_id: int,
+    score: int,
+    n_perfects: int,
+    n_greats: int,
+    n_goods: int,
+    n_bads: int,
+    n_misses: int,
+) -> None:
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise models.InvalidToken
+        _end_room(
+            conn=conn,
+            user_id=user.id,
+            room_id=room_id,
+            score=score,
+            n_perfects=n_perfects,
+            n_greats=n_greats,
+            n_goods=n_goods,
+            n_bads=n_bads,
+            n_misses=n_misses,
+        )
+
+
 def _leave_room(conn: Connection, room_id: int, user_id: int) -> None:
     conn.execute(
         text("DELETE FROM `room_member` WHERE room_id=:room_id AND user_id=:user_id"),

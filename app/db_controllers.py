@@ -1,6 +1,7 @@
 import uuid
 from typing import Any
 
+from pydantic import model_validator
 from sqlalchemy import Connection, text
 
 from . import models
@@ -137,7 +138,7 @@ def _join_room(
 ) -> models.JoinRoomResult:
     room_info: models.RoomInfo
 
-    # TODO: リクエストしたユーザが、既に他の部屋に入場していないか確認する必要がある。
+    # TODO: リクエストしたユーザが、既に別の部屋（またはこの部屋）に入場していないか確認する必要がある。
 
     # 指定された room_id に該当する room が DB に存在しているか確認します。
     # FOR UPDATE を追記することで、このクエリ以降、排他処理します。
@@ -167,7 +168,7 @@ def _join_room(
 
     conn.execute(
         text(
-            "INSERT INTO `room_member` (room_id, user_id, selected_difficulty) "
+            "INSERT INTO `room_member` (room_id, user_id, select_difficulty) "
             "VALUES (:room_id, :user_id, :difficulty)"
         ),
         parameters={
@@ -194,6 +195,79 @@ def join_room(
         if user is None:
             return models.JoinRoomResult.OtherError
         return _join_room(conn, room_id=room_id, user_id=user.id, difficulty=difficulty)
+
+
+def _wait_room(
+    conn: Connection, user_id: int, room_id: int
+) -> tuple[models.WaitRoomStatus, list[models.RoomUser]]:
+    # select * from room_member inner join user on room_member.user_id=user.id left outer join (select owner_id from room) as room on room_member.user_id=room.owner_id;
+
+    wait_room_status: models.WaitRoomStatus = models.WaitRoomStatus.Waiting
+    room_users: list[models.RoomUser] = []
+
+    # リクエストされた部屋が存在しているか確認します
+    res = conn.execute(
+        text("SELECT * FROM room WHERE id=:room_id"),
+        parameters={"room_id": room_id},
+    )
+    try:
+        res.one()
+    except Exception as e:
+        print(e)
+        wait_room_status = models.WaitRoomStatus.Dissolution
+        return wait_room_status, room_users
+
+    # 自分の状態がゲーム開始になっているか (room_member.is_gaming=1) 確認します。
+    # このパラメータは、ホストがライブ開始をリクエストすると1になります。
+    # もしこのパラメータを確認できない場合は、部屋が解散されたとみなして、処理します。
+    res = conn.execute(
+        text(
+            "select is_gaming from room_member where user_id=:user_id"
+        ),
+        parameters={"user_id": user_id},
+    )
+    try:
+        status = res.one()
+        if status.is_gaming == 1:
+            wait_room_status = models.WaitRoomStatus.LiveStart
+    except Exception as e:
+        print(e)
+        wait_room_status = models.WaitRoomStatus.Dissolution
+        return wait_room_status, room_users
+
+    # 指定された部屋にいるメンバー一覧を取得します。
+    results = conn.execute(
+        text(
+            "SELECT "
+            "user_id, "
+            "name, "
+            "leader_card_id, "
+            "select_difficulty, "
+            "IF(user_id=:user_id, 1, 0) as is_me, "
+            "IF(ISNULL(owner_id), 0, 1) as is_host "
+            "FROM room_member "
+            "INNER JOIN user ON room_member.user_id=user.id "
+            "LEFT OUTER JOIN (SELECT * FROM room WHERE id=:room_id) AS room ON room_member.user_id=room.owner_id "
+            "WHERE room_id=:room_id"
+        ),
+        parameters={"user_id": user_id, "room_id": room_id},
+    )
+
+    for result in results:
+        room_user = models.RoomUser.model_validate(result, from_attributes=True)
+        room_users.append(room_user)
+
+    return wait_room_status, room_users
+
+
+def wait_room(
+    token: str, room_id: int
+) -> tuple[models.WaitRoomStatus, list[models.RoomUser]]:
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise models.InvalidToken
+        return _wait_room(conn, user.id, room_id)
 
 
 def _leave_room(conn: Connection, room_id: int, user_id: int) -> None:

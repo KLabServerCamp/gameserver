@@ -21,7 +21,7 @@ CREATE TABLE `room` (
   `id` int NOT NULL AUTO_INCREMENT,
   `live_id` int NOT NULL,
   `owner_id` bigint NOT NULL,
-  `max_user_count` int DEFAULT 4,
+  `max_user_count` int NOT NULL DEFAULT 4,
   PRIMARY KEY (`id`)
 );
 
@@ -34,13 +34,19 @@ DROP TABLE IF EXISTS `room_member`;
 CREATE TABLE `room_member` (
   `room_id` bigint NOT NULL,
   `user_id` bigint NOT NULL,
+  `select_difficulty` int NOT NULL,
+  `is_gaming` boolean NOT NULL DEFAULT 0,
+  `is_game_finished` boolean NOT NULL DEFAULT 0,
   `latest_score` int DEFAULT NULL,
-  `selected_difficulty` int NOT NULL,
+  `latest_num_perfect` int DEFAULT NULL,
+  `latest_num_great` int DEFAULT NULL,
+  `latest_num_good` int DEFAULT NULL,
+  `latest_num_bad` int DEFAULT NULL,
+  `latest_num_miss` int DEFAULT NULL,
   PRIMARY KEY (`room_id`, `user_id`)
 );
 
-
-INSERT INTO `room_member` (room_id, user_id, selected_difficulty) VALUES (61, 51, 1);
-INSERT INTO `room_member` (room_id, user_id, selected_difficulty) VALUES (62, 52, 1);
-INSERT INTO `room_member` (room_id, user_id, selected_difficulty) VALUES (61, 54, 1);
-INSERT INTO `room_member` (room_id, user_id, selected_difficulty) VALUES (61, 55, 1);
+INSERT INTO `room_member` (room_id, user_id, select_difficulty) VALUES (61, 51, 1);
+INSERT INTO `room_member` (room_id, user_id, select_difficulty) VALUES (62, 52, 1);
+INSERT INTO `room_member` (room_id, user_id, select_difficulty) VALUES (61, 54, 1);
+INSERT INTO `room_member` (room_id, user_id, select_difficulty) VALUES (61, 55, 1);

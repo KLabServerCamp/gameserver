@@ -1,6 +1,6 @@
 from enum import IntEnum
 
-from pydantic import BaseModel, ConfigDict, Field, StrictInt
+from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr
 
 """
 Enum definitions
@@ -21,6 +21,12 @@ class JoinRoomResult(IntEnum):
     RoomFull = 2  # 満員
     Disbanded = 3  # 解散済み
     OtherError = 4  # その他エラー
+
+
+class WaitRoomStatus(IntEnum):
+    Waiting = 1  # ホストがライブ開始ボタン押すのを待っている
+    LiveStart = 2  # ライブ画面遷移OK
+    Dissolution = 3  # 解散された
 
 
 """
@@ -91,6 +97,26 @@ class JoinRoomResponse(StrictBase):
 
 class LeaveRoomRequest(StrictBase):
     room_id: int
+
+
+class RoomUser(BaseModel):
+    user_id: StrictInt  # ユーザー識別子
+    name: StrictStr  # ユーザー名
+    leader_card_id: StrictInt  # 設定アバター
+    select_difficulty: LiveDifficulty  # 選択難易度
+    is_me: bool  # リクエスト投げたユーザーと同じか
+    is_host: bool  # 部屋を立てた人か
+
+
+class WaitRoomResponse(BaseModel):
+    status: WaitRoomStatus  # 結果
+    room_user_list: list[RoomUser]  # ルームにいるプレイヤー一覧
+
+
+class ResultUser(StrictBase):
+    user_id: int  # ユーザー識別子
+    judge_count_list: list[int]  # 各判定数（良い判定から昇順）
+    score: int  # 獲得スコア
 
 
 """

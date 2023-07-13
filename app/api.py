@@ -83,6 +83,34 @@ def join(token: UserToken, req: models.JoinRoomRequest) -> models.JoinRoomRespon
     return models.JoinRoomResponse(join_room_result=join_room_result)
 
 
+@app.post("/room/wait")
+def wait(token: UserToken, req: models.RoomID) -> models.WaitRoomResponse:
+    """ルーム待機中（ポーリング）。APIの結果でゲーム開始がわかる。 クライアントはn秒間隔で投げる想定。"""
+    wait_room_status, room_users = controllers.wait_room(token, req.room_id)
+    return models.WaitRoomResponse(status=wait_room_status, room_user_list=room_users)
+
+
+@app.post("/room/start")
+def start(token: UserToken, req) -> models.Empty:
+    """ルームのライブ開始。部屋のオーナーがたたく。"""
+    return models.Empty()
+
+
+@app.post("/room/end")
+def end(token: UserToken, req) -> models.Empty:
+    """ルームのライブ終了時リクエスト。ゲーム終わったら各人が叩く。"""
+    return models.Empty()
+
+
+@app.post("/room/result")
+def result(token: UserToken, req) -> models.Empty:
+    """
+    ルームのライブ終了後。end 叩いたあとにこれをポーリングする。
+    クライアントはn秒間隔で投げる想定。
+    """
+    return models.Empty()
+
+
 @app.post("/room/leave")
 def leave(token: UserToken, req: models.LeaveRoomRequest) -> models.Empty:
     """ルーム退場リクエスト"""

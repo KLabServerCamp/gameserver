@@ -157,6 +157,8 @@ def _create_room(conn, live_id: int, difficulty: LiveDifficulty, user: SafeUser)
             "select_difficulty": difficulty,
         },
     )
+    
+    # いらない部屋を消すタイミングがわからなかったので、一旦苦肉の策でここに……
     _room_delete(conn=conn)
     return room_id
 

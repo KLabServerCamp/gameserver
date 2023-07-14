@@ -31,9 +31,7 @@ def create(conn: SqlConnection, token: UserToken, req: CreateRoomRequest) -> Roo
     user = get_user_by_token(conn, token)
     if user is None:
         raise InvalidToken
-    room_id = service.create_room(
-        conn, req.live_id, user.id
-    )
+    room_id = service.create_room(conn, req.live_id, user.id)
     print(f"create_room(): {room_id=}")
     service.join_room(
         conn, room_id=room_id, user_id=user.id, difficulty=req.select_difficulty
@@ -100,15 +98,11 @@ def end(conn: SqlConnection, token: UserToken, req: EndRoomRequest) -> Empty:
 
 
 @router.post("/result")
-def result(conn: SqlConnection, token: UserToken, req: RoomID) -> ResultRoomResponse:
+def result(conn: SqlConnection, req: RoomID) -> ResultRoomResponse:
     """
     ルームのライブ終了後。end 叩いたあとにこれをポーリングする。
     クライアントはn秒間隔で投げる想定。
     """
-
-    user = get_user_by_token(conn, token)
-    if user is None:
-        raise InvalidToken
     result_users = service.result_room(conn, room_id=req.room_id)
     return ResultRoomResponse(result_user_list=result_users)
 

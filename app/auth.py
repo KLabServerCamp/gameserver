@@ -9,8 +9,14 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, status
 from fastapi.security.http import HTTPAuthorizationCredentials, HTTPBearer
 
-__all__ = ["UserToken"]
+__all__ = ["UserToken", "InvalidToken"]
 bearer = HTTPBearer()
+
+
+class InvalidToken(Exception):
+    """指定されたtokenが不正だったときに投げるエラー"""
+
+    pass
 
 
 async def get_auth_token(cred: HTTPAuthorizationCredentials = Depends(bearer)) -> str:

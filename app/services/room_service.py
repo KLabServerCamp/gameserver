@@ -1,82 +1,19 @@
-import uuid
 from typing import Any
 
 from sqlalchemy import Connection, text
 
-from . import models
-from .db import engine
-
-"""
-User controllers
-"""
-
-
-def create_user(name: str, leader_card_id: int) -> str:
-    """Create new user and returns their token"""
-    # UUID4は天文学的な確率だけど衝突する確率があるので、気にするならリトライする必要がある。
-    # サーバーでリトライしない場合は、クライアントかユーザー（手動）にリトライさせることになる。
-    # ユーザーによるリトライは一般的には良くないけれども、確率が非常に低ければ許容できる場合もある。
-    token = str(uuid.uuid4())
-    with engine.begin() as conn:
-        result = conn.execute(
-            text(
-                "INSERT INTO `user` (name, token, leader_card_id)"
-                " VALUES (:name, :token, :leader_card_id)"
-            ),
-            {"name": name, "token": token, "leader_card_id": leader_card_id},
-        )
-        print(f"create_user(): {result.lastrowid=}")  # DB側で生成されたPRIMARY KEYを参照できる
-    return token
-
-
-def _get_user_by_token(conn: Connection, token: str) -> models.SafeUser | None:
-    res = conn.execute(
-        text("select `id`, `name`, `leader_card_id` from `user` where `token`=:token"),
-        parameters={"token": token},
-    )
-    try:
-        row = res.one()
-    except Exception as e:
-        print(e)
-        return None
-    else:
-        return models.SafeUser.model_validate(row, from_attributes=True)
-
-
-def get_user_by_token(token: str) -> models.SafeUser | None:
-    with engine.begin() as conn:
-        return _get_user_by_token(conn, token)
-
-
-def _update_user(conn: Connection, token: str, name: str, leader_card_id: int) -> None:
-    conn.execute(
-        text(
-            "update `user` set name=:name, leader_card_id=:leader_card_id "
-            "where `token`=:token"
-        ),
-        parameters={
-            "name": name,
-            "leader_card_id": leader_card_id,
-            "token": token,
-        },
-    )
-
-
-def update_user(token: str, name: str, leader_card_id: int) -> None:
-    with engine.begin() as conn:
-        _update_user(conn, token, name, leader_card_id)
-
-
-"""
-Room controllers
-"""
+from ..auth import InvalidToken
+from ..db import engine
+from ..schemas.enums import JoinRoomResult, LiveDifficulty, WaitRoomStatus
+from ..schemas.structures import ResultUser, RoomInfo, RoomUser
+from .user_service import _get_user_by_token
 
 
 def _create_room(
     conn: Connection,
     token: str,
     live_id: int,
-    difficulty: models.LiveDifficulty,
+    difficulty: LiveDifficulty,
     owner_id: int,
 ) -> int:
     result = conn.execute(
@@ -86,12 +23,12 @@ def _create_room(
     return result.lastrowid
 
 
-def create_room(token: str, live_id: int, difficulty: models.LiveDifficulty) -> int:
+def create_room(token: str, live_id: int, difficulty: LiveDifficulty) -> int:
     """部屋を作ってroom_idを返します"""
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
         if user is None:
-            raise models.InvalidToken
+            raise InvalidToken
         room_id = _create_room(conn, token, live_id, difficulty, user.id)
         print(f"create_room(): {room_id=}")
 
@@ -99,8 +36,8 @@ def create_room(token: str, live_id: int, difficulty: models.LiveDifficulty) -> 
         return room_id
 
 
-def _get_room_list(conn: Connection, live_id: int) -> list[models.RoomInfo]:
-    room_infos: list[models.RoomInfo] = []
+def _get_room_list(conn: Connection, live_id: int) -> list[RoomInfo]:
+    room_infos: list[RoomInfo] = []
 
     query_text: str = (
         "SELECT id as room_id, live_id, COALESCE(mem_cnt, 0) as joined_user_count, max_user_count "
@@ -117,12 +54,12 @@ def _get_room_list(conn: Connection, live_id: int) -> list[models.RoomInfo]:
 
     results = conn.execute(text(query_text), parameters=query_params)
     for result in results:
-        room_info = models.RoomInfo.model_validate(result, from_attributes=True)
+        room_info = RoomInfo.model_validate(result, from_attributes=True)
         room_infos.append(room_info)
     return room_infos
 
 
-def get_room_list(live_id: int) -> list[models.RoomInfo]:
+def get_room_list(live_id: int) -> list[RoomInfo]:
     """
     入場可能なルーム一覧を取得
 
@@ -137,9 +74,9 @@ def get_room_list(live_id: int) -> list[models.RoomInfo]:
 
 
 def _join_room(
-    conn: Connection, room_id: int, user_id: int, difficulty: models.LiveDifficulty
-) -> models.JoinRoomResult:
-    room_info: models.RoomInfo
+    conn: Connection, room_id: int, user_id: int, difficulty: LiveDifficulty
+) -> JoinRoomResult:
+    room_info: RoomInfo
 
     # TODO: リクエストしたユーザが、既に別の部屋（またはこの部屋）に入場していないか確認する必要がある。
 
@@ -161,13 +98,13 @@ def _join_room(
         row = res.one()
     except Exception as e:
         print(e)
-        return models.JoinRoomResult.Disbanded
+        return JoinRoomResult.Disbanded
     else:
-        room_info = models.RoomInfo.model_validate(row, from_attributes=True)
+        room_info = RoomInfo.model_validate(row, from_attributes=True)
 
     # room_info に基づいて、入場済みメンバー数が定員が超えていないか確認します。
     if room_info.joined_user_count >= room_info.max_user_count:
-        return models.JoinRoomResult.RoomFull
+        return JoinRoomResult.RoomFull
 
     conn.execute(
         text(
@@ -181,12 +118,10 @@ def _join_room(
         },
     )
 
-    return models.JoinRoomResult.Ok
+    return JoinRoomResult.Ok
 
 
-def join_room(
-    token: str, room_id: int, difficulty: models.LiveDifficulty
-) -> models.JoinRoomResult:
+def join_room(token: str, room_id: int, difficulty: LiveDifficulty) -> JoinRoomResult:
     # JoinRoomResult
     # Ok	1	入場OK
     # RoomFull	2	満員
@@ -196,17 +131,17 @@ def join_room(
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
         if user is None:
-            return models.JoinRoomResult.OtherError
+            return JoinRoomResult.OtherError
         return _join_room(conn, room_id=room_id, user_id=user.id, difficulty=difficulty)
 
 
 def _wait_room(
     conn: Connection, user_id: int, room_id: int
-) -> tuple[models.WaitRoomStatus, list[models.RoomUser]]:
+) -> tuple[WaitRoomStatus, list[RoomUser]]:
     # select * from room_member inner join user on room_member.user_id=user.id left outer join (select owner_id from room) as room on room_member.user_id=room.owner_id;
 
-    wait_room_status: models.WaitRoomStatus = models.WaitRoomStatus.Waiting
-    room_users: list[models.RoomUser] = []
+    wait_room_status: WaitRoomStatus = WaitRoomStatus.Waiting
+    room_users: list[RoomUser] = []
 
     # リクエストされた部屋が存在しているか確認します
     res = conn.execute(
@@ -217,7 +152,7 @@ def _wait_room(
         res.one()
     except Exception as e:
         print(e)
-        wait_room_status = models.WaitRoomStatus.Dissolution
+        wait_room_status = WaitRoomStatus.Dissolution
         return wait_room_status, room_users
 
     # 自分の部屋がゲーム開始になっているか (room.is_game_started=1) 確認します。
@@ -230,10 +165,10 @@ def _wait_room(
     try:
         status = res.one()
         if status.is_game_started == 1:
-            wait_room_status = models.WaitRoomStatus.LiveStart
+            wait_room_status = WaitRoomStatus.LiveStart
     except Exception as e:
         print(e)
-        wait_room_status = models.WaitRoomStatus.Dissolution
+        wait_room_status = WaitRoomStatus.Dissolution
         return wait_room_status, room_users
 
     # 指定された部屋にいるメンバー一覧を取得します。
@@ -255,19 +190,17 @@ def _wait_room(
     )
 
     for result in results:
-        room_user = models.RoomUser.model_validate(result, from_attributes=True)
+        room_user = RoomUser.model_validate(result, from_attributes=True)
         room_users.append(room_user)
 
     return wait_room_status, room_users
 
 
-def wait_room(
-    token: str, room_id: int
-) -> tuple[models.WaitRoomStatus, list[models.RoomUser]]:
+def wait_room(token: str, room_id: int) -> tuple[WaitRoomStatus, list[RoomUser]]:
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
         if user is None:
-            raise models.InvalidToken
+            raise InvalidToken
         return _wait_room(conn, user.id, room_id)
 
 
@@ -282,7 +215,7 @@ def start_room(token: str, room_id: int) -> None:
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
         if user is None:
-            raise models.InvalidToken
+            raise InvalidToken
         _start_room(conn, room_id)
 
 
@@ -336,7 +269,7 @@ def end_room(
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
         if user is None:
-            raise models.InvalidToken
+            raise InvalidToken
         _end_room(
             conn=conn,
             user_id=user.id,
@@ -350,8 +283,8 @@ def end_room(
         )
 
 
-def _result_room(conn: Connection, room_id: int) -> list[models.ResultUser]:
-    result_users: list[models.ResultUser] = []
+def _result_room(conn: Connection, room_id: int) -> list[ResultUser]:
+    result_users: list[ResultUser] = []
 
     # まだプレイ中のユーザ数を確認します。
     # 1人以上いた場合は、空のリストを返します。
@@ -383,7 +316,7 @@ def _result_room(conn: Connection, room_id: int) -> list[models.ResultUser]:
     )
 
     for result in results:
-        result_user = models.ResultUser(
+        result_user = ResultUser(
             user_id=result.user_id,
             score=result.latest_score,
             judge_count_list=[
@@ -399,11 +332,11 @@ def _result_room(conn: Connection, room_id: int) -> list[models.ResultUser]:
     return result_users
 
 
-def result_room(token: str, room_id: int) -> list[models.ResultUser]:
+def result_room(token: str, room_id: int) -> list[ResultUser]:
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
         if user is None:
-            raise models.InvalidToken
+            raise InvalidToken
         return _result_room(conn, room_id=room_id)
 
 
@@ -418,5 +351,5 @@ def leave_room(token: str, room_id: int) -> None:
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
         if user is None:
-            raise models.InvalidToken
+            raise InvalidToken
         _leave_room(conn, room_id=room_id, user_id=user.id)

@@ -1,5 +1,3 @@
-from enum import IntEnum
-
 from pydantic import (
     BaseModel,
     ConfigDict,
@@ -10,32 +8,7 @@ from pydantic import (
     field_validator,
 )
 
-"""
-Enum definitions
-"""
-
-
-class LiveDifficulty(IntEnum):
-    """難易度"""
-
-    normal = 1
-    hard = 2
-
-
-class JoinRoomResult(IntEnum):
-    """ルーム入場結果"""
-
-    Ok = 1  # 入場OK
-    RoomFull = 2  # 満員
-    Disbanded = 3  # 解散済み
-    OtherError = 4  # その他エラー
-
-
-class WaitRoomStatus(IntEnum):
-    Waiting = 1  # ホストがライブ開始ボタン押すのを待っている
-    LiveStart = 2  # ライブ画面遷移OK
-    Dissolution = 3  # 解散された
-
+from .enums import JoinRoomResult, LiveDifficulty, WaitRoomStatus
 
 """
 Models for requests / responses
@@ -141,14 +114,3 @@ class ResultUser(StrictBase):
 
 class ResultRoomResponse(StrictBase):
     result_user_list: list[ResultUser]  # 自身を含む各ユーザーの結果。※全員揃っていない待機中は[]が返却される想定
-
-
-"""
-Exception definitions
-"""
-
-
-class InvalidToken(Exception):
-    """指定されたtokenが不正だったときに投げるエラー"""
-
-    pass

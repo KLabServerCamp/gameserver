@@ -345,6 +345,10 @@ def _leave_room(conn: Connection, room_id: int, user_id: int) -> None:
         text("DELETE FROM `room_member` WHERE room_id=:room_id AND user_id=:user_id"),
         parameters={"room_id": room_id, "user_id": user_id},
     )
+    conn.execute(
+        text("DELETE FROM `room` WHERE owner_id=:user_id"),
+        parameters={"user_id": user_id},
+    )
 
 
 def leave_room(token: str, room_id: int) -> None:

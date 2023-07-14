@@ -2,18 +2,13 @@ from typing import Any
 
 from sqlalchemy import Connection, text
 
-from ..auth import InvalidToken
-from ..db import engine
 from ..schemas.enums import JoinRoomResult, LiveDifficulty, WaitRoomStatus
 from ..schemas.structures import ResultUser, RoomInfo, RoomUser
-from .user_service import _get_user_by_token
 
 
-def _create_room(
+def create_room(
     conn: Connection,
-    token: str,
     live_id: int,
-    difficulty: LiveDifficulty,
     owner_id: int,
 ) -> int:
     result = conn.execute(
@@ -23,20 +18,16 @@ def _create_room(
     return result.lastrowid
 
 
-def create_room(token: str, live_id: int, difficulty: LiveDifficulty) -> int:
-    """部屋を作ってroom_idを返します"""
-    with engine.begin() as conn:
-        user = _get_user_by_token(conn, token)
-        if user is None:
-            raise InvalidToken
-        room_id = _create_room(conn, token, live_id, difficulty, user.id)
-        print(f"create_room(): {room_id=}")
+def get_room_list(conn: Connection, live_id: int) -> list[RoomInfo]:
+    """
+    入場可能なルーム一覧を取得
 
-        _join_room(conn, room_id=room_id, user_id=user.id, difficulty=difficulty)
-        return room_id
+    Args:
+        live_id (int): ルームで遊ぶ楽曲のID（※0はワイルドカード。全てのルームを対象とする）
 
-
-def _get_room_list(conn: Connection, live_id: int) -> list[RoomInfo]:
+    Returns:
+        room_info_list (list[RoomInfo]): 入場可能なルーム一覧
+    """
     room_infos: list[RoomInfo] = []
 
     query_text: str = (
@@ -59,21 +50,7 @@ def _get_room_list(conn: Connection, live_id: int) -> list[RoomInfo]:
     return room_infos
 
 
-def get_room_list(live_id: int) -> list[RoomInfo]:
-    """
-    入場可能なルーム一覧を取得
-
-    Args:
-        live_id (int): ルームで遊ぶ楽曲のID（※0はワイルドカード。全てのルームを対象とする）
-
-    Returns:
-        room_info_list (list[RoomInfo]): 入場可能なルーム一覧
-    """
-    with engine.begin() as conn:
-        return _get_room_list(conn, live_id=live_id)
-
-
-def _join_room(
+def join_room(
     conn: Connection, room_id: int, user_id: int, difficulty: LiveDifficulty
 ) -> JoinRoomResult:
     room_info: RoomInfo
@@ -121,21 +98,7 @@ def _join_room(
     return JoinRoomResult.Ok
 
 
-def join_room(token: str, room_id: int, difficulty: LiveDifficulty) -> JoinRoomResult:
-    # JoinRoomResult
-    # Ok	1	入場OK
-    # RoomFull	2	満員
-    # Disbanded	3	解散済み
-    # OtherError	4	その他エラー
-
-    with engine.begin() as conn:
-        user = _get_user_by_token(conn, token)
-        if user is None:
-            return JoinRoomResult.OtherError
-        return _join_room(conn, room_id=room_id, user_id=user.id, difficulty=difficulty)
-
-
-def _wait_room(
+def wait_room(
     conn: Connection, user_id: int, room_id: int
 ) -> tuple[WaitRoomStatus, list[RoomUser]]:
     # select * from room_member inner join user on room_member.user_id=user.id left outer join (select owner_id from room) as room on room_member.user_id=room.owner_id;
@@ -196,30 +159,14 @@ def _wait_room(
     return wait_room_status, room_users
 
 
-def wait_room(token: str, room_id: int) -> tuple[WaitRoomStatus, list[RoomUser]]:
-    with engine.begin() as conn:
-        user = _get_user_by_token(conn, token)
-        if user is None:
-            raise InvalidToken
-        return _wait_room(conn, user.id, room_id)
-
-
-def _start_room(conn: Connection, room_id: int) -> None:
+def start_room(conn: Connection, room_id: int) -> None:
     conn.execute(
         text("UPDATE `room` " "SET is_game_started=1 " "WHERE `id`=:room_id"),
         parameters={"room_id": room_id},
     )
 
 
-def start_room(token: str, room_id: int) -> None:
-    with engine.begin() as conn:
-        user = _get_user_by_token(conn, token)
-        if user is None:
-            raise InvalidToken
-        _start_room(conn, room_id)
-
-
-def _end_room(
+def end_room(
     conn: Connection,
     user_id: int,
     room_id: int,
@@ -256,34 +203,7 @@ def _end_room(
     )
 
 
-def end_room(
-    token: str,
-    room_id: int,
-    score: int,
-    n_perfects: int,
-    n_greats: int,
-    n_goods: int,
-    n_bads: int,
-    n_misses: int,
-) -> None:
-    with engine.begin() as conn:
-        user = _get_user_by_token(conn, token)
-        if user is None:
-            raise InvalidToken
-        _end_room(
-            conn=conn,
-            user_id=user.id,
-            room_id=room_id,
-            score=score,
-            n_perfects=n_perfects,
-            n_greats=n_greats,
-            n_goods=n_goods,
-            n_bads=n_bads,
-            n_misses=n_misses,
-        )
-
-
-def _result_room(conn: Connection, room_id: int) -> list[ResultUser]:
+def result_room(conn: Connection, room_id: int) -> list[ResultUser]:
     result_users: list[ResultUser] = []
 
     # まだプレイ中のユーザ数を確認します。
@@ -332,28 +252,15 @@ def _result_room(conn: Connection, room_id: int) -> list[ResultUser]:
     return result_users
 
 
-def result_room(token: str, room_id: int) -> list[ResultUser]:
-    with engine.begin() as conn:
-        user = _get_user_by_token(conn, token)
-        if user is None:
-            raise InvalidToken
-        return _result_room(conn, room_id=room_id)
-
-
-def _leave_room(conn: Connection, room_id: int, user_id: int) -> None:
+def leave_room(conn: Connection, room_id: int, user_id: int) -> None:
     conn.execute(
         text("DELETE FROM `room_member` WHERE room_id=:room_id AND user_id=:user_id"),
         parameters={"room_id": room_id, "user_id": user_id},
     )
+
+
+def disband_owned_room(conn: Connection, room_id: int, user_id: int) -> None:
     conn.execute(
-        text("DELETE FROM `room` WHERE owner_id=:user_id"),
-        parameters={"user_id": user_id},
+        text("DELETE FROM `room` WHERE id=:room_id AND owner_id=:user_id"),
+        parameters={"room_id": room_id, "user_id": user_id},
     )
-
-
-def leave_room(token: str, room_id: int) -> None:
-    with engine.begin() as conn:
-        user = _get_user_by_token(conn, token)
-        if user is None:
-            raise InvalidToken
-        _leave_room(conn, room_id=room_id, user_id=user.id)

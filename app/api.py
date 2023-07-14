@@ -190,9 +190,9 @@ class RoomResultResponse(StrictBase):
 
 
 @app.post("/room/result")
-def room_result(req: RoomResultRequest) -> RoomResultResponse:
+def room_result(token: UserToken, req: RoomResultRequest) -> RoomResultResponse:
     print("ROOM RESULT")
-    res = model.room_result(room_id=req.room_id)
+    res = model.room_result(token=token, room_id=req.room_id)
     return RoomResultResponse(result_user_list=res)
 
 

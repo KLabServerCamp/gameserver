@@ -157,7 +157,7 @@ def _create_room(conn, live_id: int, difficulty: LiveDifficulty, user: SafeUser)
             "select_difficulty": difficulty,
         },
     )
-
+    _room_delete(conn=conn)
     return room_id
 
 
@@ -258,12 +258,12 @@ def _join_room(
 
     result = conn.execute(
         text(
-            "SELECT `user_id` FROM `room_member`" " WHERE `room_id`=:room_id FOR UPDATE"
+            "SELECT COUNT(`user_id`) AS count FROM `room_member`" " WHERE `room_id`=:room_id FOR UPDATE"
         ),
         {"room_id": room_id},
     )
 
-    if len(result.all()) >= 4:
+    if result.one().count >= 4:
         return JoinRoomResult.RoomFull
 
     result = conn.execute(
@@ -322,10 +322,12 @@ def get_room_user(conn, user: SafeUser, room_id: int) -> list[RoomUser]:
         return []
 
     room_user_list: RoomUser = []
+    # FIX: https://github.com/KLabServerCamp/gameserver/pull/35#discussion_r1263305066
+    # user.idにしてると、確かにresultでおかしくなる……
     for row in rows:
         print("WAIT ROW: ", row)
         room_user = RoomUser(
-            user_id=user.id,
+            user_id=row.id,
             name=row.name,
             leader_card_id=row.leader_card_id,
             select_difficulty=LiveDifficulty(row.select_difficulty),
@@ -408,7 +410,7 @@ def room_end(token: str, room_id: int, judge_count_list: list[int], score: int) 
         )
 
 
-def _room_result(conn, room_id) -> list[ResultUser]:
+def _room_result(conn, user: SafeUser, room_id) -> list[ResultUser]:
     # room_memberからもろもろ持ってくる
 
     result = conn.execute(
@@ -432,12 +434,12 @@ def _room_result(conn, room_id) -> list[ResultUser]:
         if score is None:
             continue
 
-        user = ResultUser(
+        ruser = ResultUser(
             user_id=row.user_id,
             judge_count_list=list(map(int, judge.split(","))),
             score=score,
         )
-        result_user_list.append(user)
+        result_user_list.append(ruser)
 
     if len(result_user_list) < len(rows):
         return []
@@ -445,33 +447,50 @@ def _room_result(conn, room_id) -> list[ResultUser]:
         return result_user_list
 
 
-def _room_dissolution(conn, room_id):
+def _room_dissolution(conn, room_id: int):
     conn.execute(
         text("UPDATE `room`" " SET `status`=:status" " WHERE `room_id`=:room_id"),
         {"status": WaitRoomStatus.Dissolution.value, "room_id": room_id},
     )
 
-    conn.execute(
-        text("DELETE FROM `room`" " WHERE `room_id`=:room_id" " AND `status`=:status"),
+
+def _room_delete(conn):
+    result = conn.execute(
+        text(
+            "SELECT `room_id` FROM `room`" 
+            "WHERE `status`=:status"
+        ),
         {
-            "room_id": room_id,
             "status": WaitRoomStatus.Dissolution.value,
         },
     )
+    rows = result.all()
 
-    conn.execute(
-        text("DELETE FROM `room_member`" " WHERE `room_id`=:room_id"),
-        {"room_id": room_id},
-    )
+    for row in rows:
+        conn.execute(
+            text("DELETE FROM `room`" " WHERE `room_id`=:room_id AND `status`=:status"),
+            {
+                    "room_id": row.room_id,
+                    "status": WaitRoomStatus.Dissolution.value,
+                },
+            )
+
+        conn.execute(
+            text("DELETE FROM `room_member`" " WHERE `room_id`=:room_id"),
+            {"room_id": row.room_id}
+            )
 
 
-def room_result(room_id: int) -> list[ResultUser]:
+def room_result(token: str, room_id: int) -> list[ResultUser]:
     with engine.begin() as conn:
-        response = _room_result(conn, room_id=room_id)
+        user = _get_user_by_token(conn, token=token)
+        if user is None:
+            raise InvalidToken
 
-    if len(response) != 0:
-        with engine.begin() as conn:
-            _room_dissolution(conn, room_id=room_id)
+        response = _room_result(conn, user=user, room_id=room_id)
+
+    with engine.begin() as conn:
+        _room_dissolution(conn, room_id=room_id)
 
     return response
 

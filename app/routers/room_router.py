@@ -1,10 +1,8 @@
 from fastapi import APIRouter
 
-from app.schemas.enums import JoinRoomResult
-from app.services.user_service import get_user_by_token
-
 from ..auth import InvalidToken, UserToken
 from ..db import SqlConnection
+from ..schemas.enums import JoinRoomResult
 from ..schemas.structures import (
     CreateRoomRequest,
     Empty,
@@ -19,6 +17,7 @@ from ..schemas.structures import (
     WaitRoomResponse,
 )
 from ..services import room_service as service
+from ..services.user_service import get_user_by_token
 
 router = APIRouter()
 

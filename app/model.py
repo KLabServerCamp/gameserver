@@ -128,6 +128,9 @@ class ResultUser(StrictBase):
     score: int
 
 
+max_player_count = 4
+
+
 def _create_room(conn, live_id: int, difficulty: LiveDifficulty, user: SafeUser) -> int:
     # 作成
     result = conn.execute(
@@ -185,7 +188,7 @@ def _get_room(conn, row) -> RoomInfo:
         room_id=row.room_id,
         live_id=row.live_id,
         joined_user_count=row.juc,
-        max_user_count=4,
+        max_user_count=max_player_count,
     )
     return room
 
@@ -265,7 +268,7 @@ def _join_room(
         {"room_id": room_id},
     )
 
-    if result.one().count >= 4:
+    if result.one().count >= max_player_count:
         return JoinRoomResult.RoomFull
 
     result = conn.execute(

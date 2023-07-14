@@ -103,14 +103,16 @@ def _get_room_list(conn: Connection, live_id: int) -> list[models.RoomInfo]:
     room_infos: list[models.RoomInfo] = []
 
     query_text: str = (
-        "SELECT id as room_id, live_id, COALESCE(mem_cnt, 0) as joined_user_count, max_user_count FROM room "
+        "SELECT id as room_id, live_id, COALESCE(mem_cnt, 0) as joined_user_count, max_user_count "
+        "FROM room "
         "LEFT OUTER JOIN (SELECT room_id, COUNT(*) as mem_cnt FROM room_member GROUP BY room_id) AS mem_cnts "
-        "ON room.id=mem_cnts.room_id"
+        "ON room.id=mem_cnts.room_id "
+        "WHERE is_game_started=0"
     )
     query_params: dict[str, Any] = {}
 
     if live_id != 0:
-        query_text += " WHERE room.live_id=:live_id"
+        query_text += " AND room.live_id=:live_id"
         query_params["live_id"] = live_id
 
     results = conn.execute(text(query_text), parameters=query_params)
@@ -218,16 +220,16 @@ def _wait_room(
         wait_room_status = models.WaitRoomStatus.Dissolution
         return wait_room_status, room_users
 
-    # 自分の状態がゲーム開始になっているか (room_member.is_gaming=1) 確認します。
+    # 自分の部屋がゲーム開始になっているか (room.is_game_started=1) 確認します。
     # このパラメータは、ホストがライブ開始をリクエストすると1になります。
     # もしこのパラメータ自体を確認できない場合は、部屋が解散されたとみなして、処理します。
     res = conn.execute(
-        text("SELECT is_gaming FROM room_member WHERE user_id=:user_id"),
-        parameters={"user_id": user_id},
+        text("SELECT is_game_started FROM room WHERE id=:room_id"),
+        parameters={"room_id": room_id},
     )
     try:
         status = res.one()
-        if status.is_gaming == 1:
+        if status.is_game_started == 1:
             wait_room_status = models.WaitRoomStatus.LiveStart
     except Exception as e:
         print(e)
@@ -271,11 +273,7 @@ def wait_room(
 
 def _start_room(conn: Connection, room_id: int) -> None:
     conn.execute(
-        text(
-            "UPDATE `room_member` "
-            "SET is_gaming=1, is_game_finished=0 "
-            "WHERE `room_id`=:room_id"
-        ),
+        text("UPDATE `room` " "SET is_game_started=1 " "WHERE `id`=:room_id"),
         parameters={"room_id": room_id},
     )
 
@@ -361,7 +359,7 @@ def _result_room(conn: Connection, room_id: int) -> list[models.ResultUser]:
         text(
             "SELECT SUM(1-is_game_finished) AS unfinished_users "
             "FROM room_member "
-            "WHERE room_id=:room_id AND is_gaming=1"
+            "WHERE room_id=:room_id"
         ),
         parameters={"room_id": room_id},
     )
@@ -379,7 +377,7 @@ def _result_room(conn: Connection, room_id: int) -> list[models.ResultUser]:
             "latest_num_perfect, latest_num_great, latest_num_good, "
             "latest_num_bad, latest_num_miss "
             "FROM room_member "
-            "WHERE room_id=:room_id AND is_gaming=1"
+            "WHERE room_id=:room_id"
         ),
         parameters={"room_id": room_id},
     )

@@ -1,6 +1,5 @@
 import uuid
 from enum import IntEnum
-from typing import Tuple
 
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import text
@@ -329,6 +328,8 @@ def get_room_user(conn, user: SafeUser, room_id: int) -> list[RoomUser]:
     room_user_list: RoomUser = []
     # FIX: https://github.com/KLabServerCamp/gameserver/pull/35#discussion_r1263305066
     # user.idにしてると、確かにresultでおかしくなる……
+    # FIX: https://github.com/KLabServerCamp/gameserver/pull/35#discussion_r1263393467
+    # 三項演算子でTrue or False -> bool(expr) (is_me, is_host)
     for row in rows:
         print("WAIT ROW: ", row)
         room_user = RoomUser(
@@ -336,8 +337,8 @@ def get_room_user(conn, user: SafeUser, room_id: int) -> list[RoomUser]:
             name=row.name,
             leader_card_id=row.leader_card_id,
             select_difficulty=LiveDifficulty(row.select_difficulty),
-            is_me=True if row.id == user.id else False,
-            is_host=True if row.owner_id == row.id else False,
+            is_me=bool(row.id == user.id),
+            is_host=bool(row.owner_id == row.id),
         )
         room_user_list.append(room_user)
     print(room_user_list)
@@ -496,7 +497,6 @@ def room_result(token: str, room_id: int) -> list[ResultUser]:
 
     with engine.begin() as conn:
         _room_dissolution(conn, room_id=room_id)
-
     return response
 
 

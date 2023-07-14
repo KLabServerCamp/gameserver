@@ -115,7 +115,9 @@ def leave(conn: SqlConnection, token: UserToken, req: LeaveRoomRequest) -> Empty
     user = get_user_by_token(conn, token)
     if user is None:
         raise InvalidToken
-
+    # 部屋から退出する
     service.leave_room(conn, req.room_id, user.id)
+    # 自分自身が部屋のオーナーであれば、部屋に参加中のメンバーをDBから取り除き、
+    # 部屋をDBから削除する
     service.disband_owned_room(conn, req.room_id, user.id)
     return Empty()

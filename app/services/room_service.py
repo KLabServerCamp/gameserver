@@ -260,6 +260,19 @@ def leave_room(conn: Connection, room_id: int, user_id: int) -> None:
 
 
 def disband_owned_room(conn: Connection, room_id: int, user_id: int) -> None:
+    # 指定された部屋に参加しているメンバーを room_member から削除する（自分自身がオーナーの場合のみ）
+    conn.execute(
+        text(
+            "DELETE member "
+            "FROM room_member AS member "
+            "INNER JOIN "
+            "(SELECT * FROM room WHERE owner_id=:user_id AND id=:room_id) "
+            "AS room "
+            "ON room_id=room.id;"
+        ),
+        parameters={"room_id": room_id, "user_id": user_id},
+    )
+    # 指定された部屋を room から削除する（自分自身がオーナーの場合のみ）
     conn.execute(
         text("DELETE FROM `room` WHERE id=:room_id AND owner_id=:user_id"),
         parameters={"room_id": room_id, "user_id": user_id},

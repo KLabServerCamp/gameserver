@@ -1,11 +1,11 @@
 import fastapi.exception_handlers
 from fastapi import FastAPI, HTTPException, status
 from fastapi.exceptions import RequestValidationError
-from pydantic import Field
+from pydantic import BaseModel, Field
 
 from . import model
 from .auth import UserToken
-from .model import StrictBase, LiveDifficulty
+from .model import LiveDifficulty
 
 app = FastAPI()
 
@@ -29,13 +29,14 @@ async def root() -> dict:
 
 # User APIs
 
-
-class UserCreateRequest(StrictBase):
+# FastAPI 0.100 は model_validate_json() を使わないので、 strict モードにすると
+# EnumがValidationエラーになってしまいます。
+class UserCreateRequest(BaseModel):
     user_name: str = Field(title="ユーザー名")
     leader_card_id: int = Field(title="リーダーカードのID")
 
-
-class UserCreateResponse(StrictBase):
+# Responseの方は strict モードを利用できます
+class UserCreateResponse(BaseModel, strict=True):
     user_token: str
 
 
@@ -58,7 +59,7 @@ def user_me(token: UserToken) -> model.SafeUser:
     return user
 
 
-class Empty(StrictBase):
+class Empty(BaseModel):
     pass
 
 
@@ -73,11 +74,11 @@ def update(req: UserCreateRequest, token: UserToken) -> Empty:
 # Room APIs
 
 
-class RoomID(StrictBase):
+class RoomID(BaseModel):
     room_id: int
 
 
-class CreateRoomRequest(StrictBase):
+class CreateRoomRequest(BaseModel):
     live_id: int
     select_difficulty: LiveDifficulty
 

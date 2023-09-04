@@ -8,17 +8,12 @@ from sqlalchemy.exc import NoResultFound
 from .db import engine
 
 
-class StrictBase(BaseModel):
-    """DBを利用するためのBaseModel"""
-    # strictモードを有効にする
-    model_config = ConfigDict(strict=True)
-
-
 class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げるエラー"""
 
 
-class SafeUser(StrictBase):
+# サーバーで生成するオブジェクトは strict を使う
+class SafeUser(BaseModel, strict=True):
     """token を含まないUser"""
 
     id: int

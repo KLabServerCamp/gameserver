@@ -40,10 +40,9 @@ def create_user(name: str, leader_card_id: int) -> str:
 
 
 def _get_user_by_token(conn, token: str) -> SafeUser | None:
-    res = conn.execute(text(
-        "SELECT `id`, `name`, `leader_card_id` FROM `user` WHERE `token`=:token"
-        ),
-        {"token": token}
+    res = conn.execute(
+        text("SELECT `id`, `name`, `leader_card_id` FROM `user` WHERE `token`=:token"),
+        {"token": token},
     )
     row = res.one_or_none()
     if row is None:
@@ -58,10 +57,11 @@ def get_user_by_token(token: str) -> SafeUser | None:
 
 def update_user(token: str, name: str, leader_card_id: int) -> None:
     with engine.begin() as conn:
-        conn.execute(text(
-            "UPDATE `user` SET `name`=:name, `leader_card_id`=:leader_card_id WHERE `token`=:token"
+        conn.execute(
+            text(
+                "UPDATE `user` SET `name`=:name, `leader_card_id`=:leader_card_id WHERE `token`=:token"
             ),
-            {"token": token, "name": name, "leader_card_id": leader_card_id}
+            {"token": token, "name": name, "leader_card_id": leader_card_id},
         )
 
 

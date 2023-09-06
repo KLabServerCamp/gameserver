@@ -40,8 +40,15 @@ def create_user(name: str, leader_card_id: int) -> str:
 
 
 def _get_user_by_token(conn, token: str) -> SafeUser | None:
-    # TODO: 実装(わからなかったら資料を見ながら)
-    ...
+    res = conn.execute(text(
+        "SELECT `id`, `name`, `leader_card_id` FROM `user` WHERE `token`=:token"
+        ),
+        {"token": token}
+    )
+    row = res.one_or_none()
+    if row is None:
+        return None
+    return SafeUser.model_validate(row, from_attributes=True)
 
 
 def get_user_by_token(token: str) -> SafeUser | None:

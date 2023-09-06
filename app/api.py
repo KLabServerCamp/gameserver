@@ -29,11 +29,13 @@ async def root() -> dict:
 
 # User APIs
 
+
 # FastAPI 0.100 は model_validate_json() を使わないので、 strict モードにすると
 # EnumがValidationエラーになってしまいます。
 class UserCreateRequest(BaseModel):
     user_name: str = Field(title="ユーザー名")
     leader_card_id: int = Field(title="リーダーカードのID")
+
 
 # Responseの方は strict モードを利用できます
 class UserCreateResponse(BaseModel, strict=True):
@@ -66,7 +68,7 @@ class Empty(BaseModel):
 @app.post("/user/update")
 def update(req: UserCreateRequest, token: UserToken) -> Empty:
     """Update user attributes"""
-    # print(req)
+    print(req)
     model.update_user(token, req.user_name, req.leader_card_id)
     return Empty()
 

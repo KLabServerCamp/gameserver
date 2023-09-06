@@ -1,7 +1,7 @@
 import uuid
 from enum import IntEnum
 
-from pydantic import BaseModel #, ConfigDict
+from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import MultipleResultsFound, NoResultFound
 

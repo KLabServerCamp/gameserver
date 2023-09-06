@@ -16,9 +16,10 @@ app = FastAPI()
 async def handle_request_validation_error(req, exc):
     print("Request validation error")
     print(f"{req.url=}\n{exc.body=}\n{exc=!s}")
-    return await fastapi.exception_handlers.request_validation_exception_handler(
-        req, exc
-    )
+    return await fastapi.exception_handlers. \
+        request_validation_exception_handler(
+            req, exc
+        )
 
 
 # Sample API

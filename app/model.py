@@ -1,7 +1,7 @@
 import uuid
 from enum import IntEnum
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
@@ -35,7 +35,8 @@ def create_user(name: str, leader_card_id: int) -> str:
             ),
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
-        print(f"create_user(): {result.lastrowid=}")  # DB側で生成されたPRIMARY KEYを参照できる
+        # DB側で生成されたPRIMARY KEYを参照できる
+        print(f"create_user(): {result.lastrowid=}")
     return token
 
 
@@ -49,7 +50,9 @@ def _get_user_by_token(conn, token: str) -> SafeUser | None:
         row = result.one()  # 結果の一意性確認
     except NoResultFound:
         return None
-    return SafeUser.model_validate(row, from_attributes=True)   # row からオブジェクトへの変換 (pydantic)
+    return SafeUser.model_validate(
+        row, from_attributes=True
+    )  # row からオブジェクトへの変換 (pydantic)
     ...
 
 
@@ -61,6 +64,15 @@ def get_user_by_token(token: str) -> SafeUser | None:
 def update_user(token: str, name: str, leader_card_id: int) -> None:
     with engine.begin() as conn:
         # TODO: 実装
+        conn.execute(
+            text(
+                "update user set "
+                "name=:name, leader_card_id=:leader_card_id "
+                "where token=:token"
+            ),
+            {"name": name, "leader_card_id": leader_card_id, "token": token},
+        )
+        return
         ...
 
 

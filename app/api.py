@@ -24,16 +24,18 @@ async def handle_request_validation_error(req, exc):
 # Sample API
 @app.get("/")
 async def root() -> dict:
-    return {"message": "Hello World"}
+    return {"message": "Hello World!"}
 
 
 # User APIs
+
 
 # FastAPI 0.100 は model_validate_json() を使わないので、 strict モードにすると
 # EnumがValidationエラーになってしまいます。
 class UserCreateRequest(BaseModel):
     user_name: str = Field(title="ユーザー名")
     leader_card_id: int = Field(title="リーダーカードのID")
+
 
 # Responseの方は strict モードを利用できます
 class UserCreateResponse(BaseModel, strict=True):

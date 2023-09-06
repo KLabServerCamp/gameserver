@@ -41,6 +41,15 @@ def create_user(name: str, leader_card_id: int) -> str:
 
 def _get_user_by_token(conn, token: str) -> SafeUser | None:
     # TODO: 実装(わからなかったら資料を見ながら)
+    result = conn.execute(
+        text("select id, name, leader_card_id from user where token=:token"),
+        {"token": token},
+    )
+    try:
+        row = result.one()  # 結果の一意性確認
+    except NoResultFound:
+        return None
+    return SafeUser.model_validate(row, from_attributes=True)   # row からオブジェクトへの変換 (pydantic)
     ...
 
 

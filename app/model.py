@@ -1,7 +1,7 @@
 import uuid
 from enum import IntEnum
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel  # , ConfigDict <- 削除
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
@@ -25,7 +25,8 @@ def create_user(name: str, leader_card_id: int) -> str:
     """Create new user and returns their token"""
     # UUID4は天文学的な確率だけど衝突する確率があるので、気にするならリトライする必要がある。
     # サーバーでリトライしない場合は、クライアントかユーザー（手動）にリトライさせることになる。
-    # ユーザーによるリトライは一般的には良くないけれども、確率が非常に低ければ許容できる場合もある。
+    # ユーザーによるリトライは一般的には良くないけれども、
+    # 確率が非常に低ければ許容できる場合もある。
     token = str(uuid.uuid4())
     with engine.begin() as conn:
         result = conn.execute(
@@ -62,7 +63,8 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
         # TODO: 実装
         conn.execute(
             text(
-                "UPDATE `user` SET `name`=:name, `leader_card_id`=:leader_card_id WHERE `token`=:token"
+                "UPDATE `user` SET `name`=:name,"
+                " `leader_card_id`=:leader_card_id WHERE `token`=:token"
             ),
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )

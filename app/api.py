@@ -11,6 +11,7 @@ from .model import (
     RoomListResponse,
     RoomJoinRequest,
     RoomJoinResponse,
+    RoomLeaveRequest
 )
 
 app = FastAPI()
@@ -113,3 +114,9 @@ def room_join(token: UserToken, req: RoomJoinRequest) -> RoomJoinResponse:
     """ルーム入室リクエスト"""
     print("/room/join", req)
     return model.join_room(token, req)
+
+
+@app.post("/room/leave")
+def room_leave(token: UserToken, req: RoomLeaveRequest) -> None:
+    model.leave_room(token, req)
+    return None

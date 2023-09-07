@@ -2,8 +2,8 @@ import uuid
 from enum import IntEnum
 
 from pydantic import BaseModel
-from sqlalchemy import text, Connection
-from sqlalchemy.exc import NoResultFound
+from sqlalchemy import text
+from sqlalchemy.exc import NoResultFound, MultipleResultsFound
 
 from .db import engine
 
@@ -85,6 +85,12 @@ class LiveDifficulty(IntEnum):
     hard = 2
 
 
+class RoomStatus(IntEnum):
+    Waiting = 1
+    LiveStart = 2
+    Dismissed = 3
+
+
 def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
     """部屋を作ってroom_idを返します"""
     with engine.begin() as conn:
@@ -98,7 +104,11 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
             "VALUES (:live_id)"),
             {"live_id": live_id}
         )
+        
         room_id = result.lastrowid
+
+        _set_room_host_id(conn, room_id, user.id)
+        _set_room_status(conn, room_id, RoomStatus.Waiting)
 
         _join_room(conn, user, RoomJoinRequest(
             room_id=room_id,
@@ -127,14 +137,14 @@ class RoomListResponse(BaseModel):
 
 
 def list_room(req) -> list[RoomInfo]:
-    rid = req.live_id
+    lid = req.live_id
     reslist = []
     with engine.begin() as conn:
         result = conn.execute(text(
             "SELECT `id`, `live_id` FROM `room` WHERE `live_id`=:live_id"
             ),
-            {"live_id": rid}
-        ) if rid != 0 else conn.execute(text(
+            {"live_id": lid}
+        ) if lid != 0 else conn.execute(text(
             "SELECT `id`, `live_id` FROM `room`"
         ))
         rows = result.fetchall()
@@ -159,7 +169,7 @@ def list_room(req) -> list[RoomInfo]:
 class JoinRoomResult(IntEnum):
     Ok = 1
     RoomFull = 2
-    Disbanded = 3
+    Dismissed = 3
     OtherError = 4
 
 
@@ -170,7 +180,126 @@ class RoomJoinRequest(BaseModel):
 
 class RoomJoinResponse(BaseModel):
     join_room_result: JoinRoomResult
-    
+
+
+class DBDuplicateEntries(Exception):
+    pass
+
+
+def _get_user_joined_room_id(conn, user_id):
+    result = conn.execute(text(
+        "SELECT * FROM `room_member` WHERE `user_id`=:uid"
+        ),
+        {"uid": user_id}
+    )
+    rows = result.fetchall()
+    if len(rows) > 1:
+        raise DBDuplicateEntries("in room_member: uid={}".format(user_id))
+
+    if len(rows) == 0:
+        return -1
+
+    return rows[0].room_id
+
+
+def _is_user_in_room(conn, user_id) -> bool:
+    return _get_user_joined_room_id(conn, user_id) == -1
+
+
+def _is_user_in_the_room(conn, user_id, room_id) -> bool:
+    return _get_user_joined_room_id(conn, user_id) == room_id
+
+
+def _check_room_existence(conn, room_id) -> bool:
+    result = conn.execute(text(
+        "SELECT * FROM `room` WHERE `id`=:rid"
+        ),
+        {"rid": room_id}
+    )
+    try:
+        result.one()
+    except NoResultFound:
+        print("no such room, rid=", room_id)
+        return False
+    except MultipleResultsFound:
+        print("more than one rooms, rid=", room_id)
+        return False
+    return True
+
+
+def _get_room_joined_users(conn, room_id):
+    result = conn.execute(text(
+        "SELECT * FROM `room_member` WHERE `room_id`=:rid"
+        ),
+        {"rid": room_id}
+    )
+    return result.fetchall()
+
+
+def _get_room_joined_users_count(conn, room_id) -> int:
+    return len(_get_room_joined_users(conn, room_id))
+
+
+def _is_room_full(conn, room_id) -> bool:
+    return _get_room_joined_users_count(conn, room_id) >= MAX_USER_COUNT
+
+
+def _get_room_host_id(conn, room_id) -> int:
+    return conn.execute(text(
+        "SELECT `owner_id` FROM `room` WHERE `id`=:rid"
+        ),
+        {"rid": room_id}
+    ).fetchall()[0].owner_id
+
+
+def _set_room_host_id(conn, room_id, new_uid):
+    conn.execute(text(
+        "UPDATE `room` SET `owner_id`=:nuid WHERE `id`=:rid"
+        ),
+        {"nuid": new_uid, "rid": room_id}
+    )
+
+
+def _get_room_status(conn, room_id) -> RoomStatus:
+    return conn.execute(text(
+        "SELECT `status` FROM `room` WHERE `id`=:rid"
+        ),
+        {"rid": room_id}
+    ).fetchall()[0].status
+
+
+def _set_room_status(conn, room_id, new_status: RoomStatus):
+    conn.execute(text(
+        "UPDATE `room` SET `status`=:ns WHERE `id`=:rid"
+        ),
+        {"ns": int(new_status), "rid": room_id}
+    )
+
+
+def _add_room_member(conn, room_id, user_id, diff: LiveDifficulty):
+    assert not _is_user_in_the_room(conn, user_id, room_id)
+    conn.execute(text(
+        "INSERT INTO `room_member` (`room_id`, `user_id`, `difficulty`) "
+        "VALUES (:room_id, :user_id, :difficulty)"),
+        {
+            "room_id": room_id,
+            "user_id": user_id,
+            "difficulty": int(diff)
+        }
+    )
+
+
+def _del_room_member(conn, room_id, user_id):
+    assert _is_user_in_the_room(conn, user_id, room_id)
+    conn.execute(text(
+        "DELETE FROM `room_member` "
+        "WHERE `room_id`=:room_id AND `user_id`=:user_id"),
+        {
+            "room_id": room_id,
+            "user_id": user_id,
+        }
+    )
+
 
 def join_room(token: str, req: RoomJoinRequest) -> RoomJoinResponse:
     with engine.begin() as conn:
@@ -185,50 +314,53 @@ def _join_room(conn, user, req: RoomJoinRequest):
     difficulty = req.select_difficulty
 
     # [確認] 参加中の部屋が無いこと (OtherError)
-    result = conn.execute(text(
-        "SELECT * FROM `room_member` WHERE `user_id`=:uid"
-        ),
-        {"uid": user.id}
-    )
-    rows = result.fetchall()
-    if len(rows) > 0:   # not empty
-        print("you are already in a room. user_id={}, room_id={}"
-              .format(user.id, rows[0].room_id))
+    if _get_user_joined_room_id(conn, user.id) >= 0:
+        print("you are already in another room. uid=", user.id)
         return RoomJoinResponse(join_room_result=JoinRoomResult.OtherError)
 
     # [確認] 参加先の部屋が存在すること (OtherError)
-    result = conn.execute(text(
-        "SELECT * FROM `room` WHERE `id`=:rid"
-        ),
-        {"rid": req.room_id}
-    )
-    try:
-        result.one()
-    except NoResultFound:
-        print("no such room, room_id: ", req.room_id)
+    if not _check_room_existence(conn, room_id):
         return RoomJoinResponse(join_room_result=JoinRoomResult.OtherError)
 
-    # room = result.fetchall()[0]
-
     # [確認] 参加先の部屋に空席があること (RoomFull)
-    result = conn.execute(text(
-        "SELECT * FROM `room_member` WHERE `room_id`=:rid"
-        ),
-        {"rid": req.room_id}
-    )
-    cnt = len(result.fetchall())
-    if cnt >= MAX_USER_COUNT:
+    if _is_room_full(conn, room_id):
         return RoomJoinResponse(join_room_result=JoinRoomResult.RoomFull)
 
+    # [要検討] ライブ開始済の部屋には参加できてよいか？
+
     # 参加可能
-    conn.execute(text(
-        "INSERT INTO `room_member` (`room_id`, `user_id`, `difficulty`) "
-        "VALUES (:room_id, :user_id, :difficulty)"),
-        {
-            "room_id": room_id,
-            "user_id": user.id,
-            "difficulty": int(difficulty)
-        }
-    )
+    _add_room_member(conn, room_id, user.id, difficulty)
+
     return RoomJoinResponse(join_room_result=JoinRoomResult.Ok)
 
+
+class RoomLeaveRequest(BaseModel):
+    room_id: int
+
+
+def leave_room(token: str, req: RoomLeaveRequest) -> None:
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            return InvalidToken
+        uid = user.id
+        rid = req.room_id
+
+        if not _is_user_in_the_room(conn, uid, rid):
+            print("you are not in the room, uid={}, rid={}".format(uid, rid))
+            return
+
+        hid = _get_room_host_id(conn, rid)
+
+        if uid == hid:
+            other_user_list = _get_room_joined_users(conn, rid)
+            if len(other_user_list) == 1:
+                _set_room_host_id(conn, rid, -1)
+                _set_room_status(conn, rid, RoomStatus.Dismissed)
+            else:
+                for other in other_user_list:
+                    if other.user_id == uid:
+                        continue
+                    _set_room_host_id(conn, rid, other.user_id)
+
+        _del_room_member(conn, rid, uid)

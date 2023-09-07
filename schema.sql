@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS `user` (
 CREATE TABLE IF NOT EXISTS `room` (
     `id` bigint NOT NULL AUTO_INCREMENT,
     `live_id` int NOT NULL,
+    `owner_id` bigint,
+    `status` int,
     PRIMARY KEY (`id`)
 );
 

@@ -79,7 +79,6 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
         user = _get_user_by_token(conn, token)
         if user is None:
             raise InvalidToken
-        # TODO: 実装
         res = conn.execute(text(
             "INSERT INTO `room` (`live_id`, `selected_difficulty`) VALUES(:live_id, :selected_difficulty)"
         ), {
@@ -87,3 +86,21 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
             "selected_difficulty": int(difficulty)
         })
     return res.lastrowid
+
+
+def list_room(token: str, live_id: int):
+    """部屋情報の配列を返す"""
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken
+        res = conn.execute(text(
+            "SELECT `room_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `live_id` = :live_id"
+        ), {
+            "live_id": live_id
+        })
+        try:
+            rows = res.all()
+        except NoResultFound:
+            return None
+        return rows

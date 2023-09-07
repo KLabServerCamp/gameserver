@@ -117,3 +117,17 @@ def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
     print("/room/create", req)
     room_id = model.create_room(token, req.live_id, req.select_difficulty)
     return RoomID(room_id=room_id)
+
+@app.post("/room/list")
+def select(token: UserToken, req: ListRoomRequest) -> list:
+    print("/room/list", req)
+    room_list = model.list_room(token, req.live_id)
+    if room_list is None:
+        return []
+    room_list = list(map(lambda room: RoomInfo(
+            room_id=room.room_id,
+            live_id=req.live_id,
+            joined_user_count=room.joined_user_count,
+            max_user_count=room.max_user_count
+            ), room_list))
+    return room_list

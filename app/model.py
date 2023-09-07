@@ -104,3 +104,43 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
             {"room_id": room_id, "user_id": user.id, "difficulty": int(difficulty)},
         )
     return room_id
+
+
+class RoomInfo(BaseModel, strict=True):
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int = 4
+
+
+def _get_room_player(conn, room_id: int) -> list:
+    """room_id のルームに join しているプレイヤーを返す"""
+    res = conn.execute(
+        text("SELECT `user_id` FROM `room_member` WHERE `room_id`=:room_id"),
+        {"room_id": room_id},
+    )
+    return res.all()
+
+
+def get_room_list(live_id: int) -> list:
+    """live_id が一致する room を返す"""
+    with engine.begin() as conn:
+        if live_id == 0:
+            res = conn.execute(text("SELECT `room_id`, `live_id` FROM `room`;"))
+        else:
+            res = conn.execute(
+                text(
+                    "SELECT `room_id`, `live_id` FROM `room` WHERE `live_id`=:live_id;"
+                ),
+                {"live_id": live_id},
+            )
+        rooms = []
+        for room in res:
+            rooms.append(
+                RoomInfo(
+                    room_id=room.room_id,
+                    live_id=room.live_id,
+                    joined_user_count=len(_get_room_player(conn, room.room_id)),
+                )
+            )
+        return rooms

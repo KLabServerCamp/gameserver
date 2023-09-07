@@ -227,14 +227,11 @@ def get_room_status(token: str, room_id: int) -> WaitRoomStatus:
     except NoResultFound:
         return None
     return WaitRoomStatus(row.status)
-    # iPythonでの出力例
-    # get_room_status("a5332e50-7f58-422a-81bc-0bcaa9b45ff6",5) 
-    # = <WaitRoomStatus.Waiting: 1>
 
 
 def get_room_users(token: str, room_id: int) -> list[RoomUser]:
     
-    #user = get_user_by_token(token)
+    user = get_user_by_token(token)
     with engine.begin() as conn:
         result = conn.execute(
             text(
@@ -246,15 +243,6 @@ def get_room_users(token: str, room_id: int) -> list[RoomUser]:
             {"room_id": room_id},
         )
         try:
-            room_user_list = result.all()
-        except NoResultFound:
-            return None
-        
-        return room_user_list
-        # iPythonでの出力例
-        # get_room_users("a5332e50-7f58-422a-81bc-0bcaa9b45ff6",5)
-        # = [(42, 'room_user_0', 1000, 1, 1)]
-        """try:
             room_user_list = []
             for room_user in result:
                 room_user_list.append(
@@ -262,13 +250,13 @@ def get_room_users(token: str, room_id: int) -> list[RoomUser]:
                         user_id=room_user.user_id,
                         name=room_user.name,
                         leader_card_id=room_user.leader_card_id,
-                        select_difficulty=room_user.select_difficulty,
+                        select_difficulty=LiveDifficulty(room_user.select_difficulty),
                         is_me=room_user.user_id == user.id,
-                        is_host=room_user.is_host,
+                        is_host=bool(room_user.is_host),
                     )
                 )
         except NoResultFound:
             return None
         
-    return room_user_list"""
+    return room_user_list
      

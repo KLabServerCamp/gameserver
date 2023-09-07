@@ -18,6 +18,7 @@ CREATE TABLE `room` (
   `room_id` bigint NOT NULL AUTO_INCREMENT,
   `owner_id` bigint NOT NULL,
   `live_id` bigint NOT NULL,
+  `max_user_count` int NOT NULL DEFAULT 4,
   PRIMARY KEY (`room_id`)
 );
 

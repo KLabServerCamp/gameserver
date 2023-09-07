@@ -147,3 +147,41 @@ def get_room_list(live_id: int) -> list:
                 )
             )
         return rooms
+
+
+class JoinRoomResult(IntEnum):
+    Ok= 1
+    RoomFull= 2
+    Disbanded= 3
+    OtherError= 4
+
+
+def join_room(token: str, room_id: int, difficulty: LiveDifficulty) -> JoinRoomResult:
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken
+        
+        # room_id の存在判定
+        res = conn.execute(text(
+            "SELECT `room_id`, `live_id`, `max_user_count` FROM `room` WHERE `room_id`=:room_id"
+        ),{"room_id":room_id})
+        room = res.one_or_none()
+
+        # room が存在しない
+        if room is None:
+            return JoinRoomResult.Disbanded
+        
+        # room の人数が max に達している
+        if len(_get_room_player(conn, room_id)) >= room.max_user_count:
+            return JoinRoomResult.RoomFull
+        
+        # joinする
+        res = conn.execute(
+            text(
+                "INSERT INTO `room_member` SET `room_id`=:room_id, `user_id`=:user_id, `difficulty`=:difficulty"
+            ),
+            {"room_id": room_id, "user_id": user.id, "difficulty": int(difficulty)},
+        )
+        return JoinRoomResult.Ok
+    

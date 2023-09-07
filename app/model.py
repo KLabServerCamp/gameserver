@@ -70,14 +70,50 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
         )
 
 
-# IntEnum の使い方の例
+# Room Enum
 class LiveDifficulty(IntEnum):
     """難易度"""
-
     normal = 1
     hard = 2
 
 
+class JoinRoomResult(IntEnum):
+    Ok = 1              # 入場OK
+    RoomFull = 2        # 満員
+    Disbanded = 3       # 解散済み
+    OtherError = 4      # その他エラー
+
+
+class WaitRoomStatus(IntEnum):
+    Waiting = 1         # ホストがライブ開始ボタン押すのを待っている
+    LiveStart = 2       # ライブ画面遷移OK
+    Dissolution = 3     # 解散された
+
+
+# Room Models
+class RoomInfo(BaseModel, strict=True):
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int
+    status: int
+
+
+class RoomUser(BaseModel, strict=True):
+    room_id: int
+    user_id: int
+    name: str
+    leader_card_id: int
+    select_difficulty: LiveDifficulty
+    is_host: bool
+
+
+class ResultUser(BaseModel, strict=True):
+    user_id: int
+    judge_count_list: list[int]
+    score: int
+    
+    
 def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
     """部屋を作ってroom_idを返します"""
     with engine.begin() as conn:
@@ -85,3 +121,140 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
         if user is None:
             raise InvalidToken
         # TODO: 実装
+        result = conn.execute(
+            text(
+                "INSERT INTO `room` (live_id) VALUES (:live_id)"
+            ),
+            {"live_id": live_id},
+        )
+        room_id = result.lastrowid
+        _create_room_user(conn, token, room_id, difficulty, is_host=True)
+    return room_id
+
+
+def _create_room_user(
+        conn, token: str, room_id: int, difficulty: LiveDifficulty, is_host: bool) -> None:
+    """ユーザーをroom_memberテーブルに追加"""
+    user = get_user_by_token(token)
+    
+    conn.execute(
+        text(
+            "INSERT INTO `room_member` (room_id, user_id, name, leader_card_id, select_difficulty, is_host)"
+            " VALUES (:room_id, :user_id, :name, :leader_card_id, :select_difficulty, :is_host)"
+        ),
+        {"room_id": room_id,
+         "user_id": user.id,
+         "name": user.name,
+         "leader_card_id": user.leader_card_id,
+         "select_difficulty": int(difficulty),
+         "is_host": is_host
+        },
+    )
+
+
+def get_room_list(live_id: int) -> list[RoomInfo]:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT `room_id`, `live_id`,  `joined_user_count`,  `max_user_count`, `status`"
+                " FROM `room` WHERE live_id=:live_id AND `joined_user_count` < `max_user_count`"
+            ),
+            {"live_id": live_id}
+        )
+        try:
+            room_list = []
+            for room in result:
+                room_list.append(
+                    RoomInfo(
+                        room_id=room.room_id,
+                        live_id=room.live_id,
+                        joined_user_count=room.joined_user_count,
+                        max_user_count=room.max_user_count,
+                        status=room.status
+                    )
+                )
+        except NoResultFound:
+            return None
+    return room_list
+    
+
+def join_room(token: str, room_id: int, difficulty: LiveDifficulty
+              ) -> JoinRoomResult:
+    with engine.begin() as conn:
+        
+        # 対象roomの情報を取り出す
+        result = conn.execute(
+            text(
+                "SELECT `joined_user_count`, `max_user_count` FROM `room`"
+                " WHERE `room_id`=:room_id "
+            ),
+            {"room_id": room_id}
+        )
+        try:
+            room = result.one()
+            if room.joined_user_count >= room.max_user_count:
+                # 満員
+                return JoinRoomResult.RoomFull
+            # elif room.wait_room_status == WaitRoomStatus.Dissolution.value: # 解散済み
+            #    return JoinRoomResult.Disbanded
+        except NoResultFound:
+            return JoinRoomResult.OtherError  # その他エラー
+        
+        # 以下参加処理
+        # room_memberテーブルに追加
+        _create_room_user(conn, token, room_id, difficulty, is_host=False)
+        
+        new_joined_user_count = room.joined_user_count+1
+        # roomの参加人数を増やす
+        conn.execute(
+            text(
+                "UPDATE `room` SET `joined_user_count`=:joined_user_count"
+                " WHERE `room_id`=:room_id"
+            ),
+            {"room_id": room_id, "joined_user_count": new_joined_user_count},
+        )
+    return JoinRoomResult.Ok
+
+
+def get_room_status(room_id: int) -> WaitRoomStatus:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT `status` FROM `room` WHERE `room_id`=:room_id"
+            ),
+            {"room_id": room_id},
+        )
+        try:
+            row = result.one()
+        except NoResultFound:
+            return None
+        
+    return WaitRoomStatus(row.status)
+
+
+def get_room_users(room_id: int) -> list[RoomUser]:
+    
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT `user_id`, `name`, `leader_card_id`, `select_difficulty`, `is_host`"
+                " FROM `room` WHERE room_id=:room_id"
+            ),
+            {"room_id": room_id}
+        )
+        try:
+            user_list = []
+            for user in result:
+                user_list.append(
+                    RoomInfo(
+                        user_id=user.user_id,
+                        name=user.name,
+                        leader_card_id=user.leader_card_id,
+                        select_difficulty=user.select_difficulty,
+                        is_host=user.is_host
+                    )
+                )
+        except NoResultFound:
+            return None
+    return user_list
+     

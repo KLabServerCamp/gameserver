@@ -146,3 +146,4 @@ class StartRoomRequest(BaseModel):
 @app.post("/room/start")
 def start(token: UserToken, req: StartRoomRequest):
     model.start_room(token, req.room_id)
+    return Empty()

@@ -163,3 +163,29 @@ def list_room(live_id: int):
             )
             room_list.append(room_info)
     return room_list
+
+
+def join_room(room_id: int, select_difficulty: LiveDifficulty) -> JoinRoomResult:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT room_id, joined_user_count, max_user_count FROM `room` WHERE room_id = :room_id"
+            ),
+            {"room_id": room_id}
+        )
+        room = result.one()
+
+        if not room:
+            print(f"create_room(): {JoinRoomResult.Disbanded}")
+            return JoinRoomResult.Disbanded
+
+        if room._mapping["joined_user_count"] >= room._mapping["max_user_count"]:
+            return JoinRoomResult.RoomFull
+
+        conn.execute(
+            text(
+                "UPDATE `room` SET joined_user_count = joined_user_count + 1 WHERE room_id= :room_id"
+                ),
+            {"room_id": room_id}
+        )
+    return JoinRoomResult.Ok

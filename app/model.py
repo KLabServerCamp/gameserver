@@ -184,15 +184,7 @@ def join_room(token: str, room_id: int, difficulty: LiveDifficulty) -> JoinRoomR
             raise InvalidToken
 
         # room_id の存在判定
-        res = conn.execute(
-            text(
-                "SELECT `room_id`, `live_id`, `max_user_count` FROM `room` WHERE `room_id`=:room_id"
-            ),
-            {"room_id": room_id},
-        )
-        room = res.one_or_none()
-
-        # room が存在しない
+        room = _get_room_from_room_id(conn, room_id)
         if room is None:
             return JoinRoomResult.Disbanded
 
@@ -239,12 +231,10 @@ def wait_room(token: str, room_id: int):
             ),
             {"room_id": room_id},
         )
-        room = conn.execute(
-            text(
-                "SELECT `room_id`, `owner_id`, `status` FROM `room` WHERE `room_id`=:room_id"
-            ),
-            {"room_id": room_id},
-        ).one_or_none()
+
+        room = _get_room_from_room_id(conn, room_id)
+        if room is None:
+            raise Exception
 
         for user_in_room in res:
             user = conn.execute(

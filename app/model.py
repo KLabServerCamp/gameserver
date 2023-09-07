@@ -331,6 +331,14 @@ def _join_room(conn, user, req: RoomJoinRequest):
     # 参加可能
     _add_room_member(conn, room_id, user.id, difficulty)
 
+    # 空の部屋でホスト不在の部屋の場合は新たに設定
+    if not _get_room_host_id(conn, room_id) >= 0:
+        _set_room_host_id(conn, room_id, user.id)
+
+    # 解散状態を解除
+    if _get_room_status(conn, room_id) == RoomStatus.Dismissed:
+        _set_room_status(conn, room_id, RoomStatus.Waiting)
+
     return RoomJoinResponse(join_room_result=JoinRoomResult.Ok)
 
 

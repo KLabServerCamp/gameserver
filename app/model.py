@@ -79,6 +79,35 @@ class LiveDifficulty(IntEnum):
     hard = 2
 
 
+class JoinRoomResult(IntEnum):
+    Ok = 1
+    RoomFull = 2
+    Disbanded = 3
+    OtherError = 4
+
+
+class WaitRoomStatus(IntEnum):
+    Waiting = 1
+    LiveStart = 2
+    Dissolution = 3
+
+
+class RoomInfo(BaseModel):
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int
+
+
+class RoomUser(BaseModel):
+    user_id: int
+    name: str
+    leader_card_id: int
+    select_diffuculty: LiveDifficulty
+    is_me: bool
+    is_host: bool
+
+
 def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
     """部屋を作ってroom_idを返します"""
     with engine.begin() as conn:
@@ -86,3 +115,13 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
         if user is None:
             raise InvalidToken
         # TODO: 実装
+        result = conn.execute(
+            text(
+                "INSERT INTO `room` (live_id, joined_user_count, max_user_count)"
+                " VALUES (:live_id, 1, 4)"
+            ),
+            {"live_id": live_id},
+        )
+        room_id = result.lastrowid
+        print(f"create_room(): {room_id=}")
+        return room_id

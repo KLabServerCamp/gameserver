@@ -151,7 +151,9 @@ def get_room_list(live_id: int) -> list:
                 RoomInfo(
                     room_id=room.room_id,
                     live_id=room.live_id,
-                    joined_user_count=len(_get_room_users_from_room_id(conn, room.room_id)),
+                    joined_user_count=len(
+                        _get_room_users_from_room_id(conn, room.room_id)
+                    ),
                 )
             )
         return rooms

@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 from . import model
 from .auth import UserToken
-from .model import LiveDifficulty
+from .model import JoinRoomResult, LiveDifficulty
 
 app = FastAPI()
 
@@ -106,3 +106,19 @@ def list_(req: ListRoomRequest):
     """ルーム一覧"""
     room_info_list: list = model.get_room_list(req.live_id)
     return ListRoomResponse(room_info_list=room_info_list)
+
+
+class JoinRoomRequest(BaseModel):
+    room_id: int
+    select_difficulty: LiveDifficulty
+
+
+class JoinRoomResponse(BaseModel):
+    join_room_result: JoinRoomResult
+
+
+@app.post("/room/join")
+def join_(token: UserToken, req: JoinRoomRequest):
+    """room に join する"""
+    res = model.join_room(token, req.room_id, req.select_difficulty)
+    return JoinRoomResponse(join_room_result=res)

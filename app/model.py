@@ -29,6 +29,12 @@ class SafeRoom(BaseModel, strict=True):
     status: int
 
 
+class SafeRoomMember(BaseModel, strict=True):
+    room_id: int
+    user_id: int
+    difficulty: int
+
+
 def create_user(name: str, leader_card_id: int) -> str:
     """Create new user and returns their token"""
     # UUID4は天文学的な確率だけど衝突する確率があるので、気にするならリトライする必要がある。

@@ -79,4 +79,28 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
         user = _get_user_by_token(conn, token)
         if user is None:
             raise InvalidToken
-        # TODO: 実装
+        res = conn.execute(
+            text(
+                """
+                INSERT INTO `room` SET
+                    `owner_id`=:owner_id,
+                    `live_id`=:live_id
+                ;
+                """
+            ),
+            {"owner_id": user.id, "live_id": live_id},
+        )
+        room_id = res.lastrowid
+        res = conn.execute(
+            text(
+                """
+                INSERT INTO `room_member` SET
+                    `room_id`=:room_id,
+                    `user_id`=:user_id,
+                    `difficulty`=:difficulty
+                ;
+                """
+            ),
+            {"room_id": room_id, "user_id": user.id, "difficulty": int(difficulty)},
+        )
+    return room_id

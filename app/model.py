@@ -100,11 +100,11 @@ class RoomInfo(BaseModel, strict=True):
 
 
 class RoomUser(BaseModel, strict=True):
-    room_id: int
     user_id: int
     name: str
     leader_card_id: int
     select_difficulty: LiveDifficulty
+    is_me: bool
     is_host: bool
 
 
@@ -216,45 +216,59 @@ def join_room(token: str, room_id: int, difficulty: LiveDifficulty
     return JoinRoomResult.Ok
 
 
-def get_room_status(room_id: int) -> WaitRoomStatus:
+def get_room_status(token: str, room_id: int) -> WaitRoomStatus:
+    with engine.begin() as conn:
+        result = conn.execute(
+            text("SELECT `status` FROM `room` WHERE `room_id`=:room_id"),
+            {"room_id": room_id},
+        )
+    try:
+        row = result.one()
+    except NoResultFound:
+        return None
+    return WaitRoomStatus(row.status)
+    # iPythonでの出力例
+    # get_room_status("a5332e50-7f58-422a-81bc-0bcaa9b45ff6",5) 
+    # = <WaitRoomStatus.Waiting: 1>
+
+
+def get_room_users(token: str, room_id: int) -> list[RoomUser]:
+    
+    #user = get_user_by_token(token)
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "SELECT `status` FROM `room` WHERE `room_id`=:room_id"
+                """
+                SELECT `user_id`, `name`, `leader_card_id`, `select_difficulty`, `is_host`
+                    FROM `room_member` WHERE `room_id`=:room_id
+                """
             ),
             {"room_id": room_id},
         )
         try:
-            row = result.one()
+            room_user_list = result.all()
         except NoResultFound:
             return None
         
-    return WaitRoomStatus(row.status)
-
-
-def get_room_users(room_id: int) -> list[RoomUser]:
-    
-    with engine.begin() as conn:
-        result = conn.execute(
-            text(
-                "SELECT `user_id`, `name`, `leader_card_id`, `select_difficulty`, `is_host`"
-                " FROM `room` WHERE room_id=:room_id"
-            ),
-            {"room_id": room_id}
-        )
-        try:
-            user_list = []
-            for user in result:
-                user_list.append(
-                    RoomInfo(
-                        user_id=user.user_id,
-                        name=user.name,
-                        leader_card_id=user.leader_card_id,
-                        select_difficulty=user.select_difficulty,
-                        is_host=user.is_host
+        return room_user_list
+        # iPythonでの出力例
+        # get_room_users("a5332e50-7f58-422a-81bc-0bcaa9b45ff6",5)
+        # = [(42, 'room_user_0', 1000, 1, 1)]
+        """try:
+            room_user_list = []
+            for room_user in result:
+                room_user_list.append(
+                    RoomUser(
+                        user_id=room_user.user_id,
+                        name=room_user.name,
+                        leader_card_id=room_user.leader_card_id,
+                        select_difficulty=room_user.select_difficulty,
+                        is_me=room_user.user_id == user.id,
+                        is_host=room_user.is_host,
                     )
                 )
         except NoResultFound:
             return None
-    return user_list
+        
+    return room_user_list"""
      

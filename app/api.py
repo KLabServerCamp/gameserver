@@ -134,10 +134,10 @@ def room_join(token: UserToken, req: JoinRoomRequest) -> JoinRoomResponse:
     
 
 @app.post("/room/wait")
-def room_wait(room_id: RoomID) -> WaitRoomResponse:
+def room_wait(token: UserToken, room_id: int) -> WaitRoomResponse:
     """４人集まるのを待つ（ポーリング）。APIの結果でゲーム開始がわかる"""
-    room_status = model.get_room_status(room_id)
-    room_users = model.get_room_users(room_id)
+    room_status = model.get_room_status(token, room_id)
+    room_users = model.get_room_users(token, room_id)
     if room_status is None or not room_users:
-        raise HTTPException(status_code=404)
+        raise HTTPException(status.HTTP_404_NOT_FOUND)
     return WaitRoomResponse(status=room_status, room_user_list=room_users)

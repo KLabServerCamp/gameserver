@@ -118,5 +118,7 @@ def room_join(token: UserToken, req: RoomJoinRequest) -> RoomJoinResponse:
 
 @app.post("/room/leave")
 def room_leave(token: UserToken, req: RoomLeaveRequest) -> None:
+    """ルーム退室リクエスト"""
+    print("/room/leave", req)
     model.leave_room(token, req)
     return None

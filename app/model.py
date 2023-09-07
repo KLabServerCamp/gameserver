@@ -148,6 +148,8 @@ def list_room(req) -> list[RoomInfo]:
             "SELECT `id`, `live_id` FROM `room`"
         ))
         rows = result.fetchall()
+# 関連: https://github.com/KLabServerCamp/gameserver/pull/37/files/042444c606e725073901d2c90358d1665b851d59
+# "N+1" というやつがあるらしい クエリはちまちま投げず一気に投げるべき的な？
         for row in rows:
             room_id = row.id
             live_id = row.live_id
@@ -166,6 +168,9 @@ def list_room(req) -> list[RoomInfo]:
     return reslist
 
 
+# TODO: ここから上も書き直したい
+
+
 class JoinRoomResult(IntEnum):
     Ok = 1
     RoomFull = 2
@@ -182,11 +187,32 @@ class RoomJoinResponse(BaseModel):
     join_room_result: JoinRoomResult
 
 
-class DBDuplicateEntries(Exception):
+# 例外メッセージに DB 内の情報を載せるのめちゃくちゃ酷い気がするが、
+# 公開環境じゃないのでしょうがない
+class DBDuplicateEntriesException(Exception):
     pass
 
 
-def _get_user_joined_room_id(conn, user_id):
+# ユーザの存在確認 (重複確認込み)
+def _check_user_existence(conn, user_id) -> bool:
+    result = conn.execute(text(
+        "SELECT * FROM `user` WHERE `id`=:uid"
+        ),
+        {"uid": user_id}
+    )
+    try:
+        result.one()
+    except NoResultFound:
+        print("no such user, uid=", user_id)
+        return False
+    except MultipleResultsFound:
+        raise DBDuplicateEntriesException("in user: uid={}".format(user_id))
+    return True
+
+
+# ユーザのいる部屋 ID 取得 (部屋にいない場合 -1)
+def _get_user_room_id(conn, user_id):
+    assert _check_user_existence(conn, user_id)
     result = conn.execute(text(
         "SELECT * FROM `room_member` WHERE `user_id`=:uid"
         ),
@@ -194,7 +220,9 @@ def _get_user_joined_room_id(conn, user_id):
     )
     rows = result.fetchall()
     if len(rows) > 1:
-        raise DBDuplicateEntries("in room_member: uid={}".format(user_id))
+        raise DBDuplicateEntriesException(
+            "in room_member: uid={}".format(user_id)
+        )
 
     if len(rows) == 0:
         return -1
@@ -202,14 +230,17 @@ def _get_user_joined_room_id(conn, user_id):
     return rows[0].room_id
 
 
+# ユーザがいずれかの部屋にいるかどうか
 def _is_user_in_room(conn, user_id) -> bool:
-    return _get_user_joined_room_id(conn, user_id) == -1
+    return _get_user_room_id(conn, user_id) == -1
 
 
+# ユーザが指定の部屋にいるかどうか
 def _is_user_in_the_room(conn, user_id, room_id) -> bool:
-    return _get_user_joined_room_id(conn, user_id) == room_id
+    return _get_user_room_id(conn, user_id) == room_id
 
 
+# 部屋の存在確認 (重複確認込み)
 def _check_room_existence(conn, room_id) -> bool:
     result = conn.execute(text(
         "SELECT * FROM `room` WHERE `id`=:rid"
@@ -227,7 +258,9 @@ def _check_room_existence(conn, room_id) -> bool:
     return True
 
 
-def _get_room_joined_users(conn, room_id):
+# 部屋にいるユーザ (リスト)
+def _get_room_users(conn, room_id):
+    assert _check_room_existence(conn, room_id)
     result = conn.execute(text(
         "SELECT * FROM `room_member` WHERE `room_id`=:rid"
         ),
@@ -236,15 +269,19 @@ def _get_room_joined_users(conn, room_id):
     return result.fetchall()
 
 
-def _get_room_joined_users_count(conn, room_id) -> int:
-    return len(_get_room_joined_users(conn, room_id))
+# 部屋にいる人数
+def _get_room_users_count(conn, room_id) -> int:
+    return len(_get_room_users(conn, room_id))
 
 
+# 満員かどうか
 def _is_room_full(conn, room_id) -> bool:
-    return _get_room_joined_users_count(conn, room_id) >= MAX_USER_COUNT
+    return _get_room_users_count(conn, room_id) >= MAX_USER_COUNT
 
 
+# ルーム部屋主取得
 def _get_room_host_id(conn, room_id) -> int:
+    assert _check_room_existence(conn, room_id)
     return conn.execute(text(
         "SELECT `owner_id` FROM `room` WHERE `id`=:rid"
         ),
@@ -252,7 +289,10 @@ def _get_room_host_id(conn, room_id) -> int:
     ).fetchall()[0].owner_id
 
 
+# ルーム部屋主変更
 def _set_room_host_id(conn, room_id, new_uid):
+    # 部屋外の人が部屋主になってどーする
+    assert _is_user_in_the_room(conn, new_uid, room_id)
     conn.execute(text(
         "UPDATE `room` SET `owner_id`=:nuid WHERE `id`=:rid"
         ),
@@ -260,7 +300,9 @@ def _set_room_host_id(conn, room_id, new_uid):
     )
 
 
+# ルームステータス取得
 def _get_room_status(conn, room_id) -> RoomStatus:
+    assert _check_room_existence(conn, room_id)
     return conn.execute(text(
         "SELECT `status` FROM `room` WHERE `id`=:rid"
         ),
@@ -268,7 +310,9 @@ def _get_room_status(conn, room_id) -> RoomStatus:
     ).fetchall()[0].status
 
 
+# ルームステータス変更
 def _set_room_status(conn, room_id, new_status: RoomStatus):
+    assert _check_room_existence(conn, room_id)
     conn.execute(text(
         "UPDATE `room` SET `status`=:ns WHERE `id`=:rid"
         ),
@@ -276,6 +320,7 @@ def _set_room_status(conn, room_id, new_status: RoomStatus):
     )
 
 
+# ルーム入室
 def _add_room_member(conn, room_id, user_id, diff: LiveDifficulty):
     assert not _is_user_in_the_room(conn, user_id, room_id)
     conn.execute(text(
@@ -289,6 +334,7 @@ def _add_room_member(conn, room_id, user_id, diff: LiveDifficulty):
     )
 
 
+# ルーム退室
 def _del_room_member(conn, room_id, user_id):
     assert _is_user_in_the_room(conn, user_id, room_id)
     conn.execute(text(
@@ -314,7 +360,7 @@ def _join_room(conn, user, req: RoomJoinRequest):
     difficulty = req.select_difficulty
 
     # [確認] 参加中の部屋が無いこと (OtherError)
-    if _get_user_joined_room_id(conn, user.id) >= 0:
+    if _get_user_room_id(conn, user.id) >= 0:
         print("you are already in another room. uid=", user.id)
         return RoomJoinResponse(join_room_result=JoinRoomResult.OtherError)
 
@@ -342,6 +388,8 @@ def _join_room(conn, user, req: RoomJoinRequest):
     return RoomJoinResponse(join_room_result=JoinRoomResult.Ok)
 
 
+# 仕様に載ってないので、もしかすると単一の変数のときは構造体の定義が要らない
+# いい感じの書き方がある？ (直に room_id を渡すと JSON にならないので一旦このまま)
 class RoomLeaveRequest(BaseModel):
     room_id: int
 
@@ -353,22 +401,26 @@ def leave_room(token: str, req: RoomLeaveRequest) -> None:
             return InvalidToken
         uid = user.id
         rid = req.room_id
-
+        
+        # そもそも部屋にいないので退出出来ない場合
         if not _is_user_in_the_room(conn, uid, rid):
             print("you are not in the room, uid={}, rid={}".format(uid, rid))
             return
 
         hid = _get_room_host_id(conn, rid)
 
+        # 部屋主退出
         if uid == hid:
-            other_user_list = _get_room_joined_users(conn, rid)
+            other_user_list = _get_room_users(conn, rid)
+            # ぼっち脱退 -> 部屋 0 人 -> dismissed (ステータス使い方あってる？)
             if len(other_user_list) == 1:
                 _set_room_host_id(conn, rid, -1)
                 _set_room_status(conn, rid, RoomStatus.Dismissed)
-            else:
+            else:   # 次の部屋主を雑に決める
                 for other in other_user_list:
-                    if other.user_id == uid:
-                        continue
-                    _set_room_host_id(conn, rid, other.user_id)
+                    if other.user_id != uid:
+                        _set_room_host_id(conn, rid, other.user_id)
+                        break
 
+        # レコード削除 (room_member)
         _del_room_member(conn, rid, uid)

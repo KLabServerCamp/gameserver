@@ -137,3 +137,12 @@ class WaitRoomResponse(BaseModel):
 def wait(token: UserToken, req: WaitRoomRequest):
     status, users = model.wait_room(token, req.room_id)
     return WaitRoomResponse(status=status, room_user_list=users)
+
+
+class StartRoomRequest(BaseModel):
+    room_id: int
+
+
+@app.post("/room/start")
+def start(token: UserToken, req: StartRoomRequest):
+    model.start_room(token, req.room_id)

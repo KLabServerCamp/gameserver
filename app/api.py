@@ -77,14 +77,14 @@ def update(req: UserCreateRequest, token: UserToken) -> Empty:
 
 
 class RoomID(BaseModel):
-    room_id: int
+    room_id: int = Field(title="部屋ID")
 
 
 class RoomInfo(BaseModel):
-    room_id: int
-    live_id: int
-    joined_user_count: int
-    max_user_count: int
+    room_id: int = Field(title="部屋ID")
+    live_id: int = Field(title="楽曲ID")
+    joined_user_count: int = Field(title="参加済み人数")
+    max_user_count: int = Field(title="最大人数")
 
 
 class RoomUser(BaseModel):
@@ -111,12 +111,18 @@ class ListRoomRequest(BaseModel):
     live_id: int
 
 
+class JoinRoomRequest(BaseModel):
+    room_id: int
+    select_difficulty: LiveDifficulty
+
+
 @app.post("/room/create")
 def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
     """ルーム作成リクエスト"""
     print("/room/create", req)
-    room_id = model.create_room(token, req.live_id, req.select_difficulty)
+    room_id = model.create_room(token, req.live_id)
     return RoomID(room_id=room_id)
+
 
 @app.post("/room/list")
 def select(token: UserToken, req: ListRoomRequest) -> list:
@@ -131,3 +137,9 @@ def select(token: UserToken, req: ListRoomRequest) -> list:
             max_user_count=room.max_user_count
             ), room_list))
     return room_list
+
+
+@app.post("/room/join")
+def join(token: UserToken, req: JoinRoomRequest) -> int:
+    print("/room/join", req)
+    return int(model.join_room(token, req.room_id, req.select_difficulty))

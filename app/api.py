@@ -80,9 +80,36 @@ class RoomID(BaseModel):
     room_id: int
 
 
+class RoomInfo(BaseModel):
+    room_id: int
+    live_id: int
+    joined_user_count: int
+    max_user_count: int
+
+
+class RoomUser(BaseModel):
+    user_id: int
+    name: str
+    leader_card_id: int
+    selected_difficulty: LiveDifficulty
+    is_me: bool
+    is_host: bool
+
+
+class ResultUser(BaseModel):
+    user_id: int
+    judge_count_list: list[int]
+    score: int
+
+
 class CreateRoomRequest(BaseModel):
     live_id: int
     select_difficulty: LiveDifficulty
+
+
+class ListRoomRequest(BaseModel):
+    live_id: int
+
 
 @app.post("/room/create")
 def create(token: UserToken, req: CreateRoomRequest) -> RoomID:

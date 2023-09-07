@@ -88,26 +88,13 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
         if user is None:
             raise InvalidToken
         res = conn.execute(
-            text(
-                """
-                INSERT INTO `room` SET
-                    `owner_id`=:owner_id,
-                    `live_id`=:live_id
-                ;
-                """
-            ),
+            text("INSERT INTO `room` SET `owner_id`=:owner_id, `live_id`=:live_id"),
             {"owner_id": user.id, "live_id": live_id},
         )
         room_id = res.lastrowid
         res = conn.execute(
             text(
-                """
-                INSERT INTO `room_member` SET
-                    `room_id`=:room_id,
-                    `user_id`=:user_id,
-                    `difficulty`=:difficulty
-                ;
-                """
+                "INSERT INTO `room_member` SET `room_id`=:room_id, `user_id`=:user_id, `difficulty`=:difficulty"
             ),
             {"room_id": room_id, "user_id": user.id, "difficulty": int(difficulty)},
         )
@@ -137,11 +124,11 @@ def get_room_list(live_id: int) -> list:
     """
     with engine.begin() as conn:
         if live_id == 0:
-            res = conn.execute(text("SELECT `room_id`, `live_id` FROM `room`;"))
+            res = conn.execute(text("SELECT `room_id`, `live_id` FROM `room`"))
         else:
             res = conn.execute(
                 text(
-                    "SELECT `room_id`, `live_id` FROM `room` WHERE `live_id`=:live_id;"
+                    "SELECT `room_id`, `live_id` FROM `room` WHERE `live_id`=:live_id"
                 ),
                 {"live_id": live_id},
             )

@@ -121,7 +121,7 @@ class RoomInfo(BaseModel, strict=True):
     max_user_count: int = 4
 
 
-def _get_room_player(conn, room_id: int) -> list:
+def _get_room_users_from_room_id(conn, room_id: int) -> list:
     """room_id のルームに join しているプレイヤーを返す"""
     res = conn.execute(
         text("SELECT `user_id` FROM `room_member` WHERE `room_id`=:room_id"),
@@ -151,7 +151,9 @@ def get_room_list(live_id: int) -> list:
                 RoomInfo(
                     room_id=room.room_id,
                     live_id=room.live_id,
-                    joined_user_count=len(_get_room_player(conn, room.room_id)),
+                    joined_user_count=len(
+                        _get_room_users_from_room_id(conn, room.room_id)
+                    ),
                 )
             )
         return rooms
@@ -184,20 +186,12 @@ def join_room(token: str, room_id: int, difficulty: LiveDifficulty) -> JoinRoomR
             raise InvalidToken
 
         # room_id の存在判定
-        res = conn.execute(
-            text(
-                "SELECT `room_id`, `live_id`, `max_user_count` FROM `room` WHERE `room_id`=:room_id"
-            ),
-            {"room_id": room_id},
-        )
-        room = res.one_or_none()
-
-        # room が存在しない
+        room = _get_room_from_room_id(conn, room_id)
         if room is None:
             return JoinRoomResult.Disbanded
 
         # room の人数が max に達している
-        if len(_get_room_player(conn, room_id)) >= room.max_user_count:
+        if len(_get_room_users_from_room_id(conn, room_id)) >= room.max_user_count:
             return JoinRoomResult.RoomFull
 
         # joinする
@@ -239,12 +233,10 @@ def wait_room(token: str, room_id: int):
             ),
             {"room_id": room_id},
         )
-        room = conn.execute(
-            text(
-                "SELECT `room_id`, `owner_id`, `status` FROM `room` WHERE `room_id`=:room_id"
-            ),
-            {"room_id": room_id},
-        ).one_or_none()
+
+        room = _get_room_from_room_id(conn, room_id)
+        if room is None:
+            raise Exception
 
         for user_in_room in res:
             user = conn.execute(

@@ -136,3 +136,30 @@ def _insert_room_member(conn, room_id: int, user_id: int, difficulty: int):
         ),
         {"room_id": room_id, "user_id": user_id, "difficulty": difficulty}
     )
+
+
+def list_room(live_id: int):
+    with engine.begin() as conn:
+        if live_id == 0:
+            result = conn.execute(
+                text(
+                    "SELECT room_id, live_id, joined_user_count, max_user_count FROM `room`"
+                )
+            )
+        else:
+            result = conn.execute(
+                text(
+                    "SELECT room_id, live_id, joined_user_count, max_user_count FROM `room` WHERE live_id = :live_id"
+                ),
+                {"live_id": live_id}
+            )
+        room_list = []
+        for row in result:
+            room_info = RoomInfo(
+                room_id=row._mapping["room_id"],
+                live_id=row._mapping["live_id"],
+                joined_user_count=row._mapping["joined_user_count"],
+                max_user_count=row._mapping["max_user_count"]
+            )
+            room_list.append(room_info)
+    return room_list

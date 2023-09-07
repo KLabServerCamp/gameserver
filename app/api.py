@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 from . import model
 from .auth import UserToken
-from .model import LiveDifficulty
+from .model import LiveDifficulty, RoomInfo
 
 app = FastAPI()
 
@@ -85,9 +85,24 @@ class CreateRoomRequest(BaseModel):
     select_difficulty: LiveDifficulty
 
 
+class RoomListRequest(BaseModel):
+    live_id: int
+
+
+class RoomInfoList(BaseModel):
+    room_info_list: list[RoomInfo]
+
+
 @app.post("/room/create")
 def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
     """ルーム作成リクエスト"""
     print("/room/create", req)
     room_id = model.create_room(token, req.live_id, req.select_difficulty)
     return RoomID(room_id=room_id)
+
+
+@app.post("/room/list")
+def room_list(req: RoomListRequest) -> RoomInfoList:
+    print("/room/create", req)
+    room_info_list = model.list_room(req.live_id)
+    return RoomInfoList(room_info_list=room_info_list)

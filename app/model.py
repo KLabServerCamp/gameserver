@@ -6,6 +6,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
 from .db import engine
+
 # from .api import RoomInfo
 
 
@@ -44,7 +45,7 @@ def create_user(name: str, leader_card_id: int) -> str:
 def _get_user_by_token(conn, token: str) -> SafeUser | None:
     result = conn.execute(
         text(
-            "SELECT `id`, `name`, `leader_card_id`" "FROM `user`" "WHERE `token`=:token"
+            "SELECT `id`, `name`, `leader_card_id` FROM `user`" "WHERE `token`=:token"
         ),
         {"token": token},
     )
@@ -85,23 +86,21 @@ class LiveDifficulty(IntEnum):
     hard = 2
 
 
-def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty):
-    print(select_difficulty)
+def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
     """部屋を作ってroom_idを返します"""
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
         if user is None:
             raise InvalidToken
-        else:
-            result = conn.execute(
-                text(
-                    "INSERT INTO `room` (live_id, select_difficulty)"
-                    " VALUES (:live_id, :select_difficulty)"
-                ),
-                {"live_id": live_id, "select_difficulty": select_difficulty.value},
-            )
-            room_id = result.lastrowid  # DB側で生成された PRIMARY KEY を参照できる
-            print(f"create_room(): {room_id=}")
+        result = conn.execute(
+            text(
+                "INSERT INTO `room` (live_id, select_difficulty)"
+                " VALUES (:live_id, :select_difficulty)"
+            ),
+            {"live_id": live_id, "select_difficulty": difficulty.value},
+        )
+        room_id = result.lastrowid  # DB側で生成された PRIMARY KEY を参照できる
+        print(f"create_room(): {room_id=}")
     return room_id
 
 
@@ -118,30 +117,86 @@ def list_room(token: str, live_id: int):
         user = _get_user_by_token(conn, token)
         if user is None:
             raise InvalidToken
+        if live_id == 0:
+            result = conn.execute(
+                text(
+                    "SELECT room_id, live_id, joined_user_count, max_user_count FROM room "
+                ),
+            )
         else:
-            if live_id==0:
-                result = conn.execute(
-                    text(
-                        "SELECT room_id, live_id, joined_user_count, max_user_count FROM room "
-                    ),
-                )
-            else:
-                result = conn.execute(
-                    text(
-                        "SELECT room_id, live_id, joined_user_count, max_user_count FROM room "
-                        "WHERE live_id = :live_id"
-                    ),
-                    {"live_id": live_id},
-                )
-            # TODO:以下、もっと良い方法ありそう
-            room_info_list = [
-                RoomInfo(
-                    room_id=row.room_id,
-                    live_id=row.live_id,
-                    joined_user_count=row.joined_user_count,
-                    max_user_count=row.max_user_count
-                )
-                for row in result.fetchall()
-            ]
+            result = conn.execute(
+                text(
+                    "SELECT room_id, live_id, joined_user_count, max_user_count FROM room "
+                    "WHERE live_id = :live_id"
+                ),
+                {"live_id": live_id},
+            )
 
-    return room_info_list     
+        room_info_list = [
+            RoomInfo.model_validate(row, from_attributes=True)
+            for row in result.fetchall()
+        ]
+
+    return room_info_list
+
+
+class JoinRoomResult(IntEnum):
+    """難易度"""
+
+    Ok = 1
+    RoomFull = 2
+    Disbanded = 3
+    OtherError = 4
+
+
+def join_room(token: str, room_id: int, difficulty: LiveDifficulty):
+    """room_idから入場結果を返す"""
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken
+        join_room_result = 4  # 予想外のエラー
+        room_info = conn.execute(
+            text(
+                "SELECT joined_user_count, max_user_count FROM room "
+                "WHERE room_id = :room_id"
+            ),
+            {"room_id": room_id},
+        )
+
+        if room_info:
+            row = room_info.one()
+            # TODO:同じ人物が入場しようとしたとき（leave処理を作成したら必要ない？）
+            # TODO:複数人が同時に入場したときの処理
+            if row.joined_user_count < row.max_user_count:
+                join_room_result = 1
+                # room の現在の人数を更新
+                conn.execute(
+                    text(
+                        "UPDATE room SET joined_user_count= :new_joined_user_count "
+                        "WHERE room_id = :room_id"
+                    ),
+                    {
+                        "room_id": room_id,
+                        "new_joined_user_count": row.joined_user_count + 1,
+                    },
+                )
+                # room_member を作成
+                conn.execute(
+                    text(
+                        "INSERT INTO `room_member` (user_id, room_id, select_difficulty)"
+                        " VALUES (:user_id, :room_id, :select_difficulty)"
+                    ),
+                    {
+                        "user_id": user.id,
+                        "room_id": room_id,
+                        "select_difficulty": difficulty,
+                    },
+                )
+
+            else:
+                join_room_result = 2
+        else:
+            join_room_result = 3
+
+    return join_room_result

@@ -23,6 +23,7 @@ def _auth_header(i=0):
     return {"Authorization": f"bearer {token}"}
 
 
+# 実装済みのtestのみ抜き出す
 def test_test():
     response = client.post(
         "/room/create",
@@ -33,7 +34,7 @@ def test_test():
     room_id = response.json()["room_id"]
     print(f"room/create {room_id=}")
 
-    response = client.post("/room/list",headers=_auth_header(), json={"live_id": 1001})
+    response = client.post("/room/list", headers=_auth_header(), json={"live_id": 1001})
     assert response.status_code == 200
     print("room/list response:", response.json())
 

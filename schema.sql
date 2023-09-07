@@ -25,9 +25,10 @@ CREATE TABLE `room` (
 CREATE TABLE `room_member` (
   `user_id` bigint NOT NULL,
   `room_id` bigint NOT NULL,
+  `select_difficulty` int NOT NULL,
   `is_host` BOOLEAN NOT NULL DEFAULT FALSE,
   `judge_count_list` json, 
-  `score` int NOT NULL,
+  `score` int,
   FOREIGN KEY (`user_id`) REFERENCES `user`(`id`),
   FOREIGN KEY (`room_id`) REFERENCES `room`(`room_id`)
 );

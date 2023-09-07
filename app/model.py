@@ -164,7 +164,7 @@ class JoinRoomResult(IntEnum):
     OtherError = 4
 
 
-def _get_room_from_room_id(conn, room_id: int):
+def _get_room_from_room_id(conn, room_id: int) -> SafeRoom | None:
     res = conn.execute(
         text(
             "SELECT `room_id`, `owner_id`, `live_id`, `max_user_count`, `status` FROM `room` WHERE `room_id`=:room_id"
@@ -174,7 +174,7 @@ def _get_room_from_room_id(conn, room_id: int):
     room = res.one_or_none()
     if room is None:
         return None
-    return SafeRoom.model_validate(room, from_attribue=True)
+    return SafeRoom.model_validate(room, from_attributes=True)
 
 
 def join_room(token: str, room_id: int, difficulty: LiveDifficulty) -> JoinRoomResult:
@@ -266,3 +266,19 @@ def wait_room(token: str, room_id: int):
                 )
             )
         return room.status, room_user_list
+
+
+def start_room(token: str, room_id: int):
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken
+        room = _get_room_from_room_id(conn, room_id)
+        if room is None:
+            raise Exception
+        if user.id != room.owner_id:
+            raise Exception
+        conn.execute(
+            text("UPDATE `room` SET `status`=2 WHERE `room_id`=:room_id"),
+            {"room_id": room_id},
+        )

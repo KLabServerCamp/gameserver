@@ -108,6 +108,12 @@ class RoomUser(BaseModel):
     is_host: bool
 
 
+class ResultUser(BaseModel):
+    user_id: int
+    judge_count_list: list[int]
+    score: int
+
+
 def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
     """部屋を作ってroom_idを返します"""
     with engine.begin() as conn:
@@ -165,6 +171,29 @@ def list_room(live_id: int):
     return room_list
 
 
+def wait_room(room_id: int) -> (WaitRoomStatus, list[RoomUser]):
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                "SELECT room_id, joined_user_count, max_user_count FROM `room` WHERE room_id = :room_id"
+            ),
+            {"room_id": room_id}
+        )
+        room = result.one_or_none()
+
+        if not room:
+            return(WaitRoomStatus.Dissolution, [])
+
+        room_status = WaitRoomStatus(room._mapping["room_status"])
+
+        result = conn.execute(
+            text(
+                "SELECT user_id, name, leader_card_id, select_difficulty, is_me, is_host FROM `room_users` WHERE room_id = :room_id"
+            ),
+            {"room_id": room_id}
+        )
+
+
 def join_room(room_id: int, select_difficulty: LiveDifficulty) -> JoinRoomResult:
     with engine.begin() as conn:
         result = conn.execute(
@@ -176,7 +205,6 @@ def join_room(room_id: int, select_difficulty: LiveDifficulty) -> JoinRoomResult
         room = result.one()
 
         if not room:
-            print(f"create_room(): {JoinRoomResult.Disbanded}")
             return JoinRoomResult.Disbanded
 
         if room._mapping["joined_user_count"] >= room._mapping["max_user_count"]:

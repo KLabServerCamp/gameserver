@@ -73,12 +73,14 @@ class LiveDifficulty(IntEnum):
     normal = 1
     hard = 2
 
+
 class JoinRoomResult(IntEnum):
     """参加判定"""
     Ok = 1
     RoomFull = 2
     Disbanded = 3
     OtherError = 4
+
 
 class WaitRoomStatus(IntEnum):
     """ルーム状態"""
@@ -113,3 +115,28 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
         #print(result.lastrowid)
         #print(room_id)
         return room_id
+
+
+def search_room(live_id: int):
+    """楽曲IDから空き部屋を探す"""
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                """
+                SELECT `id` FROM `room` WHERE live_id=:live_id AND max_user_count > joined_user_count
+                """
+            ),
+            {"live_id": live_id},
+        )
+        try:
+            room_list = []
+            row = result.all()
+            #print(row)
+            for res in row:
+                room_list.append(
+                    res.id
+                )
+            print(room_list)
+        except NoResultFound:
+            return None
+        return room_list

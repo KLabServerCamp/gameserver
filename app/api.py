@@ -87,9 +87,26 @@ class CreateRoomRequest(BaseModel):
     select_difficulty: LiveDifficulty
 
 
+class LiveID(BaseModel):
+    live_id: int
+
+
+class RoomList(BaseModel):
+    room_info_list: list
+
+
 @app.post("/room/create")
 def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
     """ルーム作成リクエスト"""
     print("/room/create", req)
     room_id = model.create_room(token, req.live_id, req.select_difficulty)
     return RoomID(room_id=room_id)
+
+
+@app.post("/room/list")
+def list(req: LiveID) -> RoomList:
+    """部屋一覧表示"""
+    print("/room/list", req)
+    room_list = model.search_room(req.live_id)
+    print(f"postroom: {room_list}")
+    return RoomList(room_info_list=room_list)

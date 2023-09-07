@@ -103,7 +103,7 @@ class ListRoomRequest(BaseModel):
 
 @app.post("/room/list")
 def list_room(token: UserToken, req: ListRoomRequest) -> RoomList:
-    """ルーム作成リクエスト"""
+    """ルームリストのリクエスト"""
     print("/room/list", req)
     room_info_list = model.list_room(token, req.live_id)
     return RoomList(room_info_list=room_info_list)
@@ -120,7 +120,7 @@ class JoinRoomRequest(BaseModel):
 
 @app.post("/room/join")
 def join_room(token: UserToken, req: JoinRoomRequest) -> JoinRoomResponse:
-    """ルーム作成リクエスト"""
+    """ルーム参加リクエスト"""
     print("/room/join", req)
     join_room_result = model.join_room(token, req.room_id, req.select_difficulty)
     return JoinRoomResponse(join_room_result=join_room_result)

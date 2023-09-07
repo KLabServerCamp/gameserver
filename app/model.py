@@ -1,7 +1,7 @@
 import uuid
 from enum import IntEnum
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
@@ -10,6 +10,7 @@ from .db import engine
 
 class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げるエラー"""
+    print("create_room() error")
 
 
 # サーバーで生成するオブジェクトは strict を使う
@@ -40,7 +41,6 @@ def create_user(name: str, leader_card_id: int) -> str:
 
 
 def _get_user_by_token(conn, token: str) -> SafeUser | None:
-    # TODO: 実装(わからなかったら資料を見ながら)
     result = conn.execute(
         text("SELECT id, name, leader_card_id FROM `user` WHERE token=:token"),
         {"token": token},
@@ -59,7 +59,6 @@ def get_user_by_token(token: str) -> SafeUser | None:
 
 def update_user(token: str, name: str, leader_card_id: int) -> None:
     with engine.begin() as conn:
-        # TODO: 実装
         conn.execute(
             text(
                 "UPDATE `user` SET name=:name, leader_card_id=:leader_card_id WHERE token=:token"
@@ -71,9 +70,21 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
 # IntEnum の使い方の例
 class LiveDifficulty(IntEnum):
     """難易度"""
-
     normal = 1
     hard = 2
+
+class JoinRoomResult(IntEnum):
+    """参加判定"""
+    Ok = 1
+    RoomFull = 2
+    Disbanded = 3
+    OtherError = 4
+
+class WaitRoomStatus(IntEnum):
+    """ルーム状態"""
+    Waiting = 1
+    LiveStart = 2
+    Dissolution = 3
 
 
 def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
@@ -82,4 +93,23 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
         user = _get_user_by_token(conn, token)
         if user is None:
             raise InvalidToken
-        # TODO: 実装
+        result = conn.execute(
+            text(
+                "INSERT INTO `room` (live_id, room_master, joined_user_count, max_user_count)"
+                " VALUES (:live_id, :room_master, :joined_user_count, :max_user_count)"
+            ),
+            {"live_id": live_id, "room_master": user.id, "joined_user_count": 1, "max_user_count": 4},
+        )
+        room_id = result.lastrowid
+        #print(result.lastrowid)
+        #print(room_id)
+        result = conn.execute(
+            text(
+                "INSERT INTO `room_member` (room_id, user_id, difficulty)"
+                " VALUES (:room_id, :user_id, :difficulty)"
+            ),
+            {"room_id": room_id, "user_id": user.id, "difficulty": int(difficulty)},
+        )
+        #print(result.lastrowid)
+        #print(room_id)
+        return room_id

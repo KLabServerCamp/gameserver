@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 from . import model
 from .auth import UserToken
 from .model import LiveDifficulty
+from .model import JoinRoomResult
+from .model import WaitRoomStatus
 
 app = FastAPI()
 

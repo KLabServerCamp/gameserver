@@ -19,6 +19,7 @@ CREATE TABLE `room` (
     `room_master` bigint NOT NULL,
     `joined_user_count` int NOT NULL,
     `max_user_count` int NOT NULL,
+    `exist` boolean NOT NULL,
     PRIMARY KEY (`id`),
     FOREIGN KEY (`room_master`) REFERENCES `user`(`id`)
 );

@@ -103,8 +103,6 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
             {"live_id": live_id, "room_master": user.id, "joined_user_count": 1, "max_user_count": 4},
         )
         room_id = result.lastrowid
-        #print(result.lastrowid)
-        #print(room_id)
         result = conn.execute(
             text(
                 "INSERT INTO `room_member` (room_id, user_id, difficulty)"
@@ -112,8 +110,7 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
             ),
             {"room_id": room_id, "user_id": user.id, "difficulty": int(difficulty)},
         )
-        #print(result.lastrowid)
-        #print(room_id)
+        print(room_id)
         return room_id
 
 
@@ -131,7 +128,6 @@ def search_room(live_id: int):
         try:
             room_list = []
             row = result.all()
-            #print(row)
             for res in row:
                 room_list.append(
                     res.id
@@ -140,3 +136,41 @@ def search_room(live_id: int):
         except NoResultFound:
             return None
         return room_list
+
+
+def join_room(token: str, room_id: int):
+    """入室処理"""
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        result = conn.execute(
+            text(
+                """
+                SELECT max_user_count - joined_user_count AS upto_count FROM `room` WHERE id=:room_id
+                """
+            ),
+            {"room_id": room_id},
+        )
+        res = result.all()
+        res_int = int(res[0][0])
+        print(res_int)
+        join_room_result = JoinRoomResult.OtherError
+        if res_int > 1:
+            result = conn.execute(
+                text(
+                    """
+                    INSERT INTO `room_member` (room_id, user_id, difficulty)
+                     VALUES (:room_id, :user_id, :difficulty)
+                    """
+                ),
+                {"room_id": room_id, "user_id": user.id, "difficulty": 1},
+            )
+            conn.execute(
+                text(
+                    "UPDATE `room` SET joined_user_count = joined_user_count + 1 WHERE id=:room_id"
+                ),
+                {"room_id": room_id},
+            )
+            join_room_result = JoinRoomResult.Ok
+        else:
+            join_room_result = join_room_result.RoomFull
+        return join_room_result

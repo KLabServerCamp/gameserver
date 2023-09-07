@@ -95,6 +95,14 @@ class RoomList(BaseModel):
     room_info_list: list
 
 
+class JoinRoomRequest(BaseModel):
+    join_room_result: JoinRoomResult
+
+
+class WaitRoomInfo(BaseModel):
+    wait_room_status: WaitRoomStatus
+
+
 @app.post("/room/create")
 def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
     """ルーム作成リクエスト"""
@@ -110,3 +118,11 @@ def list(req: LiveID) -> RoomList:
     room_list = model.search_room(req.live_id)
     print(f"postroom: {room_list}")
     return RoomList(room_info_list=room_list)
+
+
+@app.post("/room/join")
+def join(token: UserToken, req: RoomID) -> JoinRoomRequest:
+    """ルーム参加処理"""
+    print("/room/join", req)
+    join_room_result = model.join_room(token, req.room_id)
+    return JoinRoomRequest(join_room_result=join_room_result)

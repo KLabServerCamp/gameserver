@@ -123,7 +123,10 @@ def _get_room_player(conn, room_id: int) -> list:
 
 
 def get_room_list(live_id: int) -> list:
-    """live_id が一致する room を返す"""
+    """
+    live_id が一致する room を返す
+    live_id が 0 ならば全ての room を返す
+    """
     with engine.begin() as conn:
         if live_id == 0:
             res = conn.execute(text("SELECT `room_id`, `live_id` FROM `room`;"))

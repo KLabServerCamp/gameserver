@@ -21,6 +21,14 @@ class SafeUser(BaseModel, strict=True):
     leader_card_id: int
 
 
+class SafeRoom(BaseModel, strict=True):
+    room_id: int
+    owner_id: int
+    live_id: int
+    max_user_count: int
+    status: int
+
+
 def create_user(name: str, leader_card_id: int) -> str:
     """Create new user and returns their token"""
     # UUID4は天文学的な確率だけど衝突する確率があるので、気にするならリトライする必要がある。
@@ -154,6 +162,19 @@ class JoinRoomResult(IntEnum):
     RoomFull = 2
     Disbanded = 3
     OtherError = 4
+
+
+def _get_room_from_room_id(conn, room_id: int):
+    res = conn.execute(
+        text(
+            "SELECT `room_id`, `owner_id`, `live_id`, `max_user_count`, `status` FROM `room` WHERE `room_id`=:room_id"
+        ),
+        {"room_id": room_id},
+    )
+    room = res.one_or_none()
+    if room is None:
+        return None
+    return SafeRoom.model_validate(room, from_attribue=True)
 
 
 def join_room(token: str, room_id: int, difficulty: LiveDifficulty) -> JoinRoomResult:

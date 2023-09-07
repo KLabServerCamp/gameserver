@@ -184,4 +184,53 @@ def join_room(token: str, room_id: int, difficulty: LiveDifficulty) -> JoinRoomR
             {"room_id": room_id, "user_id": user.id, "difficulty": int(difficulty)},
         )
         return JoinRoomResult.Ok
-    
+
+class RoomUser(BaseModel, strict=True):
+    user_id: int
+    name: str
+    leader_card_id:int
+    select_difficulty:LiveDifficulty
+    is_me:bool
+    is_host:bool
+
+class WaitRoomStatus(IntEnum):
+    Waiting = 1
+    LiveStart = 2
+    Dissolution=3
+
+def wait_room(token:str, room_id:int):
+    # room_id から参加者を特定
+    # それぞれの参加者について情報を取得し、 RoomUser のインスタンスを作る
+    with engine.begin() as conn:
+        req_user = _get_user_by_token(conn, token)
+        if req_user is None:
+            raise InvalidToken
+        room_user_list: list[RoomUser] = []
+        res = conn.execute(text(
+            "SELECT `room_id`, `user_id`, `difficulty` FROM `room_member` WHERE `room_id`=:room_id"
+        ) ,{"room_id":room_id} )
+        room = conn.execute(text(
+            "SELECT `room_id`, `owner_id`, `status` FROM `room` WHERE `room_id`=:room_id"
+        ),{"room_id":room_id}).one_or_none()
+
+        for user_in_room in res:
+            user = conn.execute(text(
+                "SELECT `id`, `name`, `leader_card_id` FROM `user` WHERE `id`=:user_id"
+                ), {"user_id":user_in_room.user_id}).one_or_none()
+            if user is None:
+                continue
+            room_user_list.append(
+                RoomUser(
+                    user_id=user.id,
+                    name=user.name,
+                    leader_card_id=user.leader_card_id,
+                    select_difficulty= LiveDifficulty(user_in_room.difficulty),
+                    is_me= (user.id == req_user.id),
+                    is_host=(user.id == room.owner_id)
+                )
+            )
+        return room.status, room_user_list
+            
+            
+        
+        

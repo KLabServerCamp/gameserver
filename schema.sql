@@ -18,3 +18,11 @@ CREATE TABLE `room` (
   `max_user_count` int NOT NULL,
   PRIMARY KEY (`room_id`)
 );
+
+DROP TABLE IF EXISTS `room_member`;
+CREATE TABLE `room_member` (
+  `room_id` bigint NOT NULL,  
+  `user_id` bigint NOT NULL,
+  `difficulty` int NOT NULL,
+  PRIMARY KEY (`room_id`, `user_id`)
+);

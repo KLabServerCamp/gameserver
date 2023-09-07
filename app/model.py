@@ -124,4 +124,15 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
         )
         room_id = result.lastrowid
         print(f"create_room(): {room_id=}")
+        _insert_room_member(conn, room_id, user.id, difficulty.value)
         return room_id
+
+
+def _insert_room_member(conn, room_id: int, user_id: int, difficulty: int):
+    conn.execute(
+        text(
+            "INSERT INTO `room_member` (room_id, user_id, difficulty)"
+            " VALUES (:room_id, :user_id, :difficulty)"
+        ),
+        {"room_id": room_id, "user_id": user_id, "difficulty": difficulty}
+    )

@@ -80,3 +80,10 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
         if user is None:
             raise InvalidToken
         # TODO: 実装
+        res = conn.execute(text(
+            "INSERT INTO `room` (`live_id`, `selected_difficulty`) VALUES(:live_id, :selected_difficulty)"
+        ), {
+            "live_id": live_id,
+            "selected_difficulty": int(difficulty)
+        })
+    return res.lastrowid

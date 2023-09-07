@@ -84,7 +84,6 @@ class CreateRoomRequest(BaseModel):
     live_id: int
     select_difficulty: LiveDifficulty
 
-
 @app.post("/room/create")
 def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
     """ルーム作成リクエスト"""

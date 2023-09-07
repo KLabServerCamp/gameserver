@@ -5,7 +5,6 @@ from pydantic import BaseModel, Field
 
 from . import model
 from .auth import UserToken
-from .model import LiveDifficulty
 
 app = FastAPI()
 
@@ -80,14 +79,36 @@ class RoomID(BaseModel):
     room_id: int
 
 
-class CreateRoomRequest(BaseModel):
-    live_id: int
-    select_difficulty: LiveDifficulty
-
-
 @app.post("/room/create")
-def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
+def create(token: UserToken, req: model.CreateRoomRequest) -> RoomID:
     """ルーム作成リクエスト"""
     print("/room/create", req)
     room_id = model.create_room(token, req.live_id, req.select_difficulty)
+    print(room_id)
     return RoomID(room_id=room_id)
+
+
+@app.post("/room/list")
+def return_list(live_id: int) -> dict:
+    rooms = dict()
+    rooms["room_info_list"] = model.room_list(live_id=live_id)
+    return rooms
+
+
+@app.post("/room/join")
+def join_room(
+    token: UserToken,
+    room_id: int,
+    select_difficulty: model.LiveDifficulty
+    ) -> dict:
+    result = model._join_room(
+        token=token,
+        room_id=room_id,
+        select_difficulty=select_difficulty
+    )
+    return {"join_room_result": result}
+
+@app.post("/room/wait")
+def wait(room_id: int) -> dict:
+    status = model.get_room_status(room_id=room_id)
+    room_user_list = model.get_user_list(room_id=room_id)

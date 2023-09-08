@@ -11,6 +11,7 @@ from .util import (
     _get_room_from_room_id,
     _get_room_users_from_room_id,
     _get_user_by_token,
+    _update_room_status,
 )
 
 
@@ -145,10 +146,7 @@ class Room:
                 raise RoomNotFound
             if user.id != room.owner_id:
                 raise Exception
-            conn.execute(
-                text("UPDATE `room` SET `status`=2 WHERE `room_id`=:room_id"),
-                {"room_id": room_id},
-            )
+            _update_room_status(conn, room_id, schemas.WaitRoomStatus.LiveStart)
 
     def end_room(token: str, room_id: int, score: int, judge_count_list: list[int]):
         # room_member_result テーブルに全部突っ込む
@@ -225,6 +223,12 @@ class Room:
                         ],
                     )
                 )
+            # room member を削除
+            conn.execute(
+                text("DELETE FROM `room_member`WHERE `room_id`=:room_id"),
+                {"room_id": room_id},
+            )
+            _update_room_status(conn, room_id, schemas.WaitRoomStatus.Dissolution)
             return user_results
 
     def leave_room(token: str, room_id: int) -> None:

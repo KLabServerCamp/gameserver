@@ -30,5 +30,6 @@ CREATE TABLE `room_member` (
   `judge_count_list` json, 
   `score` int,
   FOREIGN KEY (`user_id`) REFERENCES `user`(`id`),
-  FOREIGN KEY (`room_id`) REFERENCES `room`(`room_id`)
+  FOREIGN KEY (`room_id`) REFERENCES `room`(`room_id`),
+  PRIMARY KEY (`room_id`,`user_id`)
 );

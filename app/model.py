@@ -93,10 +93,7 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
         if user is None:
             raise InvalidToken
         result = conn.execute(
-            text(
-                "INSERT INTO `room` (live_id)"
-                " VALUES (:live_id)"
-            ),
+            text("INSERT INTO `room` (live_id)" " VALUES (:live_id)"),
             {"live_id": live_id, "select_difficulty": difficulty.value},
         )
         room_id = result.lastrowid
@@ -105,7 +102,11 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
                 "INSERT INTO `room_member` (user_id, room_id, select_difficulty, is_host)"
                 " VALUES (:user_id, :room_id, :select_difficulty, True)"
             ),
-            {"user_id": user.id, "room_id": room_id, "select_difficulty": difficulty.value},
+            {
+                "user_id": user.id,
+                "room_id": room_id,
+                "select_difficulty": difficulty.value,
+            },
         )
         print(f"create_room(): {room_id=}")
     return room_id
@@ -166,22 +167,21 @@ def join_room(token: str, room_id: int, difficulty: LiveDifficulty):
         room_info = conn.execute(
             text(
                 "SELECT joined_user_count, max_user_count FROM room "
-                "WHERE room_id = :room_id"
+                "WHERE room_id = :room_id FOR UPDATE"
             ),
             {"room_id": room_id},
         )
 
         if room_info:
             row = room_info.one()
-            # TODO:同じ人物が入場しようとしたとき（leave処理を作成したら必要ない？）
-            # TODO:複数人が同時に入場したときの処理
+            # TODO:同じ人物が入場しようとしたとき
             if row.joined_user_count < row.max_user_count:
                 join_room_result = 1
                 # room の現在の人数を更新
                 conn.execute(
                     text(
                         "UPDATE room SET joined_user_count= :new_joined_user_count "
-                        "WHERE room_id = :room_id"
+                        "WHERE room_id = :room_id COMMIT"
                     ),
                     {
                         "room_id": room_id,
@@ -232,10 +232,7 @@ def wait_room(token: str, room_id: int):
         if reqest_user is None:
             raise InvalidToken
         room = conn.execute(
-            text(
-                "SELECT wait_status FROM room "
-                "WHERE room_id = :room_id"
-            ),
+            text("SELECT wait_status FROM room " "WHERE room_id = :room_id"),
             {"room_id": room_id},
         ).one_or_none()
         join_users = conn.execute(
@@ -249,9 +246,7 @@ def wait_room(token: str, room_id: int):
         room_user_list = []
         for join_user in join_users:
             user = conn.execute(
-                text(
-                    "SELECT id, name, leader_card_id FROM user WHERE id=:user_id"
-                ),
+                text("SELECT id, name, leader_card_id FROM user WHERE id=:user_id"),
                 {"user_id": join_user.user_id},
             ).one_or_none()
             if user is None:
@@ -266,4 +261,4 @@ def wait_room(token: str, room_id: int):
                     is_host=join_user.is_host,
                 )
             )
-    return room.wait_status,room_user_list
+    return room.wait_status, room_user_list

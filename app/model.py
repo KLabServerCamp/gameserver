@@ -94,12 +94,19 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
             raise InvalidToken
         result = conn.execute(
             text(
-                "INSERT INTO `room` (live_id, select_difficulty)"
-                " VALUES (:live_id, :select_difficulty)"
+                "INSERT INTO `room` (live_id)"
+                " VALUES (:live_id)"
             ),
             {"live_id": live_id, "select_difficulty": difficulty.value},
         )
-        room_id = result.lastrowid  # DB側で生成された PRIMARY KEY を参照できる
+        room_id = result.lastrowid
+        conn.execute(
+            text(
+                "INSERT INTO `room_member` (user_id, room_id, select_difficulty, is_host)"
+                " VALUES (:user_id, :room_id, :select_difficulty, True)"
+            ),
+            {"user_id": user.id, "room_id": room_id, "select_difficulty": difficulty.value},
+        )
         print(f"create_room(): {room_id=}")
     return room_id
 
@@ -141,7 +148,7 @@ def list_room(token: str, live_id: int):
 
 
 class JoinRoomResult(IntEnum):
-    """難易度"""
+    """room参加結果"""
 
     Ok = 1
     RoomFull = 2
@@ -200,3 +207,63 @@ def join_room(token: str, room_id: int, difficulty: LiveDifficulty):
             join_room_result = 3
 
     return join_room_result
+
+
+class WaitRoomStatus(IntEnum):
+    """room 状況"""
+
+    Waiting = 1
+    LiveStart = 2
+    Dissolution = 3
+
+
+class RoomUser(BaseModel):
+    user_id: int
+    name: str
+    leader_card_id: int
+    select_difficulty: LiveDifficulty
+    is_me: bool
+    is_host: bool
+
+
+def wait_room(token: str, room_id: int):
+    with engine.begin() as conn:
+        reqest_user = _get_user_by_token(conn, token)
+        if reqest_user is None:
+            raise InvalidToken
+        room = conn.execute(
+            text(
+                "SELECT wait_status FROM room "
+                "WHERE room_id = :room_id"
+            ),
+            {"room_id": room_id},
+        ).one_or_none()
+        join_users = conn.execute(
+            text(
+                "SELECT user_id, is_host, select_difficulty FROM room_member "
+                "WHERE room_id = :room_id"
+            ),
+            {"room_id": room_id},
+        )
+        join_users = join_users.fetchall()
+        room_user_list = []
+        for join_user in join_users:
+            user = conn.execute(
+                text(
+                    "SELECT id, name, leader_card_id FROM user WHERE id=:user_id"
+                ),
+                {"user_id": join_user.user_id},
+            ).one_or_none()
+            if user is None:
+                continue
+            room_user_list.append(
+                RoomUser(
+                    user_id=user.id,
+                    name=user.name,
+                    leader_card_id=user.leader_card_id,
+                    select_difficulty=LiveDifficulty(join_user.select_difficulty),
+                    is_me=(user.id == reqest_user.id),
+                    is_host=join_user.is_host,
+                )
+            )
+    return room.wait_status,room_user_list

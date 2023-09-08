@@ -15,13 +15,17 @@ CREATE TABLE IF NOT EXISTS `room` (
     `live_id` int NOT NULL,
     `owner_id` bigint,
     `status` int,
-    PRIMARY KEY (`id`)
+    PRIMARY KEY (`id`),
+    FOREIGN KEY (`owner_id`) REFERENCES `user`(`id`)
 );
 
 CREATE TABLE IF NOT EXISTS `room_member` (
     `room_id` bigint NOT NULL,
     `user_id` bigint NOT NULL,
     `score` int,
+    `judge_count_list` json,
     `difficulty` int,
-    PRIMARY KEY (`room_id`, `user_id`)
+    PRIMARY KEY (`room_id`, `user_id`),
+    FOREIGN KEY (`room_id`) REFERENCES `room`(`id`),
+    FOREIGN KEY (`user_id`) REFERENCES `user`(`id`)
 );

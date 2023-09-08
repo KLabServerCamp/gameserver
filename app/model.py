@@ -65,6 +65,7 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
             {"name": name, "token": token, "leader_card_id": leader_card_id},
         )
 
+
 # IntEnum の使い方の例
 class LiveDifficulty(IntEnum):
     """難易度"""
@@ -214,7 +215,7 @@ def check_room_status(room) -> JoinRoomResult:
 
 
 def insert_room_member(conn, room_id: int, user_id: int):
-    member_list = ",".join([str(user_id)])
+    member_list = str(user_id)
     """room_memberに新規に作った部屋情報を加える"""
     conn.execute(text(
             "INSERT INTO `room_member` (`room_id`, `member_list`) VALUES(:room_id, :member_list)"
@@ -239,6 +240,14 @@ def room_start_live(conn, room_id):
         ), {
             "room_id": room_id
         })
+
+
+def delete_room(conn, room_id):
+    conn.execute(text(
+        "DELETE FROM `room` WHERE `room_id`=:room_id"
+    ), {
+        "room_id": room_id
+    })
 
 
 def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty):
@@ -289,6 +298,8 @@ def join_room(token: str, room_id: int, select_difficulty: LiveDifficulty):
         if room_members in (DBResponseError.NoResultFound, DBResponseError.MultipleResultsFound):
             return JoinRoomResult.OtherError
         room_members = room_members.member_list.split(',')
+        if room_members[0] == '':
+            room_members = []
         room_members.append(str(user.id))
         room_members = ",".join(room_members)
         update_room_member(conn, room_id, room_members)
@@ -307,6 +318,8 @@ def wait_room(token: str, room_id: int):
         room_status = check_room_status(room)
         room_members = get_room_members(conn, room_id)
         room_members = room_members.member_list.split(',')
+        if room_members[0] == '':
+            room_members = []
         room_members = list(map(lambda member: int(member), room_members))
         room_compiled_members = []
         for member_id in room_members:
@@ -325,13 +338,14 @@ def wait_room(token: str, room_id: int):
             room_compiled_members.append(room_member)
         if room_status in (JoinRoomResult.Ok, JoinRoomResult.RoomFull):
             lived_status = get_room_lived(conn, room_id)
-            if lived_status:
+            if lived_status == DBResponseError.OtherError:
+                return WaitRoomStatus.Dissolution, []
+            if lived_status.lived:
                 return WaitRoomStatus.LiveStart, room_compiled_members
             else:
                 return WaitRoomStatus.Waiting, room_compiled_members
         else:
             return WaitRoomStatus.Dissolution, []
-
 
 
 def start_room(token: str, room_id: int):
@@ -342,6 +356,8 @@ def start_room(token: str, room_id: int):
             raise InvalidToken
         room_members = get_room_members(conn, room_id)
         room_members = room_members.member_list.split(',')
+        if room_members[0] == '':
+            room_members = []
         room_members = list(map(lambda member: int(member), room_members))
         if room_members[0] == user.id:
             room_start_live(conn, room_id)
@@ -356,6 +372,8 @@ def leave_room(token: str, room_id: int):
         room = get_room(conn, room_id)
         room_members = get_room_members(conn, room_id)
         room_members = room_members.member_list.split(',')
+        if room_members[0] == '':
+            room_members = []
         room_members = list(filter(lambda member: int(member)!=user.id, room_members))
         room_members = ",".join(room_members)
         update_room_member(conn, room_id, room_members)
@@ -388,6 +406,8 @@ def result_room(token: str, room_id: int):
             raise InvalidToken
         room_members = get_room_members(conn, room_id)
         room_members = room_members.member_list.split(',')
+        if room_members[0] == '':
+            room_members = []
         room_members = list(map(lambda member: int(member), room_members))
         room_compiled_members = []
         for member_id in room_members:
@@ -404,5 +424,7 @@ def result_room(token: str, room_id: int):
                 "score": room_member.score
             }
             room_compiled_members.append(room_member)
+        delete_room_user(conn, user.id)
+        delete_room(conn, room_id)
         return room_compiled_members
     

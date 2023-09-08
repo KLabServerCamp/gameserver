@@ -88,18 +88,35 @@ class RoomInfo(BaseModel):
 
 
 class RoomUser(BaseModel):
-    user_id: int
-    name: str
-    leader_card_id: int
-    select_difficulty: LiveDifficulty
-    is_me: bool
-    is_host: bool
+    user_id: int = Field(title="ユーザID")
+    name: str = Field(title="ユーザ名")
+    leader_card_id: int = Field(title="リーダーカードID")
+    select_difficulty: LiveDifficulty = Field(title="難易度")
+    is_me: bool = Field(title="リクエスト者と同じか")
+    is_host: bool = Field(title="ホストと同じか")
 
 
 class ResultUser(BaseModel):
-    user_id: int
-    judge_count_list: list[int]
-    score: int
+    user_id: int = Field(title="ユーザID")
+    judge_count_list: list[int] = Field(title="判定回数")
+    score: int = Field(title="スコア")
+
+
+class RoomInfoList(BaseModel):
+    room_info_list: list[RoomInfo] = Field(title="部屋情報の配列")
+
+
+class JoinRoomResult(BaseModel):
+    join_room_result: model.JoinRoomResult = Field(title="ルーム入場結果")
+
+
+class WaitRoomResult(BaseModel):
+    status: model.WaitRoomStatus = Field(title="結果")
+    room_user_list: list[RoomUser] = Field(title="ルームにいるユーザ一覧")
+
+
+class ResultRoomResult(BaseModel):
+    result_user_list: list[ResultUser] = Field(title="各ユーザの結果")
 
 
 class CreateRoomRequest(BaseModel):
@@ -114,6 +131,10 @@ class ListRoomRequest(BaseModel):
 class JoinRoomRequest(BaseModel):
     room_id: int
     select_difficulty: LiveDifficulty
+
+
+class EmptyResult(BaseModel):
+    ...
 
 
 class WaitRoomRequest(BaseModel):
@@ -138,6 +159,7 @@ class ResultRoomRequest(BaseModel):
     room_id: int
 
 
+
 @app.post("/room/create")
 def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
     """ルーム作成リクエスト"""
@@ -147,7 +169,7 @@ def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
 
 
 @app.post("/room/list")
-def select(token: UserToken, req: ListRoomRequest) -> list:
+def select(token: UserToken, req: ListRoomRequest) -> RoomInfoList:
     print("/room/list", req)
     room_list = model.list_room(token, req.live_id)
     if room_list is None:
@@ -158,17 +180,18 @@ def select(token: UserToken, req: ListRoomRequest) -> list:
             joined_user_count=room.joined_user_count,
             max_user_count=room.max_user_count
             ), room_list))
-    return room_list
+    return RoomInfoList(room_info_list=room_list)
 
 
 @app.post("/room/join")
-def join(token: UserToken, req: JoinRoomRequest) -> int:
+def join(token: UserToken, req: JoinRoomRequest) -> JoinRoomResult:
     print("/room/join", req)
-    return model.join_room(token, req.room_id, req.select_difficulty)
+    join_room_result = model.join_room(token, req.room_id, req.select_difficulty)
+    return JoinRoomResult(join_room_result=join_room_result)
 
 
 @app.post("/room/wait")
-def join(token: UserToken, req: WaitRoomRequest):
+def wait(token: UserToken, req: WaitRoomRequest) -> WaitRoomResult:
     print("/room/wait", req)
     status, members = model.wait_room(token, req.room_id)
     members = list(map(lambda member: RoomUser(
@@ -179,35 +202,37 @@ def join(token: UserToken, req: WaitRoomRequest):
             is_me=member["is_me"],
             is_host=member["is_host"]
             ), members))
-    return {
-        "status": status,
-        "room_user_list": members
-    }
+    return WaitRoomResult(status=status, room_user_list=members)
 
 
 @app.post("/room/start")
-def start(token: UserToken, req: StartRoomRequest) -> None:
+def start(token: UserToken, req: StartRoomRequest) -> EmptyResult:
     print("/room/start", req)
     model.start_room(token, req.room_id)
-    return None
+    return EmptyResult()
 
 
 @app.post("/room/leave")
-def leave(token: UserToken, req: LeaveRoomRequest) -> None:
+def leave(token: UserToken, req: LeaveRoomRequest) -> EmptyResult:
     print("/room/leave", req)
     model.leave_room(token, req.room_id)
-    return None
+    return EmptyResult()
 
 
 @app.post("/room/end")
-def end(token: UserToken, req: EndRoomRequest) -> None:
+def end(token: UserToken, req: EndRoomRequest) -> EmptyResult:
     print("/room/end", req)
     model.end_room(token, req.room_id, req.judge_count_list, req.score)
-    return None
+    return EmptyResult()
 
 
 @app.post("/room/result")
-def result(token: UserToken, req: ResultRoomRequest) -> list:
+def result(token: UserToken, req: ResultRoomRequest) -> ResultRoomResult:
     print("/room/result", req)
     result_users = model.result_room(token, req.room_id)
-    return result_users
+    result_users = list(map(lambda result_user: ResultUser(
+            user_id=result_user["user_id"],
+            judge_count_list=result_user["judge_count_list"],
+            score=result_user["score"]
+            ), result_users))
+    return ResultRoomResult(result_user_list=result_users)

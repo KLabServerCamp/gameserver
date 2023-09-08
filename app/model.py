@@ -1,3 +1,4 @@
+import json
 import uuid
 from enum import IntEnum
 
@@ -216,7 +217,7 @@ def wait_room(token: str, room_id: int) -> (WaitRoomStatus, list[RoomUser]):
                 "SELECT room_id, user_id, difficulty, is_host FROM `room_member` WHERE room_id = :room_id"
             ),
             {"room_id": room_id},
-        )
+        ).all()
         result2 = dict()
         for user in result:
             result2[user._mapping["user_id"]] = _get_user_by_id(
@@ -229,7 +230,7 @@ def wait_room(token: str, room_id: int) -> (WaitRoomStatus, list[RoomUser]):
                 user_id=user._mapping["user_id"],
                 name=result2[user._mapping["user_id"]].name,
                 leader_card_id=result2[user._mapping["user_id"]].leader_card_id,
-                select_diffiuculty=user._mapping["difficulty"],
+                select_diffuculty=user._mapping["difficulty"],
                 is_me=result3.id == user._mapping["user_id"],
                 is_host=user._mapping["is_host"],
             )
@@ -239,9 +240,13 @@ def wait_room(token: str, room_id: int) -> (WaitRoomStatus, list[RoomUser]):
     return (room_status, users)
 
 
-def join_room(room_id: int, select_difficulty: LiveDifficulty) -> JoinRoomResult:
+def join_room(
+    token: str, room_id: int, select_difficulty: LiveDifficulty
+) -> JoinRoomResult:
     with engine.begin() as conn:
         try:
+            user = _get_user_by_token(conn, token)
+            _insert_room_member(room_id, user.id, select_difficulty, False)
             result = conn.execute(
                 text(
                     "SELECT room_id, joined_user_count, max_user_count FROM `room` WHERE room_id = :room_id"
@@ -272,4 +277,21 @@ def room_start(token: str, room_id: int) -> None:
         conn.execute(
             text("UPDATE `room` SET game_is_start = True WHERE room_id= :room_id"),
             {"room_id": room_id},
+        )
+
+
+def room_end(token: str, room_id: int, judge_count_list: list[int], score: int) -> None:
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        user_id = user.id
+        conn.execute(
+            text(
+                "UPDATE `room_member` SET judge_count_list = :judge_count_list, score = :score WHERE room_id = :room_id and user_id = :user_id"
+            ),
+            {
+                "judge_count_list": json.dumps(judge_count_list),
+                "score": score,
+                "room_id": room_id,
+                "user_id": user_id,
+            },
         )

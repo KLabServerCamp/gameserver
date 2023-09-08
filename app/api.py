@@ -115,6 +115,13 @@ class RoomStartRequest(BaseModel):
     room_id: int
 
 
+class RoomEndRequest(BaseModel):
+    room_id: int
+    judge_count_list: list[int]
+    # Perfect, Great, Good, Bad, Miss
+    score: int
+
+
 @app.post("/room/create")
 def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
     """ルーム作成リクエスト"""
@@ -131,9 +138,9 @@ def room_list(req: RoomListRequest) -> RoomInfoList:
 
 
 @app.post("/room/join")
-def room_join(req: RoomJoinRequest) -> RoomJoinResult:
+def room_join(token: UserToken, req: RoomJoinRequest) -> RoomJoinResult:
     print("/room/join", req)
-    join_room_result = model.join_room(req.room_id, req.select_difficulty)
+    join_room_result = model.join_room(token, req.room_id, req.select_difficulty)
     return RoomJoinResult(join_room_result=join_room_result)
 
 
@@ -146,4 +153,10 @@ def wait_room(token: UserToken, req: RoomWaitRequest) -> RoomWaitResponse:
 @app.post("/room/start")
 def start_room(token: UserToken, req: RoomStartRequest) -> Empty:
     model.room_start(token, req.room_id)
+    return Empty()
+
+
+@app.post("/room/end")
+def end_room(token: UserToken, req: RoomEndRequest) -> Empty:
+    model.room_end(token, req.room_id, req.judge_count_list, req.score)
     return Empty()

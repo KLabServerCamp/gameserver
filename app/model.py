@@ -300,3 +300,38 @@ def end_room(token: str, room_id: int, judge_count_list: list[int], score: int):
             ),
             {"user_id": user.id, "room_id": room_id, "score": score},
         )
+
+
+class ResultUser(BaseModel):
+    user_id: int
+    judge_count_list: list[int]
+    score: int
+
+
+def result_room(token: str, room_id: int):
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken
+
+        result_user_list = []
+        join_users = conn.execute(
+            text(
+                "SELECT user_id, judge_count_list, score  FROM room_member "
+                "WHERE room_id = :room_id"
+            ),
+            {"room_id": room_id},
+        )
+        join_users = join_users.fetchall()
+        for join_user in join_users:
+            if join_user.score is None:
+                return None
+
+            result_user_list.append(
+                ResultUser(
+                    user_id=join_user.user_id,
+                    judge_count_list=json.loads(join_user.judge_count_list),
+                    score=join_user.score,
+                )
+            )
+        return result_user_list

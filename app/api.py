@@ -5,7 +5,14 @@ from pydantic import BaseModel, Field
 
 from . import model
 from .auth import UserToken
-from .model import JoinRoomResult, LiveDifficulty, RoomInfo, RoomUser, WaitRoomStatus
+from .model import (
+    JoinRoomResult,
+    LiveDifficulty,
+    ResultUser,
+    RoomInfo,
+    RoomUser,
+    WaitRoomStatus,
+)
 
 app = FastAPI()
 
@@ -157,3 +164,16 @@ def end_room(token: UserToken, req: EndRoomRequest):
     """ルーム終了"""
     print("/room/end", req)
     model.end_room(token, req.room_id, req.judge_count_list, req.score)
+
+
+class ResultRoomRespomse(BaseModel):
+    result_user_list: list[ResultUser]
+
+
+@app.post("/room/result")
+def result_room(token: UserToken, req: RoomID):
+    """ルーム結果表示"""
+    print("/room/result", req)
+    result_user_list = model.result_room(token, req.room_id)
+    if result_user_list is not None:
+        return ResultRoomRespomse(result_user_list=result_user_list)

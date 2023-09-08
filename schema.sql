@@ -30,3 +30,16 @@ CREATE TABLE `room_member` (
   PRIMARY KEY (`room_id`, `user_id`),
   FOREIGN KEY (`room_id`) REFERENCES `room` (`room_id`)
 );
+
+DROP TABLE IF EXISTS `room_member_result`;
+CREATE TABLE `room_member_result` (
+  `room_id` bigint NOT NULL,
+  `user_id` bigint NOT NULL,
+  `score` bigint DEFAULT 0,
+  `perfect` bigint DEFAULT 0,
+  `great` bigint DEFAULT 0,
+  `good` bigint DEFAULT 0,
+  `bad` bigint DEFAULT 0,
+  `miss` bigint DEFAULT 0,
+  PRIMARY KEY (`room_id`, `user_id`)
+);

@@ -16,6 +16,7 @@ CREATE TABLE `room` (
   `live_id` bigint NOT NULL,
   `joined_user_count` int DEFAULT 1 NOT NULL,
   `max_user_count` int DEFAULT 4 NOT NULL,
+  `lived` boolean DEFAULT false NOT NULL,
   PRIMARY KEY (`room_id`)
 );
 
@@ -32,6 +33,6 @@ CREATE TABLE `room_user` (
   `user_id` bigint NOT NULL, 
   `room_id` bigint NOT NULL,
   `select_difficulty` int NOT NULL,
-  PRIMARY KEY (`user_id`),
+  PRIMARY KEY (`room_id`, `user_id`),
   UNIQUE KEY `user_id` (`user_id`)
 );

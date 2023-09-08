@@ -45,6 +45,7 @@ def _get_user_by_token(conn, token: str) -> SafeUser | None:
     )
     try:
         row = res.one()
+        print(row.id)
     except (NoResultFound, MultipleResultsFound):
         return None
     return SafeUser.model_validate(row, from_attributes=True)
@@ -79,6 +80,14 @@ class JoinRoomResult(IntEnum):
     RoomFull = 2
     Disbanded = 3
     OtherError = 4
+
+
+class WaitRoomStatus(IntEnum):
+    """部屋の待ち状態"""
+
+    Waiting = 1
+    LiveStart = 2
+    Dissolution = 3
 
 
 class DBResponseError(IntEnum):
@@ -119,6 +128,48 @@ def get_room_members(conn, room_id: int):
         return DBResponseError.NoResultFound
     except MultipleResultsFound:
         return DBResponseError.MultipleResultsFound
+
+
+def get_room_user(conn, user_id: int):
+    """ユーザの部屋での情報を取得"""
+    res = conn.execute(text(
+        "SELECT `select_difficulty` FROM `room_user` WHERE `user_id`=:user_id"
+    ), {
+        "user_id": user_id
+    })
+    try:
+        row = res.one()
+        return row
+    except (NoResultFound, MultipleResultsFound):
+        return DBResponseError.OtherError
+
+
+def get_room_lived(conn, room_id: int):
+    """部屋のライブ状態を取ってくる"""
+    res = conn.execute(text(
+        "SELECT `lived` FROM `room` WHERE `room_id`=:room_id"
+    ), {
+        "room_id": room_id
+    })
+    try:
+        row = res.one()
+        return row
+    except (NoResultFound, MultipleResultsFound):
+        return DBResponseError.OtherError
+    
+
+def get_user(conn, user_id: int):
+    """部屋のライブ状態を取ってくる"""
+    res = conn.execute(text(
+        "SELECT `name`, `leader_card_id` FROM `user` WHERE `id`=:user_id"
+    ), {
+        "user_id": user_id
+    })
+    try:
+        row = res.one()
+        return row
+    except (NoResultFound, MultipleResultsFound):
+        return DBResponseError.OtherError
 
 
 def update_room_count(conn, room_id: int, count: int) -> None:
@@ -173,7 +224,7 @@ def update_room_member(conn, room_id, member_list: str):
             })
 
 
-def create_room(token: str, live_id: int):
+def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty):
     """部屋を作ってroom_idを返します"""
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
@@ -185,6 +236,7 @@ def create_room(token: str, live_id: int):
             "live_id": live_id
         })
         insert_room_member(conn, res.lastrowid, user.id)
+        insert_room_user(conn, user.id, res.lastrowid, select_difficulty)
     return res.lastrowid
 
 
@@ -217,7 +269,6 @@ def join_room(token: str, room_id: int, select_difficulty: LiveDifficulty):
         if room_status != JoinRoomResult.Ok:
             return room_status
         room_members = get_room_members(conn, room_id)
-        print(room_members)
         if room_members in (DBResponseError.NoResultFound, DBResponseError.MultipleResultsFound):
             return JoinRoomResult.OtherError
         room_members = room_members.member_list.split(',')
@@ -227,3 +278,41 @@ def join_room(token: str, room_id: int, select_difficulty: LiveDifficulty):
         insert_room_user(conn, user.id, room_id, select_difficulty)
         update_room_count(conn, room_id, room.joined_user_count + 1)
         return JoinRoomResult.Ok
+    
+
+def wait_room(token: str, room_id: int):
+    """部屋の待機情報を得る"""
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        print(user)
+        if user is None:
+            raise InvalidToken
+        room = get_room(conn, room_id)
+        room_status = check_room_status(room)
+        room_members = get_room_members(conn, room_id)
+        room_members = room_members.member_list.split(',')
+        room_members = list(map(lambda member: int(member), room_members))
+        room_compiled_members = []
+        for member_id in room_members:
+            room_member = get_room_user(conn, member_id)
+            member_info = get_user(conn, member_id)
+            if room_member == DBResponseError.OtherError or member_info == DBResponseError.OtherError:
+                return WaitRoomStatus.Dissolution, []
+            room_member = {
+                "user_id": member_id,
+                "name": member_info.name,
+                "leader_card_id": member_info.leader_card_id,
+                "select_difficulty": room_member.select_difficulty,
+                "is_me": (user.id == member_id),
+                "is_host": (room_members[0] == member_id)
+            }
+            room_compiled_members.append(room_member)
+        if room_status in (JoinRoomResult.Ok, JoinRoomResult.RoomFull):
+            lived_status = get_room_lived(conn, room_id)
+            if lived_status:
+                return WaitRoomStatus.LiveStart, room_compiled_members
+            else:
+                return WaitRoomStatus.Waiting, room_compiled_members
+        else:
+            return WaitRoomStatus.Dissolution, []
+

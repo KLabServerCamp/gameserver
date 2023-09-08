@@ -91,7 +91,7 @@ class RoomUser(BaseModel):
     user_id: int
     name: str
     leader_card_id: int
-    selected_difficulty: LiveDifficulty
+    select_difficulty: LiveDifficulty
     is_me: bool
     is_host: bool
 
@@ -116,11 +116,15 @@ class JoinRoomRequest(BaseModel):
     select_difficulty: LiveDifficulty
 
 
+class WaitRoomRequest(BaseModel):
+    room_id: int
+
+
 @app.post("/room/create")
 def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
     """ルーム作成リクエスト"""
     print("/room/create", req)
-    room_id = model.create_room(token, req.live_id)
+    room_id = model.create_room(token, req.live_id, req.select_difficulty)
     return RoomID(room_id=room_id)
 
 
@@ -142,4 +146,22 @@ def select(token: UserToken, req: ListRoomRequest) -> list:
 @app.post("/room/join")
 def join(token: UserToken, req: JoinRoomRequest) -> int:
     print("/room/join", req)
-    return int(model.join_room(token, req.room_id, req.select_difficulty))
+    return model.join_room(token, req.room_id, req.select_difficulty)
+
+
+@app.post("/room/wait")
+def join(token: UserToken, req: WaitRoomRequest):
+    print("/room/wait", req)
+    status, members = model.wait_room(token, req.room_id)
+    members = list(map(lambda member: RoomUser(
+            user_id=member["user_id"],
+            name=member["name"],
+            leader_card_id=member["leader_card_id"],
+            select_difficulty=member["select_difficulty"],
+            is_me=member["is_me"],
+            is_host=member["is_host"]
+            ), members))
+    return {
+        "status": status,
+        "room_user_list": members
+    }

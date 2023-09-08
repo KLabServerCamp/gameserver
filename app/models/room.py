@@ -110,7 +110,7 @@ class Room:
 
             room = _get_room_from_room_id(conn, room_id)
             if room is None:
-                raise Exception
+                raise RoomNotFound
 
             for user_in_room in res:
                 user = conn.execute(
@@ -142,7 +142,7 @@ class Room:
                 raise InvalidToken
             room = _get_room_from_room_id(conn, room_id)
             if room is None:
-                raise Exception
+                raise RoomNotFound
             if user.id != room.owner_id:
                 raise Exception
             conn.execute(
@@ -168,7 +168,7 @@ class Room:
                 raise InvalidToken
             room = _get_room_from_room_id(conn, room_id)
             if room is None:
-                raise Exception
+                raise RoomNotFound
             conn.execute(
                 text(
                     """
@@ -238,7 +238,7 @@ class Room:
                 raise InvalidToken
             room = _get_room_from_room_id(conn, room_id)
             if room is None:
-                raise Exception
+                raise RoomNotFound
 
             users_in_room = _get_room_users_from_room_id(conn, room_id)
 

@@ -267,3 +267,63 @@ def start_room(token: str, room_id: int):
             text("UPDATE `room` SET `status`=2 WHERE `room_id`=:room_id"),
             {"room_id": room_id},
         )
+
+
+class LiveJudge(BaseModel):
+    perfect: int
+    great: int
+    good: int
+    bad: int
+    miss: int
+
+
+class ResultUser(BaseModel):
+    room_id: int
+    score: int
+    judge_count_list: list[int]
+
+
+def end_room(token: str, room_id: int, score: int, judge_count_list: list[int]):
+    # room_member_result テーブルに全部突っ込む
+    if len(judge_count_list) != 5:
+        raise Exception
+    # TODO: どうにかする
+    user_judge = LiveJudge(
+        perfect=judge_count_list[0],
+        great=judge_count_list[1],
+        good=judge_count_list[2],
+        bad=judge_count_list[3],
+        miss=judge_count_list[4],
+    )
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken
+        room = _get_room_from_room_id(conn, room_id)
+        if room is None:
+            raise Exception
+        conn.execute(
+            text(
+                """
+                INSERT INTO `room_member_result` SET
+                    `room_id`=:room_id,
+                    `user_id`=:user_id,
+                    `score`=:score,
+                    `perfect`=:perfect,
+                    `great`=:great,
+                    `good`=:good,
+                    `bad`=:bad,
+                    `miss`=:miss
+                """
+            ),
+            {
+                "room_id": room_id,
+                "user_id": user.id,
+                "score": score,
+                "perfect": user_judge.perfect,
+                "great": user_judge.great,
+                "good": user_judge.good,
+                "bad": user_judge.bad,
+                "miss": user_judge.miss,
+            },
+        )

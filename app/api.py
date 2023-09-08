@@ -147,3 +147,15 @@ class StartRoomRequest(BaseModel):
 def start(token: UserToken, req: StartRoomRequest):
     model.start_room(token, req.room_id)
     return Empty()
+
+
+class EndRoomRequest(BaseModel):
+    room_id: int
+    score: int
+    judge_count_list: list[int]
+
+
+@app.post("/room/end")
+def end(token: UserToken, req: EndRoomRequest):
+    model.end_room(token, req.room_id, req.score, req.judge_count_list)
+    return Empty()

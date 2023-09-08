@@ -278,7 +278,7 @@ class LiveJudge(BaseModel):
 
 
 class ResultUser(BaseModel):
-    room_id: int
+    user_id: int
     score: int
     judge_count_list: list[int]
 
@@ -327,3 +327,36 @@ def end_room(token: str, room_id: int, score: int, judge_count_list: list[int]):
                 "miss": user_judge.miss,
             },
         )
+
+
+def room_result(room_id: int):
+    # TODO: タイムアウト処理
+    with engine.begin() as conn:
+        cnt = conn.execute(
+            text(
+                "SELECT COUNT(1) = (SELECT COUNT(1) FROM `room_member` WHERE `room_id`=:room_id) AS `is_full` FROM `room_member_result` WHERE `room_id`=:room_id"
+            ),
+            {"room_id": room_id},
+        ).one_or_none()
+        if not cnt.is_full:
+            return []
+        res = conn.execute(
+            text("SELECT * FROM `room_member_result` WHERE `room_id`=:room_id"),
+            {"room_id": room_id},
+        )
+        user_results = []
+        for result in res:
+            user_results.append(
+                ResultUser(
+                    user_id=result.user_id,
+                    score=result.score,
+                    judge_count_list=[
+                        result.perfect,
+                        result.great,
+                        result.good,
+                        result.bad,
+                        result.miss,
+                    ],
+                )
+            )
+        return user_results

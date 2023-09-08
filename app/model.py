@@ -262,3 +262,14 @@ def wait_room(token: str, room_id: int):
                 )
             )
     return room.wait_status, room_user_list
+
+
+def start_room(token: str, room_id: int):
+    with engine.begin() as conn:
+        reqest_user = _get_user_by_token(conn, token)
+        if reqest_user is None:
+            raise InvalidToken
+        conn.execute(
+            text("UPDATE room SET wait_status= 2 " "WHERE room_id = :room_id"),
+            {"room_id": room_id},
+        )

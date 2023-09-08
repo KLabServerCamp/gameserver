@@ -137,3 +137,10 @@ def wait_room(token: UserToken, req: RoomID) -> WaitRoomResponse:
     print("/room/wait", req)
     status, room_user_list = model.wait_room(token, req.room_id)
     return WaitRoomResponse(status=status, room_user_list=room_user_list)
+
+
+@app.post("/room/start")
+def start_room(token: UserToken, req: RoomID):
+    """ルーム開始"""
+    print("/room/start", req)
+    model.start_room(token, req.room_id)

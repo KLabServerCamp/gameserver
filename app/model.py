@@ -360,3 +360,60 @@ def room_result(room_id: int):
                 )
             )
         return user_results
+
+
+def _delete_user_from_room(conn, room_id: int, user_id: int) -> None:
+    conn.execute(
+        text(
+            "DELETE FROM `room_member` WHERE `room_id`=:room_id AND `user_id`=:user_id"
+        ),
+        {"room_id": room_id, "user_id": user_id},
+    )
+
+
+def _delete_room(conn, room_id) -> None:
+    # room.status を 3 に変更
+    conn.execute(
+        text("UPDATE `room` SET `status`=3 WHERE `room_id`=:room_id"),
+        {"room_id": room_id},
+    )
+
+
+def _change_room_owner(
+    conn, room_id: int, owner: SafeUser, users_in_room: list
+) -> None:
+    # オーナーではない適当なユーザ 1 人にだけ owner 権限を移譲する
+    for user in users_in_room:
+        if user.user_id == owner.id:
+            continue
+        conn.execute(
+            text("UPDATE `room` SET `owner_id`=:new_user_id WHERE `room_id`=:room_id"),
+            {"new_user_id": user.user_id, "room_id": room_id},
+        )
+        break
+
+
+def leave_room(token: str, room_id: int) -> None:
+    # 退出ボタンを押したときに呼ばれる
+    # room に 1 人しかいなければ部屋を潰す（このとき残っているのは必ず owner のはずである）
+    # 複数人残っている && owner が抜けるときは owner 権限を他の member に移譲する
+    # TODO: なんとかする
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken
+        room = _get_room_from_room_id(conn, room_id)
+        if room is None:
+            raise Exception
+
+        users_in_room = _get_room_users_from_room_id(conn, room_id)
+
+        # オーナーが抜ける場合、 room.owner_id を変更
+        if user.id == room.owner_id:
+            _change_room_owner(conn, room_id, user, users_in_room)
+
+        _delete_user_from_room(conn, room_id, user.id)
+
+        # 元から 1 人以下だった場合
+        if len(users_in_room) <= 1:
+            _delete_room(conn, room_id)

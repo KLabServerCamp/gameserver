@@ -174,3 +174,13 @@ def result(req: ResultRoomRequest):
     print("/room/result", req)
     results: list[ResultUser] = model.room_result(req.room_id)
     return ResultRoomResponse(result_user_list=results)
+
+
+class LeaveRoomRequest(BaseModel):
+    room_id: int
+
+
+@app.post("/room/leave")
+def leave(token: UserToken, req: LeaveRoomRequest):
+    model.leave_room(token, req.room_id)
+    return Empty()

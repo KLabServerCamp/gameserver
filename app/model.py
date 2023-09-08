@@ -193,6 +193,15 @@ def insert_room_user(conn, user_id: int, room_id: int, select_difficulty: LiveDi
     })
 
 
+def delete_room_user(conn, user_id):
+    """部屋のuser情報を削除する"""
+    conn.execute(text(
+        "DELETE FROM `room_user` WHERE `user_id`=:user_id"
+        ), {
+            "user_id": user_id
+        })
+
+
 def check_room_status(room) -> JoinRoomResult:
     if room == DBResponseError.NoResultFound:
         return JoinRoomResult.Disbanded
@@ -221,7 +230,15 @@ def update_room_member(conn, room_id, member_list: str):
         ), {
             "member_list": member_list,
             "room_id": room_id
-            })
+        })
+
+
+def room_start_live(conn, room_id):
+    conn.execute(text(
+            "UPDATE `room` SET `lived`=true WHERE `room_id`=:room_id"
+        ), {
+            "room_id": room_id
+        })
 
 
 def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty):
@@ -284,7 +301,6 @@ def wait_room(token: str, room_id: int):
     """部屋の待機情報を得る"""
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
-        print(user)
         if user is None:
             raise InvalidToken
         room = get_room(conn, room_id)
@@ -316,3 +332,50 @@ def wait_room(token: str, room_id: int):
         else:
             return WaitRoomStatus.Dissolution, []
 
+
+
+def start_room(token: str, room_id: int):
+    """部屋のライブを開始する"""
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken
+        room_members = get_room_members(conn, room_id)
+        room_members = room_members.member_list.split(',')
+        room_members = list(map(lambda member: int(member), room_members))
+        if room_members[0] == user.id:
+            room_start_live(conn, room_id)
+
+
+def leave_room(token: str, room_id: int):
+    """部屋から退出する"""
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken
+        room = get_room(conn, room_id)
+        room_members = get_room_members(conn, room_id)
+        room_members = room_members.member_list.split(',')
+        room_members = list(filter(lambda member: int(member)!=user.id, room_members))
+        room_members = ",".join(room_members)
+        update_room_member(conn, room_id, room_members)
+        delete_room_user(conn, user.id)
+        update_room_count(conn, room_id, room.joined_user_count - 1)
+
+
+def end_room(token: str, room_id: int, judge_count_list: list[int], score: int):
+    """ライブを終える"""
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken
+        judge_count_list = list(map(lambda judge_count: str(judge_count), judge_count_list))
+        conn.execute(text(
+            "UPDATE `room_user` SET `score`=:score, `judge_count_list`=:judge_count_list WHERE `user_id`=:user_id AND `room_id`=:room_id"
+        ), {
+            "score": score,
+            "judge_count_list": str(",".join(judge_count_list)),
+            "user_id": user.id,
+            "room_id": room_id
+        })
+        

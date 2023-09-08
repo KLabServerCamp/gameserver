@@ -120,6 +120,20 @@ class WaitRoomRequest(BaseModel):
     room_id: int
 
 
+class StartRoomRequest(BaseModel):
+    room_id: int
+
+
+class LeaveRoomRequest(BaseModel):
+    room_id: int
+
+
+class EndRoomRequest(BaseModel):
+    room_id: int
+    judge_count_list: list[int]
+    score: int
+
+
 @app.post("/room/create")
 def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
     """ルーム作成リクエスト"""
@@ -165,3 +179,23 @@ def join(token: UserToken, req: WaitRoomRequest):
         "status": status,
         "room_user_list": members
     }
+
+
+@app.post("/room/start")
+def start(token: UserToken, req: StartRoomRequest) -> None:
+    print("/room/start", req)
+    model.start_room(token, req.room_id)
+    return None
+
+
+@app.post("/room/leave")
+def leave(token: UserToken, req: LeaveRoomRequest) -> None:
+    print("/room/leave", req)
+    model.leave_room(token, req.room_id)
+    return None
+
+@app.post("/room/end")
+def end(token: UserToken, req: EndRoomRequest) -> None:
+    print("/room/end", req)
+    model.end_room(token, req.room_id, req.judge_count_list, req.score)
+    return None

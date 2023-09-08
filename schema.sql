@@ -33,6 +33,8 @@ CREATE TABLE `room_user` (
   `user_id` bigint NOT NULL, 
   `room_id` bigint NOT NULL,
   `select_difficulty` int NOT NULL,
+  `score` bigint DEFAULT 0,
+  `judge_count_list` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`room_id`, `user_id`),
   UNIQUE KEY `user_id` (`user_id`)
 );

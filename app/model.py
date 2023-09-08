@@ -78,6 +78,7 @@ class LiveDifficulty(IntEnum):
 
 
 class JoinRoomResult(IntEnum):
+    """部屋参加時のステータス"""
     Ok = 1              # 入場OK
     RoomFull = 2        # 満員
     Disbanded = 3       # 解散済み
@@ -85,6 +86,7 @@ class JoinRoomResult(IntEnum):
 
 
 class WaitRoomStatus(IntEnum):
+    """部屋待機時のステータス"""
     Waiting = 1         # ホストがライブ開始ボタン押すのを待っている
     LiveStart = 2       # ライブ画面遷移OK
     Dissolution = 3     # 解散された
@@ -112,8 +114,8 @@ class ResultUser(BaseModel, strict=True):
     user_id: int
     judge_count_list: list[int]
     score: int
-    
-    
+
+
 def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
     """部屋を作ってroom_idを返します"""
     with engine.begin() as conn:
@@ -136,18 +138,19 @@ def _create_room_user(
         conn, token: str, room_id: int, difficulty: LiveDifficulty, is_host: bool) -> None:
     """ユーザーをroom_memberテーブルに追加"""
     user = get_user_by_token(token)
-    
+
     conn.execute(
         text(
             "INSERT INTO `room_member` (room_id, user_id, name, leader_card_id, select_difficulty, is_host)"
             " VALUES (:room_id, :user_id, :name, :leader_card_id, :select_difficulty, :is_host)"
         ),
-        {"room_id": room_id,
-         "user_id": user.id,
-         "name": user.name,
-         "leader_card_id": user.leader_card_id,
-         "select_difficulty": int(difficulty),
-         "is_host": is_host
+        {
+            "room_id": room_id,
+            "user_id": user.id,
+            "name": user.name,
+            "leader_card_id": user.leader_card_id,
+            "select_difficulty": int(difficulty),
+            "is_host": is_host
         },
     )
 
@@ -176,12 +179,12 @@ def get_room_list(live_id: int) -> list[RoomInfo]:
         except NoResultFound:
             return None
     return room_list
-    
+
 
 def join_room(token: str, room_id: int, difficulty: LiveDifficulty
               ) -> JoinRoomResult:
     with engine.begin() as conn:
-        
+
         # 対象roomの情報を取り出す
         result = conn.execute(
             text(
@@ -199,11 +202,11 @@ def join_room(token: str, room_id: int, difficulty: LiveDifficulty
             #    return JoinRoomResult.Disbanded
         except NoResultFound:
             return JoinRoomResult.OtherError  # その他エラー
-        
+
         # 以下参加処理
         # room_memberテーブルに追加
         _create_room_user(conn, token, room_id, difficulty, is_host=False)
-        
+
         new_joined_user_count = room.joined_user_count+1
         # roomの参加人数を増やす
         conn.execute(
@@ -223,10 +226,9 @@ def get_room_status(token: str, room_id: int) -> WaitRoomStatus:
             {"room_id": room_id},
         )
     try:
-        row = result.one()
+        return result.scalar()
     except NoResultFound:
         return None
-    return WaitRoomStatus(row.status)
 
 
 def get_room_users(token: str, room_id: int) -> list[RoomUser]:

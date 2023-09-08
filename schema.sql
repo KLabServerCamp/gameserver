@@ -14,7 +14,8 @@ CREATE TABLE IF NOT EXISTS `room` (
     `id` bigint NOT NULL AUTO_INCREMENT,
     `live_id` int NOT NULL,
     `owner_id` bigint,
-    `status` int,
+    `status` int DEFAULT 1,
+    `players` int DEFAULT 0,
     PRIMARY KEY (`id`),
     FOREIGN KEY (`owner_id`) REFERENCES `user`(`id`)
 );

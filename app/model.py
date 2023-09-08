@@ -1,7 +1,7 @@
 import uuid
 from enum import IntEnum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from sqlalchemy import text, Connection
 from sqlalchemy.exc import NoResultFound, MultipleResultsFound
 
@@ -94,6 +94,7 @@ class WaitRoomStatus(IntEnum):
     Waiting = 1
     LiveStart = 2
     Dismissed = 3
+    # ResultSent = 4
 
 
 def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
@@ -101,7 +102,7 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
         if user is None:
-            raise InvalidToken
+            raise InvalidToken(f"{token=}")
         # TODO: 実装
 
         if _is_user_in_room(conn, user.id):
@@ -147,14 +148,14 @@ def list_room(req) -> list[RoomInfo]:
     lid = req.live_id
     reslist = []
     with engine.begin() as conn:
-        if lid != 0:
+        if lid != 0:    # 特定曲検索
             result = conn.execute(text(
                 "SELECT `id`, `live_id` FROM `room` "
                 "WHERE `status`=:status AND `live_id`=:live_id"
                 ),
                 {"status": int(WaitRoomStatus.Waiting), "live_id": lid},
             )
-        else:
+        else:           # 全曲検索
             result = conn.execute(text(
                 "SELECT `id`, `live_id` FROM `room` "
                 "WHERE `status`=:status"
@@ -263,7 +264,8 @@ class _RoomRow(BaseModel):
     id: int
     live_id: int
     owner_id: Optional[int] = None
-    status: Optional[int] = None
+    status: WaitRoomStatus = WaitRoomStatus.Waiting
+    players: int = 0
 
 
 def _get_room_row(conn: Connection, room_id) -> _RoomRow:
@@ -448,7 +450,7 @@ def _get_users_by_room_id(conn: Connection, room_id) -> list[_RoomUserRow]:
     if not _check_room_existence(conn, room_id):
         print(f"No such room. {room_id=}")
         return []
-    result = conn.execute(
+    return conn.execute(
         text(
             "SELECT "
             "`room_member`.`user_id`, "
@@ -461,13 +463,20 @@ def _get_users_by_room_id(conn: Connection, room_id) -> list[_RoomUserRow]:
             "WHERE `room_id`=:rid"
         ),
         {"rid": room_id},
-    )
-    return result.fetchall()
+    ).fetchall()
 
 
 # 部屋にいる人数
 def _get_room_users_count(conn: Connection, room_id) -> int:
-    return len(_get_users_by_room_id(conn, room_id))
+    if not _check_room_existence(conn, room_id):
+        print(f"No such room. {room_id=}")
+        return []
+    return conn.execute(
+        text(
+            "SELECT `players` FROM `room` WHERE `id`=:rid"
+        ),
+        {"rid": room_id},
+    ).first()[0]
 
 
 # 満員かどうか
@@ -530,12 +539,21 @@ def _add_room_member(conn: Connection, room_id, user_id, diff: LiveDifficulty):
         {"room_id": room_id, "user_id": user_id, "difficulty": int(diff)},
     )
 
+    # 参加人数インクリメント
+    conn.execute(text(
+        "UPDATE `room` SET `players`=`players`+1 WHERE id=:rid"
+        ),
+        {"rid": room_id}
+    )
+
 
 # ルーム退室
 def _del_room_member(conn: Connection, room_id, user_id):
     if not _is_user_in_the_room(conn, user_id, room_id):
         print(f"The user is not in the room. {room_id=}, {user_id=}")
         return
+
+    # ルーム退出
     conn.execute(
         text(
             "DELETE FROM `room_member` "
@@ -547,12 +565,35 @@ def _del_room_member(conn: Connection, room_id, user_id):
         },
     )
 
+    # 現在の人数
+    players = conn.execute(text(
+        "SELECT `players` FROM `room` WHERE `room_id`=:rid"
+        ),
+        {"rid": room_id}
+    ).first()[0]
+
+    # [要検討] 部屋削除のタイミング
+    #   - サーバ側でポーリングは出来なさそうだし、どこかの処理でついでにやるしかないか
+    #   - ここは処理中に部屋が空になる瞬間を含むので空になってから最速で削除できる
+    #   - ここ以外なら list_room() で？
+    #   - その場合はここで部屋のステータスを削除待ち (WaitRoomStatus.ResultSent) にする
+
+    # 最後の一人なら部屋削除
+    if players == 1:
+        _del_room_row(conn, room_id)
+    else:   # 参加人数デクリメント
+        conn.execute(text(
+            "UPDATE `room` SET `players`=`players`-1 WHERE room_id=:rid"
+            ),
+            {"rid": room_id}
+        )
+
 
 def join_room(token: str, req: RoomJoinRequest) -> RoomJoinResponse:
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
         if user is None:
-            raise InvalidToken
+            raise InvalidToken(f"{token=}")
         return _join_room(conn, user, req)
 
 
@@ -574,6 +615,10 @@ def _join_room(conn: Connection, user, req: RoomJoinRequest):
         return RoomJoinResponse(join_room_result=JoinRoomResult.RoomFull)
 
     # [要検討] ライブ開始済の部屋には参加できてよいか？
+    #   - 多分良くない
+    if _get_room_status(conn, room_id) != WaitRoomStatus.Waiting:
+        print("Live already ongoing or dismissed")
+        return RoomJoinResponse(join_room_result=JoinRoomResult.OtherError)
 
     # 参加可能
     _add_room_member(conn, room_id, user.id, difficulty)
@@ -599,7 +644,7 @@ def leave_room(token: str, req: RoomLeaveRequest) -> None:
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
         if user is None:
-            return InvalidToken
+            return InvalidToken(f"{token=}")
         uid = user.id
         rid = req.room_id
 
@@ -655,7 +700,7 @@ def wait_room(token: str, req: RoomWaitRequest) -> RoomWaitResponse:
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
         if user is None:
-            return InvalidToken
+            return InvalidToken(f"{token=}")
         uid = user.id
         rid = req.room_id
 
@@ -691,7 +736,7 @@ def start_room(token: str, req: RoomStartRequest):
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
         if user is None:
-            return InvalidToken
+            return InvalidToken(f"{token=}")
 
         uid = user.id
         rid = req.room_id
@@ -737,7 +782,7 @@ def end_room(token: str, req: RoomEndRequest):
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
         if user is None:
-            return InvalidToken
+            return InvalidToken(f"{token=}")
         uid = user.id
         rid = req.room_id
 
@@ -771,6 +816,7 @@ def result_room(req: RoomResultRequest) -> RoomResultResponse:
     with engine.begin() as conn:
         room_id = req.room_id
 
+        # 終了した人の数
         done = conn.execute(text(
             "SELECT COUNT(1) FROM `room_member` "
             "WHERE `room_id`=:rid AND `score` IS NOT NULL"
@@ -778,13 +824,17 @@ def result_room(req: RoomResultRequest) -> RoomResultResponse:
             {"rid": room_id}
         ).first()[0]
 
+        # 空リストを返せばクライアントは待機
         ret = RoomResultResponse(result_user_list=[])
 
+        # 部屋にいる人数分終了する (リザルトが出揃う) までは待機
         if _get_room_users_count(conn, room_id) > done:
             return ret
 
+        # 解散 (ライブ終了後、全員がリザルトを受け取るまで情報を保持するための状態)
         _set_room_status(conn, room_id, WaitRoomStatus.Dismissed)
 
+        # 同室のスコアが NULL でない人のリザルトを集める
         rows = conn.execute(text(
             "SELECT `user_id`, `score`, `judge_count_list` FROM `room_member` "
             "LEFT JOIN `user` ON `room_member`.`user_id` = `user`.`id` "
@@ -793,6 +843,7 @@ def result_room(req: RoomResultRequest) -> RoomResultResponse:
             {"rid": room_id}
         ).fetchall()
 
+        # result_user_list にリザルトを append
         for row in rows:
             ret.result_user_list.append(ResultUser(
                 user_id=row.user_id,
@@ -800,4 +851,5 @@ def result_room(req: RoomResultRequest) -> RoomResultResponse:
                 score=row.score
             ))
 
+        # 空でないリストを返すのでリザルトが表示される
         return ret

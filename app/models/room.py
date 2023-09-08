@@ -41,11 +41,13 @@ class Room:
         """
         with engine.begin() as conn:
             if live_id == 0:
-                res = conn.execute(text("SELECT `room_id`, `live_id` FROM `room`"))
+                res = conn.execute(
+                    text("SELECT `room_id`, `live_id` FROM `room` WHERE `status`=1")
+                )
             else:
                 res = conn.execute(
                     text(
-                        "SELECT `room_id`, `live_id` FROM `room` WHERE `live_id`=:live_id"
+                        "SELECT `room_id`, `live_id` FROM `room` WHERE `live_id`=:live_id AND `status`=1"
                     ),
                     {"live_id": live_id},
                 )

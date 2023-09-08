@@ -77,7 +77,7 @@ class Room:
             if room is None:
                 raise RoomNotFound
 
-            if room.status==2:
+            if room.status == 2:
                 return schemas.JoinRoomResult.RoomFull
             elif room.status == 3:
                 return schemas.JoinRoomResult.Disbanded

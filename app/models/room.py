@@ -76,25 +76,41 @@ class Room:
             if user is None:
                 raise InvalidToken
 
-            # room_id の存在判定
-            room = _get_room_from_room_id(conn, room_id)
+            # ロックをかける
+            room = conn.execute(
+                text("SELECT * FROM `room` WHERE `room_id`=:room_id FOR UPDATE"),
+                {"room_id": room_id},
+            ).one_or_none()
             if room is None:
                 raise RoomNotFound
 
-            if room.status == 2:
-                return schemas.JoinRoomResult.RoomFull
-            elif room.status == 3:
+            if room.status != 1:
                 return schemas.JoinRoomResult.Disbanded
-            elif room.status == 4:
+
+            cnt = conn.execute(
+                text("SELECT COUNT(1) FROM `room_member` WHERE `room_id`=:room_id"),
+                {"room_id": room_id},
+            ).one_or_none()
+            if cnt._mapping["COUNT(1)"] >= room.max_user_count:
+                return schemas.JoinRoomResult.RoomFull
+
+            is_alrady_joined = conn.execute(
+                text(
+                    "SELECT COUNT(1) FROM `room_member` WHERE `room_id`=:room_id AND `user_id`=:user_id"
+                ),
+                {"room_id": room_id, "user_id": user.id},
+            ).one_or_none()
+            if is_alrady_joined._mapping["COUNT(1)"]:
                 return schemas.JoinRoomResult.OtherError
 
             # joinする
-            res = conn.execute(
+            conn.execute(
                 text(
                     "INSERT INTO `room_member` SET `room_id`=:room_id, `user_id`=:user_id, `difficulty`=:difficulty"
                 ),
                 {"room_id": room_id, "user_id": user.id, "difficulty": int(difficulty)},
             )
+            conn.commit()
             return schemas.JoinRoomResult.Ok
 
     @staticmethod

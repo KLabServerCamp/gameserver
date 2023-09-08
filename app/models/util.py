@@ -65,3 +65,10 @@ def _change_room_owner(
             {"new_user_id": user.user_id, "room_id": room_id},
         )
         break
+
+
+def _update_room_status(conn, room_id: int, status: schemas.WaitRoomStatus) -> None:
+    conn.execute(
+        text("UPDATE `room` SET `status`=:status WHERE `room_id`=:room_id"),
+        {"status": int(status), "room_id": room_id},
+    )

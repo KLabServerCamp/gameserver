@@ -134,6 +134,11 @@ class RoomResultResponse(BaseModel):
     result_user_list: list[ResultUser]
 
 
+# /room/leave
+class LeaveRoomRequest(BaseModel):
+    room_id: int
+
+
 @app.post("/room/create")
 def room_create(token: UserToken, req: CreateRoomRequest) -> CreateRoomResponse:
     """ルーム作成リクエスト"""
@@ -143,6 +148,7 @@ def room_create(token: UserToken, req: CreateRoomRequest) -> CreateRoomResponse:
 
 @app.post("/room/list")
 def room_list(req: RoomListRequest) -> RoomListResponse:
+    """入場可能なルーム一覧を取得（0はワイルドカードで、すべて取得）"""
     room_info_list = model.get_room_list(req.live_id)
     if room_info_list is None:
         raise HTTPException(status_code=404)
@@ -186,3 +192,10 @@ def room_result(req: RoomResultRequest) -> RoomResultResponse:
     """ルームのライブ終了後、リザルト遷移チェックのリクエスト。end 叩いたあとにこれをポーリングする"""
     result_user_list = model.get_result(req.room_id)
     return RoomResultResponse(result_user_list=result_user_list)
+
+
+@app.post("/room/leave")
+def room_leave(token: UserToken, req: LeaveRoomRequest) -> Empty:
+    """ルーム退出リクエスト。オーナーも /room/join で参加した参加者も実行できる。"""
+    model.leave_room(token, req.room_id)
+    return Empty()

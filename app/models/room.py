@@ -146,7 +146,7 @@ class Room:
             if user.id != room.owner_id:
                 raise Exception
             conn.execute(
-                text("UPDATE `room` SET `status`=2 WHERE `room_id`=:room_id"),
+                text("UPDATE `room` SET `status`=3 WHERE `room_id`=:room_id"),
                 {"room_id": room_id},
             )
 
@@ -225,6 +225,11 @@ class Room:
                         ],
                     )
                 )
+            # room member を削除
+            conn.execute(
+                text("DELETE FROM `room_member`WHERE `room_id`=:room_id"),
+                {"room_id": room_id},
+            )
             return user_results
 
     def leave_room(token: str, room_id: int) -> None:

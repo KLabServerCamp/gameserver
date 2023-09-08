@@ -130,7 +130,7 @@ def test_join():
     # live が終了した部屋に 7 人目を join
     response = client.post(
         "/room/join",
-        headers=_auth_header(5),
+        headers=_auth_header(6),
         json={"room_id": room_id, "select_difficulty": 1},
     )
     assert response.json()["join_room_result"] == schemas.JoinRoomResult.Disbanded

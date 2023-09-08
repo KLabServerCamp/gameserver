@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 from . import model
 from .auth import UserToken
-from .model import LiveDifficulty
+from .model import JoinRoomResult, LiveDifficulty, ResultUser, RoomUser, WaitRoomStatus
 
 app = FastAPI()
 
@@ -91,3 +91,96 @@ def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
     print("/room/create", req)
     room_id = model.create_room(token, req.live_id, req.select_difficulty)
     return RoomID(room_id=room_id)
+
+
+class ListRoomRequest(BaseModel):
+    live_id: int
+
+
+class ListRoomResponse(BaseModel):
+    room_info_list: list
+
+
+@app.post("/room/list")
+def list_(req: ListRoomRequest):
+    """ルーム一覧"""
+    room_info_list: list = model.get_room_list(req.live_id)
+    return ListRoomResponse(room_info_list=room_info_list)
+
+
+class JoinRoomRequest(BaseModel):
+    room_id: int
+    select_difficulty: LiveDifficulty
+
+
+class JoinRoomResponse(BaseModel):
+    join_room_result: JoinRoomResult
+
+
+@app.post("/room/join")
+def join_(token: UserToken, req: JoinRoomRequest):
+    """room に join する"""
+    res = model.join_room(token, req.room_id, req.select_difficulty)
+    return JoinRoomResponse(join_room_result=res)
+
+
+class WaitRoomRequest(BaseModel):
+    room_id: int
+
+
+class WaitRoomResponse(BaseModel):
+    status: WaitRoomStatus
+    room_user_list: list[RoomUser]
+
+
+@app.post("/room/wait")
+def wait(token: UserToken, req: WaitRoomRequest):
+    status, users = model.wait_room(token, req.room_id)
+    return WaitRoomResponse(status=status, room_user_list=users)
+
+
+class StartRoomRequest(BaseModel):
+    room_id: int
+
+
+@app.post("/room/start")
+def start(token: UserToken, req: StartRoomRequest):
+    model.start_room(token, req.room_id)
+    return Empty()
+
+
+class EndRoomRequest(BaseModel):
+    room_id: int
+    score: int
+    judge_count_list: list[int]
+
+
+@app.post("/room/end")
+def end(token: UserToken, req: EndRoomRequest):
+    model.end_room(token, req.room_id, req.score, req.judge_count_list)
+    return Empty()
+
+
+class ResultRoomRequest(BaseModel):
+    room_id: int
+
+
+class ResultRoomResponse(BaseModel):
+    result_user_list: list[ResultUser]
+
+
+@app.post("/room/result")
+def result(req: ResultRoomRequest):
+    print("/room/result", req)
+    results: list[ResultUser] = model.room_result(req.room_id)
+    return ResultRoomResponse(result_user_list=results)
+
+
+class LeaveRoomRequest(BaseModel):
+    room_id: int
+
+
+@app.post("/room/leave")
+def leave(token: UserToken, req: LeaveRoomRequest):
+    model.leave_room(token, req.room_id)
+    return Empty()

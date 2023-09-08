@@ -5,12 +5,7 @@ from . import config
 # from sqlalchemy.ext.declarative import as_declarative, declared_attr
 # from sqlalchemy import Column, ForeignKey, INT, JSON, BIGINT, VARCHAR
 
-engine = create_engine(
-    config.DATABASE_URI,
-    future=True,
-    echo=True,
-    pool_recycle=300
-)
+engine = create_engine(config.DATABASE_URI, future=True, echo=True, pool_recycle=300)
 
 # @as_declarative()
 # class Base:

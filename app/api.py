@@ -7,17 +7,17 @@ from . import model
 from .auth import UserToken
 from .model import (
     LiveDifficulty,
-    RoomListRequest,
-    RoomListResponse,
+    RoomEndRequest,
     RoomJoinRequest,
     RoomJoinResponse,
     RoomLeaveRequest,
-    RoomWaitRequest,
-    RoomWaitResponse,
-    RoomStartRequest,
-    RoomEndRequest,
+    RoomListRequest,
+    RoomListResponse,
     RoomResultRequest,
     RoomResultResponse,
+    RoomStartRequest,
+    RoomWaitRequest,
+    RoomWaitResponse,
 )
 
 app = FastAPI()
@@ -29,10 +29,9 @@ app = FastAPI()
 async def handle_request_validation_error(req, exc):
     print("Request validation error")
     print(f"{req.url=}\n{exc.body=}\n{exc=!s}")
-    return await fastapi.exception_handlers. \
-        request_validation_exception_handler(
-            req, exc
-        )
+    return await fastapi.exception_handlers.request_validation_exception_handler(
+        req, exc
+    )
 
 
 # Sample API

@@ -18,5 +18,7 @@ CREATE TABLE `room_member` (
   `leader_card_id` int NOT NULL,
   `select_difficulty` int NOT NULL,
   `is_host` boolean NOT NULL,
+  `score` int DEFAULT NULL,
+  `judge_count_list` json DEFAULT NULL,
   PRIMARY KEY (`room_id`, `user_id`)
 );

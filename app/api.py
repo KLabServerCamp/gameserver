@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 from . import model
 from .auth import UserToken
-from .model import JoinRoomResult, LiveDifficulty, RoomInfo, RoomUser, WaitRoomStatus
+from .model import JoinRoomResult, LiveDifficulty, RoomInfo, RoomUser, WaitRoomStatus, ResultUser
 
 app = FastAPI()
 
@@ -29,24 +29,23 @@ async def root() -> dict:
 
 # User APIs
 
-
 # FastAPI 0.100 は model_validate_json() を使わないので、 strict モードにすると
 # EnumがValidationエラーになってしまいます。
-class UserCreateRequest(BaseModel):
+class CreateUserRequest(BaseModel):
     user_name: str = Field(title="ユーザー名")
     leader_card_id: int = Field(title="リーダーカードのID")
 
 
 # Responseの方は strict モードを利用できます
-class UserCreateResponse(BaseModel, strict=True):
+class CreateUserResponse(BaseModel, strict=True):
     user_token: str
 
 
 @app.post("/user/create")
-def user_create(req: UserCreateRequest) -> UserCreateResponse:
+def user_create(req: CreateUserRequest) -> CreateUserResponse:
     """新規ユーザー作成"""
     token = model.create_user(req.user_name, req.leader_card_id)
-    return UserCreateResponse(user_token=token)
+    return CreateUserResponse(user_token=token)
 
 
 # 認証動作確認用のサンプルAPI
@@ -66,7 +65,7 @@ class Empty(BaseModel):
 
 
 @app.post("/user/update")
-def update(req: UserCreateRequest, token: UserToken) -> Empty:
+def update(req: CreateUserRequest, token: UserToken) -> Empty:
     """ユーザー情報の更新"""
     # print(req)
     model.update_user(token, req.user_name, req.leader_card_id)
@@ -74,7 +73,6 @@ def update(req: UserCreateRequest, token: UserToken) -> Empty:
 
 
 # Room APIs
-
 
 # /room/create
 class CreateRoomRequest(BaseModel):
@@ -120,6 +118,22 @@ class StartRoomRequest(BaseModel):
     room_id: int
 
 
+# /room/end
+class EndRoomRequest(BaseModel):
+    room_id: int
+    judge_count_list: list[int]
+    score: int
+
+
+# /room/result
+class RoomResultRequest(BaseModel):
+    room_id: int
+
+
+class RoomResultResponse(BaseModel):
+    result_user_list: list[ResultUser]
+
+
 @app.post("/room/create")
 def room_create(token: UserToken, req: CreateRoomRequest) -> CreateRoomResponse:
     """ルーム作成リクエスト"""
@@ -158,3 +172,11 @@ def room_start(token: UserToken, req: StartRoomRequest) -> Empty:
     """ルームのライブ開始。オーナーが叩く"""
     model.start_room(token, req.room_id)
     return Empty()
+
+
+@app.post("/room/end")
+def room_end(token: UserToken, req: EndRoomRequest) -> Empty:
+    """ルームのライブ終了時リクエスト。ゲーム終わったら各人が叩く。"""
+    model.end_room(token, req.room_id, req.judge_count_list, req.score)
+    return Empty()
+

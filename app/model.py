@@ -7,6 +7,8 @@ from sqlalchemy.exc import NoResultFound
 
 from .db import engine
 
+import json
+
 
 class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げるエラー"""
@@ -292,4 +294,26 @@ def start_room(token: str, room_id: int) -> None:
                 """
             ),
             {"status": WaitRoomStatus.LiveStart.value, "room_id": room_id},
+        )
+
+
+def end_room(token: str, room_id: int, judge: list[int], score: int) -> None:
+
+    user = get_user_by_token(token)
+    judge_json = json.dumps(judge)
+
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                UPDATE `room_member` SET `score`=:score, `judge_count_list`=:judge_count_list
+                 WHERE `room_id`=:room_id AND `user_id`=:user_id
+                """
+            ),
+            {
+                "score": score,
+                "judge_count_list": judge_json,
+                "room_id": room_id,
+                "user_id": user.id
+            },
         )

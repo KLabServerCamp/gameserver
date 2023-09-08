@@ -5,7 +5,14 @@ from pydantic import BaseModel, Field
 
 from . import model
 from .auth import UserToken
-from .model import JoinRoomResult, LiveDifficulty, RoomInfo, RoomUser, WaitRoomStatus, ResultUser
+from .model import (
+    JoinRoomResult,
+    LiveDifficulty,
+    ResultUser,
+    RoomInfo,
+    RoomUser,
+    WaitRoomStatus,
+)
 
 app = FastAPI()
 
@@ -28,6 +35,7 @@ async def root() -> dict:
 
 
 # User APIs
+
 
 # FastAPI 0.100 は model_validate_json() を使わないので、 strict モードにすると
 # EnumがValidationエラーになってしまいます。
@@ -73,6 +81,7 @@ def update(req: CreateUserRequest, token: UserToken) -> Empty:
 
 
 # Room APIs
+
 
 # /room/create
 class CreateRoomRequest(BaseModel):

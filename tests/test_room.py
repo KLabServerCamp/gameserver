@@ -59,6 +59,22 @@ def test_room_1():
     )
     assert response.status_code == 200
 
+    response = client.post(
+        "/room/join",
+        headers=_auth_header(3),
+        json={"room_id": room_id, "select_difficulty": 2},
+    )
+    assert response.status_code == 200
+
+    response = client.post(
+        "/room/join",
+        headers=_auth_header(4),
+        json={"room_id": room_id, "select_difficulty": 2},
+    )
+    assert response.status_code == 200
+
+
+"""
     # オーナー退出
     response = client.post(
         "/room/leave",
@@ -67,7 +83,6 @@ def test_room_1():
     )
     assert response.status_code == 200
 
-"""
     response = client.post(
         "/room/start", headers=_auth_header(), json={"room_id": room_id}
     )

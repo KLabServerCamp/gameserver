@@ -1,3 +1,4 @@
+import json
 import uuid
 from enum import IntEnum
 
@@ -6,8 +7,6 @@ from sqlalchemy import text
 from sqlalchemy.exc import NoResultFound
 
 from .db import engine
-
-import json
 
 
 class InvalidToken(Exception):
@@ -160,7 +159,6 @@ def _create_room_user(
 
 def get_room_list(live_id: int) -> list[RoomInfo]:
     with engine.begin() as conn:
-
         # live_id=0は全てのルームを対象とする
         if live_id == 0:
             result = conn.execute(
@@ -174,7 +172,8 @@ def get_room_list(live_id: int) -> list[RoomInfo]:
             result = conn.execute(
                 text(
                     "SELECT `room_id`, `live_id`,  `joined_user_count`,  `max_user_count`, `status`"
-                    " FROM `room` WHERE live_id=:live_id AND `joined_user_count` < `max_user_count` AND `status`=:status"
+                    " FROM `room` WHERE live_id=:live_id AND `joined_user_count` < `max_user_count`"
+                    " AND `status`=:status"
                 ),
                 {"live_id": live_id, "status": WaitRoomStatus.Waiting.value},
             )
@@ -196,6 +195,7 @@ def get_room_list(live_id: int) -> list[RoomInfo]:
 
 
 def join_room(token: str, room_id: int, difficulty: LiveDifficulty) -> JoinRoomResult:
+    # TODO: トランザクション処理
     with engine.begin() as conn:
         # 対象roomの情報を取り出す
         result = conn.execute(
@@ -226,11 +226,10 @@ def join_room(token: str, room_id: int, difficulty: LiveDifficulty) -> JoinRoomR
 
 
 def _update_joined_user_count(conn, room_id: int) -> None:
-    
     result = conn.execute(
-            text("SELECT COUNT(user_id) FROM `room_member` WHERE `room_id`=:room_id"),
-            {"room_id": room_id},
-        )
+        text("SELECT COUNT(user_id) FROM `room_member` WHERE `room_id`=:room_id"),
+        {"room_id": room_id},
+    )
     new_joined_user_count = result.scalar()
     # roomのjoined_user_countを更新
     conn.execute(
@@ -286,7 +285,7 @@ def get_room_users(token: str, room_id: int) -> list[RoomUser]:
 
 
 def _is_host(room_id: int, user_id: int) -> bool:
-    """ user_id が room_id のホストかどうかチェック """
+    """user_id が room_id のホストかどうかチェック"""
     with engine.begin() as conn:
         result = conn.execute(
             text(
@@ -300,7 +299,6 @@ def _is_host(room_id: int, user_id: int) -> bool:
 
 
 def start_room(token: str, room_id: int) -> None:
-
     user = get_user_by_token(token)
     if not _is_host(room_id, user.id):
         return False
@@ -317,9 +315,8 @@ def start_room(token: str, room_id: int) -> None:
 
 
 def end_room(token: str, room_id: int, judge: list[int], score: int) -> None:
-
     user = get_user_by_token(token)
-    
+
     # 判定結果のlistデータをjsonデータに変換
     judge_json = json.dumps(judge)
 
@@ -335,13 +332,12 @@ def end_room(token: str, room_id: int, judge: list[int], score: int) -> None:
                 "score": score,
                 "judge_count_list": judge_json,
                 "room_id": room_id,
-                "user_id": user.id
+                "user_id": user.id,
             },
         )
 
 
 def get_result(room_id: int) -> list[ResultUser]:
-
     with engine.begin() as conn:
         # 参加中の人数を取得
         result = conn.execute(
@@ -377,7 +373,7 @@ def get_result(room_id: int) -> list[ResultUser]:
                         ResultUser(
                             user_id=result_user.user_id,
                             judge_count_list=json.loads(result_user.judge_count_list),
-                            score=result_user.score
+                            score=result_user.score,
                         )
                     )
             except NoResultFound:
@@ -387,12 +383,10 @@ def get_result(room_id: int) -> list[ResultUser]:
 
 
 def leave_room(token: str, room_id: int) -> None:
-
     user = get_user_by_token(token)
     is_host = _is_host(room_id, user.id)
 
     with engine.begin() as conn:
-
         # ユーザー削除
         conn.execute(
             text(
@@ -405,9 +399,7 @@ def leave_room(token: str, room_id: int) -> None:
 
         # 現在の参加人数を取得
         result = conn.execute(
-            text(
-                "SELECT COUNT(user_id) FROM `room_member` WHERE `room_id`=:room_id"
-            ),
+            text("SELECT COUNT(user_id) FROM `room_member` WHERE `room_id`=:room_id"),
             {"room_id": room_id},
         )
         joined_user_count = result.scalar()
@@ -415,9 +407,7 @@ def leave_room(token: str, room_id: int) -> None:
         # 部屋に誰もいない場合部屋削除
         if joined_user_count == 0:
             conn.execute(
-                text(
-                    "UPDATE `room` SET `status`=:status WHERE `room_id`=:room_id"
-                ),
+                text("UPDATE `room` SET `status`=:status WHERE `room_id`=:room_id"),
                 {"status": WaitRoomStatus.Dissolution.value, "room_id": room_id},
             )
             return None
@@ -426,9 +416,7 @@ def leave_room(token: str, room_id: int) -> None:
         if is_host:
             # ルームメンバー取得
             result = conn.execute(
-                text(
-                    "SELECT `user_id` FROM `room_member` WHERE `room_id`=:room_id"
-                ),
+                text("SELECT `user_id` FROM `room_member` WHERE `room_id`=:room_id"),
                 {"room_id": room_id},
             )
             # 1番上のユーザーをホストに
@@ -439,9 +427,11 @@ def leave_room(token: str, room_id: int) -> None:
                         "UPDATE `room_member` SET `is_host`=:is_host"
                         " WHERE `room_id`=:room_id AND `user_id`=:user_id"
                     ),
-                    {"is_host": True, "room_id": room_id, "user_id": new_host_user.user_id}
+                    {
+                        "is_host": True,
+                        "room_id": room_id,
+                        "user_id": new_host_user.user_id,
+                    },
                 )
             except NoResultFound:
                 return None
-
-            

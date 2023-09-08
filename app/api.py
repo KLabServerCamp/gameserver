@@ -180,3 +180,9 @@ def room_end(token: UserToken, req: EndRoomRequest) -> Empty:
     model.end_room(token, req.room_id, req.judge_count_list, req.score)
     return Empty()
 
+
+@app.post("/room/result")
+def room_result(req: RoomResultRequest) -> RoomResultResponse:
+    """ルームのライブ終了後、リザルト遷移チェックのリクエスト。end 叩いたあとにこれをポーリングする"""
+    result_user_list = model.get_result(req.room_id)
+    return RoomResultResponse(result_user_list=result_user_list)

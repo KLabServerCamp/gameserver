@@ -317,3 +317,31 @@ def end_room(token: str, room_id: int, judge: list[int], score: int) -> None:
                 "user_id": user.id
             },
         )
+
+
+def get_result(room_id: int) -> list[ResultUser]:
+
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                """
+                SELECT `user_id`, `judge_count_list`, `score`
+                    FROM `room_member` WHERE `room_id`=:room_id
+                """
+            ),
+            {"room_id": room_id},
+        )
+        try:
+            result_user_list = []
+            for result_user in result:
+                result_user_list.append(
+                    ResultUser(
+                        user_id=result_user.user_id,
+                        judge_count_list=json.loads(result_user.judge_count_list),
+                        score=result_user.score
+                    )
+                )
+        except NoResultFound:
+            return None
+
+    return result_user_list

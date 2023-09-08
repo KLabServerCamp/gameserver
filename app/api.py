@@ -151,7 +151,6 @@ def room_end(token: UserToken, req: RoomEndRequest):
     print("/room/end", req)
     model.end_room(token, req)
     return Empty()
-    ...
 
 
 @app.post("/room/result")

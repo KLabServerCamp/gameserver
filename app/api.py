@@ -5,7 +5,20 @@ from pydantic import BaseModel, Field
 
 from . import model
 from .auth import UserToken
-from .model import LiveDifficulty
+from .model import (
+    LiveDifficulty,
+    RoomEndRequest,
+    RoomJoinRequest,
+    RoomJoinResponse,
+    RoomLeaveRequest,
+    RoomListRequest,
+    RoomListResponse,
+    RoomResultRequest,
+    RoomResultResponse,
+    RoomStartRequest,
+    RoomWaitRequest,
+    RoomWaitResponse,
+)
 
 app = FastAPI()
 
@@ -91,3 +104,56 @@ def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
     print("/room/create", req)
     room_id = model.create_room(token, req.live_id, req.select_difficulty)
     return RoomID(room_id=room_id)
+
+
+@app.post("/room/list")
+def room_list(req: RoomListRequest) -> RoomListResponse:
+    """ルーム列挙リクエスト"""
+    print("/room/list", req)
+    res = model.list_room(req)
+    return RoomListResponse(room_info_list=res)
+
+
+@app.post("/room/join")
+def room_join(token: UserToken, req: RoomJoinRequest) -> RoomJoinResponse:
+    """ルーム入室リクエスト"""
+    print("/room/join", req)
+    return model.join_room(token, req)
+
+
+@app.post("/room/leave")
+def room_leave(token: UserToken, req: RoomLeaveRequest):
+    """ルーム退室リクエスト"""
+    print("/room/leave", req)
+    model.leave_room(token, req)
+    return Empty()
+
+
+@app.post("/room/wait")
+def room_wait(token: UserToken, req: RoomWaitRequest) -> RoomWaitResponse:
+    """ルーム待機ポーリング"""
+    print("/room/wait", req)
+    return model.wait_room(token, req)
+
+
+@app.post("/room/start")
+def room_start(token: UserToken, req: RoomStartRequest):
+    """ライブ開始リクエスト"""
+    print("/room/start", req)
+    model.start_room(token, req)
+    return Empty()
+
+
+@app.post("/room/end")
+def room_end(token: UserToken, req: RoomEndRequest):
+    """リザルト送信リクエスト"""
+    print("/room/end", req)
+    model.end_room(token, req)
+    return Empty()
+
+
+@app.post("/room/result")
+def room_result(req: RoomResultRequest) -> RoomResultResponse:
+    """リザルト受信リクエスト"""
+    print("/room/result", req)
+    return model.result_room(req)

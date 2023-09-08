@@ -16,6 +16,7 @@ from .util import (
 
 
 class Room:
+    @staticmethod
     def create_room(token: str, live_id: int, difficulty: schemas.LiveDifficulty):
         """部屋を作ってroom_idを返します"""
         with engine.begin() as conn:
@@ -35,6 +36,7 @@ class Room:
             )
         return room_id
 
+    @staticmethod
     def get_room_list(live_id: int) -> list:
         """
         live_id が一致する room を返す
@@ -65,6 +67,7 @@ class Room:
                 )
             return rooms
 
+    @staticmethod
     def join_room(
         token: str, room_id: int, difficulty: schemas.LiveDifficulty
     ) -> schemas.JoinRoomResult:
@@ -94,6 +97,7 @@ class Room:
             )
             return schemas.JoinRoomResult.Ok
 
+    @staticmethod
     def wait_room(token: str, room_id: int):
         # room_id から参加者を特定
         # それぞれの参加者について情報を取得し、 RoomUser のインスタンスを作る
@@ -136,6 +140,7 @@ class Room:
                 )
             return room.status, room_user_list
 
+    @staticmethod
     def start_room(token: str, room_id: int):
         with engine.begin() as conn:
             user = _get_user_by_token(conn, token)
@@ -148,6 +153,7 @@ class Room:
                 raise Exception
             _update_room_status(conn, room_id, schemas.WaitRoomStatus.LiveStart)
 
+    @staticmethod
     def end_room(token: str, room_id: int, score: int, judge_count_list: list[int]):
         # room_member_result テーブルに全部突っ込む
         if len(judge_count_list) != 5:
@@ -193,6 +199,7 @@ class Room:
                 },
             )
 
+    @staticmethod
     def room_result(room_id: int):
         # TODO: タイムアウト処理
         with engine.begin() as conn:
@@ -231,6 +238,7 @@ class Room:
             _update_room_status(conn, room_id, schemas.WaitRoomStatus.Dissolution)
             return user_results
 
+    @staticmethod
     def leave_room(token: str, room_id: int) -> None:
         # 退出ボタンを押したときに呼ばれる
         # room に 1 人しかいなければ部屋を潰す（このとき残っているのは必ず owner のはずである）

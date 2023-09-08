@@ -7,6 +7,7 @@ from .util import _get_user_by_token
 
 
 class User:
+    @staticmethod
     def create(name: str, leader_card_id: int) -> str:
         """Create new user and returns their token"""
         import uuid
@@ -23,10 +24,12 @@ class User:
             print(f"create_user(): {result.lastrowid=}")  # DB側で生成されたPRIMARY KEYを参照できる
         return token
 
+    @staticmethod
     def get_user_by_token(token: str) -> schemas.SafeUser | None:
         with engine.begin() as conn:
             return _get_user_by_token(conn, token)
 
+    @staticmethod
     def update(token: str, name: str, leader_card_id: int) -> None:
         with engine.begin() as conn:
             conn.execute(

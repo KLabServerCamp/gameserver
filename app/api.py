@@ -144,3 +144,16 @@ def start_room(token: UserToken, req: RoomID):
     """ルーム開始"""
     print("/room/start", req)
     model.start_room(token, req.room_id)
+
+
+class EndRoomRequest(BaseModel):
+    room_id: int
+    judge_count_list: list[int]
+    score: int
+
+
+@app.post("/room/end")
+def end_room(token: UserToken, req: EndRoomRequest):
+    """ルーム終了"""
+    print("/room/end", req)
+    model.end_room(token, req.room_id, req.judge_count_list, req.score)

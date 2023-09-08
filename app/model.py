@@ -1,3 +1,4 @@
+import json
 import uuid
 from enum import IntEnum
 
@@ -270,6 +271,32 @@ def start_room(token: str, room_id: int):
         if reqest_user is None:
             raise InvalidToken
         conn.execute(
-            text("UPDATE room SET wait_status= 2 " "WHERE room_id = :room_id"),
+            text("UPDATE room SET wait_status= 2 WHERE room_id = :room_id"),
             {"room_id": room_id},
+        )
+
+
+def end_room(token: str, room_id: int, judge_count_list: list[int], score: int):
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken
+        judge_count_json = json.dumps(judge_count_list)
+        conn.execute(
+            text(
+                "UPDATE room_member SET judge_count_list = :judge_count_list "
+                "WHERE room_id = :room_id AND user_id = :user_id"
+            ),
+            {
+                "user_id": user.id,
+                "room_id": room_id,
+                "judge_count_list": judge_count_json,
+            },
+        )
+        conn.execute(
+            text(
+                "UPDATE room_member SET score = :score "
+                "WHERE room_id = :room_id AND user_id = :user_id"
+            ),
+            {"user_id": user.id, "room_id": room_id, "score": score},
         )

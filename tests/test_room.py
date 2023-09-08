@@ -50,6 +50,18 @@ def test_test():
     assert response.status_code == 200
     print("room/wait response:", response.json())
 
+    response = client.post(
+        "/room/end",
+        headers=_auth_header(),
+        json={
+            "room_id": room_id,
+            "score": 1234,
+            "judge_count_list": [1111, 222, 33, 44, 5],
+        },
+    )
+    assert response.status_code == 200
+    print("room/end response:", response.json())
+
 
 def test_room_1():
     response = client.post(

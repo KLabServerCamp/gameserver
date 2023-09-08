@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 from . import model
 from .auth import UserToken
+from .model import LiveDifficulty
 
 app = FastAPI()
 
@@ -83,7 +84,8 @@ class RoomID(BaseModel):
 def create(token: UserToken, req: model.CreateRoomRequest) -> RoomID:
     """ルーム作成リクエスト"""
     print("/room/create", req)
-    room_id = model.create_room(token, req.live_id, req.select_difficulty)
+    room_id = model.create_room(token, req.live_id,
+                                LiveDifficulty(req.select_difficulty))
     print(room_id)
     return RoomID(room_id=room_id)
 
@@ -96,19 +98,64 @@ def return_list(live_id: int) -> dict:
 
 
 @app.post("/room/join")
-def join_room(
-    token: UserToken,
-    room_id: int,
-    select_difficulty: model.LiveDifficulty
-    ) -> dict:
+def join_room(token: UserToken,
+              room_id: int, select_difficulty: LiveDifficulty) -> dict:
     result = model._join_room(
         token=token,
         room_id=room_id,
         select_difficulty=select_difficulty
     )
+    print(result)
     return {"join_room_result": result}
 
+
 @app.post("/room/wait")
-def wait(room_id: int) -> dict:
+def wait(token: UserToken, room_id: int) -> dict:
     status = model.get_room_status(room_id=room_id)
-    room_user_list = model.get_user_list(room_id=room_id)
+    u_id = model.get_user_by_token(token=token)
+    room_user_list = model.get_user_list(me=u_id, room_id=room_id)
+    ret = {
+        "status": status,
+        "room_user_list": room_user_list
+    }
+    print(ret)
+    return ret
+
+
+@app.post("/room/start")
+def start(token: UserToken, room_id: int) -> None:
+    user = model.get_user_by_token(token=token)
+    print("--- user_id ---")
+    print(user)
+    print("--- is_host ---")
+    if model.is_host(user_id=user.id, room_id=room_id):
+        print("true")
+        model.change_room_state(
+            room_id=room_id,
+            room_state=model.WaitRoomStatus.LiveStart
+            )
+    else:
+        print("false")
+
+
+@app.post("/room/end")
+def end(token: UserToken, room_id: int, score: int,
+        judge_count_list: list[int]):
+    user = model.get_user_by_token(token=token)
+    model.save_score(user_id=user.id, room_id=room_id, score=score,
+                     judge_count_list=judge_count_list)
+
+
+@app.post("/room/result")
+def result(room_id: int) -> list[model.ResultUser]:
+    if model.everyone_end(room_id=room_id):
+        return model.get_result_user(room_id=room_id)
+    else:
+        return []
+
+
+@app.post("/room/leave")
+def leave(token: UserToken, room_id: int):
+    user = model.get_user_by_token(token=token)
+    model.leave_room(user_id=user.id, room_id=room_id)
+    return {}

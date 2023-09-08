@@ -52,7 +52,7 @@ class RoomInfo(BaseModel, strict=True):
 
 class CreateRoomRequest(BaseModel, strict=True):
     live_id: int
-    select_difficulty: LiveDifficulty
+    select_difficulty: int
 
 
 class RoomUser(BaseModel, strict=True):
@@ -62,6 +62,12 @@ class RoomUser(BaseModel, strict=True):
     select_difficulty: LiveDifficulty
     is_me: bool
     is_host: bool
+
+
+class ResultUser(BaseModel, strict=True):
+    user_id: int
+    judge_count_list: list[int]
+    score: int
 
 
 # UUID4は天文学的な確率だけど衝突する確率があるので、気にするならリトライする必要がある。
@@ -118,12 +124,11 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
         user = _get_user_by_token(conn, token)
         if user is None:
             raise InvalidToken
-        conn.execute(
+        result = conn.execute(
             text("INSERT INTO `rooms` (`live_id`)" "VALUES (:live_id)"),
             {"live_id": live_id},
         )
-        result = conn.execute(text("SELECT LAST_INSERT_ID()"))
-        room_id = result.fetchone()[0]
+        room_id = result.lastrowid
         print("---room_id---")
         print(room_id)
         conn.execute(
@@ -133,9 +138,9 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
                 "VALUES(:room_id, :user_id, :difficulty, :is_host)"
             ),
             {
-                "room_id": room_id, "user_id": user.id, 
-                "difficulty": difficulty, "is_host": True
-            },
+                "room_id": room_id, "user_id": user.id,
+                "difficulty": int(difficulty), "is_host": True
+            }
         )
         conn.commit()
         return room_id
@@ -145,13 +150,14 @@ def room_list(live_id: int) -> list[RoomInfo]:
     with engine.begin() as conn:
         req = conn.execute(text("SELECT `room_id`, `live_id` from `rooms`"))
         ret = req.fetchall()
+        print(ret)
         room_ids = []
         live_ids = []
         for room_id, now_live_id in ret:
-            print(str(room_id) + " : " + str(live_id))
-            if now_live_id == live_id | live_id == 0:
+            print(str(room_id) + " : " + str(now_live_id))
+            if now_live_id == live_id or live_id == 0:
                 room_ids.append(room_id)
-                live_ids.append(live_id)
+                live_ids.append(now_live_id)
         print("---room_ids---")
         print(room_ids)
         print("---live_ids---")
@@ -179,9 +185,22 @@ def room_list(live_id: int) -> list[RoomInfo]:
         return ret_value
 
 
-def _join_room(token: str, room_id: int, select_difficulty: LiveDifficulty) -> JoinRoomResult:
+def _join_room(token: str, room_id: int,
+               select_difficulty: LiveDifficulty) -> JoinRoomResult:
     with engine.begin() as conn:
         user = _get_user_by_token(conn=conn, token=token)
+        print(user)
+        req = conn.execute(
+            text(
+                "SELECT `room_state` FROM `rooms` WHERE room_id=:room_id"
+            ),
+            {"room_id": room_id}
+        )
+        state = req.fetchone()[0]
+        print("--- room_state ---")
+        print(state)
+        if state == WaitRoomStatus.Dissolusion:
+            return JoinRoomResult.Disbanded
         req = conn.execute(
             text(
                 "SELECT COUNT(1) FROM `room_member` WHERE room_id=:room_id"
@@ -204,26 +223,197 @@ def _join_room(token: str, room_id: int, select_difficulty: LiveDifficulty) -> J
                     "difficulty": int(select_difficulty)
                 }
             )
+            conn.commit()
             return JoinRoomResult.Ok
 
 
 def get_room_status(room_id: int) -> WaitRoomStatus:
-    with engine.begin as conn:
+    with engine.begin() as conn:
         result = conn.execute(
             text(
                 "SELECT `room_state` FROM `rooms` WHERE room_id=:room_id"
             ),
             {"room_id": room_id}
         )
-        state = result.fetchone()
+        state = result.fetchone()[0]
+        print("--- room_state ---")
         print(state)
         return state
 
 
-def get_user_list(room_id: int) -> list[RoomUser]:
+def get_user_list(me: int, room_id: int) -> list[RoomUser]:
     with engine.begin() as conn:
-        result = conn.execute(
+        req = conn.execute(
             text(
-                "SELECT `"
-            )
+                "SELECT `user_id`,`difficulty`,`is_host`"
+                "FROM `room_member` WHERE room_id=:room_id"
+            ),
+            {"room_id": room_id}
         )
+        user_ids = []
+        difficulties = []
+        is_hosts = []
+        user_names = []
+        user_leader_cards = []
+        result = req.fetchall()
+        for user_id, difficulty, is_host in result:
+            user_ids.append(user_id)
+            difficulties.append(difficulty)
+            is_hosts.append(is_host)
+            req = conn.execute(
+                text(
+                    "SELECT `name`, `leader_card_id` FROM `user` "
+                    "WHERE id=:id;"
+                ),
+                {"id": user_id}
+            )
+            result = req.fetchall()[0]
+            print("--- result ---")
+            user_names.append(result[0])
+            user_leader_cards.append(result[1])
+        print("user_ids", end=" : ")
+        print(user_ids)
+        print("difficulties", end=" : ")
+        print(difficulties)
+        print("is_hosts", end=" : ")
+        print(is_hosts)
+        print("user_names", end=" : ")
+        print(user_names)
+        print("user_leader_cards", end=" : ")
+        print(user_leader_cards)
+        user_list = []
+        for index, _ in enumerate(user_ids):
+            user = RoomUser(
+                user_id=user_ids[index],
+                select_difficulty=LiveDifficulty(difficulties[index]),
+                is_host=bool(is_hosts[index]),
+                name=user_names[index],
+                leader_card_id=user_leader_cards[index],
+                is_me=bool(user_ids[index] == me)
+            )
+            user_list.append(user)
+        return user
+
+
+def is_host(user_id: int, room_id: int) -> bool:
+    with engine.begin() as conn:
+        req = conn.execute(
+            text(
+                "SELECT `is_host` FROM `room_member` "
+                "WHERE room_id=:room_id "
+                "AND user_id=:user_id"
+            ),
+            {"room_id": room_id, "user_id": user_id}
+        )
+        result = req.fetchone()[0]
+        print("--- result ---")
+        print(result)
+        if (result):
+            return True
+        else:
+            return False
+
+
+def change_room_state(room_id: int, room_state: WaitRoomStatus) -> None:
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE `rooms` SET room_state=:room_state "
+                "WHERE room_id=:room_id"
+            ),
+            {"room_state": int(room_state), "room_id": room_id}
+        )
+        conn.commit()
+
+
+def save_score(user_id: int, room_id: int, score: int,
+               judge_count_list: list[int]):
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "UPDATE `room_member` "
+                "SET score=:score,"
+                "perfect=:perfect, great=:great,"
+                "good=:good, bad=:bad, miss=:miss "
+                "WHERE user_id=:user_id "
+                "AND room_id=:room_id"
+            ),
+            {
+                "score": score, "perfect": judge_count_list[0],
+                "great": judge_count_list[1],
+                "good": judge_count_list[2],
+                "bad": judge_count_list[3],
+                "miss": judge_count_list[4],
+                "user_id": user_id,
+                "room_id": room_id
+            }
+        )
+        conn.commit()
+
+
+def everyone_end(room_id: int) -> bool:
+    with engine.begin() as conn:
+        req = conn.execute(
+            text(
+                "SELECT `score` FROM room_member "
+                "WHERE room_id=:room_id"
+            ),
+            {"room_id": room_id}
+        )
+        result = req.fetchall()
+        # print("--- result ---")
+        # print(result)
+        scores = []
+        for score in result:
+            scores.append(score[0])
+        print("--- everyone ended? ---")
+        if None in scores:
+            print("false")
+            return False
+        else:
+            print("true")
+            return True
+
+
+def get_result_user(room_id: int) -> list[ResultUser]:
+    with engine.begin() as conn:
+        req = conn.execute(
+            text(
+                "SELECT `user_id`, `score`, `perfect`, `great`,"
+                "`good`, `bad`, `miss` FROM room_member "
+                "WHERE room_id=:room_id"
+            ),
+            {"room_id": room_id}
+        )
+        result = req.fetchall()
+        print(result)
+        user_result_list = []
+        for result_one in result:
+            user_result = ResultUser(
+                user_id=result_one[0],
+                score=result_one[1],
+                judge_count_list=[
+                    result_one[2],
+                    result_one[3],
+                    result_one[4],
+                    result_one[5],
+                    result_one[6]
+                ]
+            )
+            user_result_list.append(user_result)
+        return user_result_list
+
+
+def leave_room(user_id: int, room_id: int):
+    with engine.begin() as conn:
+        if is_host(user_id=user_id, room_id=room_id):
+            change_room_state(room_id=room_id,
+                              room_state=WaitRoomStatus.Dissolusion)
+        conn.execute(
+            text(
+                "DELETE FROM `room_member` "
+                "WHERE room_id=:room_id AND user_id=:user_id"
+            ),
+            {"room_id": room_id, "user_id": user_id}
+        )
+        conn.commit()

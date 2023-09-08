@@ -22,7 +22,7 @@ DROP TABLE IF EXISTS `room_member`;
 CREATE TABLE `room_member` (
   `room_id` int NOT NULL,
   `user_id` int NOT NULL,
-  `is_host` boolean NOT NULL,
+  `is_host` boolean NOT NULL DEFAULT 0,
   `score` int,
   `difficulty` int,
   `perfect` int,

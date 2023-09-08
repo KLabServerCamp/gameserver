@@ -130,17 +130,24 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
         )
         room_id = result.lastrowid
         print(f"create_room(): {room_id=}")
-        _insert_room_member(conn, room_id, user.id, difficulty.value)
+        _insert_room_member(conn, room_id, user.id, difficulty.value, True)
         return room_id
 
 
-def _insert_room_member(conn, room_id: int, user_id: int, difficulty: int):
+def _insert_room_member(
+    conn, room_id: int, user_id: int, difficulty: int, is_host: bool
+):
     conn.execute(
         text(
-            "INSERT INTO `room_member` (room_id, user_id, difficulty)"
-            " VALUES (:room_id, :user_id, :difficulty)"
+            "INSERT INTO `room_member` (room_id, user_id, difficulty, is_host)"
+            " VALUES (:room_id, :user_id, :difficulty, :is_host)"
         ),
-        {"room_id": room_id, "user_id": user_id, "difficulty": difficulty}
+        {
+            "room_id": room_id,
+            "user_id": user_id,
+            "difficulty": difficulty,
+            "is_host": is_host,
+        },
     )
 
 
@@ -157,7 +164,7 @@ def list_room(live_id: int):
                 text(
                     "SELECT room_id, live_id, joined_user_count, max_user_count FROM `room` WHERE live_id = :live_id"
                 ),
-                {"live_id": live_id}
+                {"live_id": live_id},
             )
         room_list = []
         for row in result:
@@ -165,46 +172,84 @@ def list_room(live_id: int):
                 room_id=row._mapping["room_id"],
                 live_id=row._mapping["live_id"],
                 joined_user_count=row._mapping["joined_user_count"],
-                max_user_count=row._mapping["max_user_count"]
+                max_user_count=row._mapping["max_user_count"],
             )
             room_list.append(room_info)
     return room_list
 
 
-def wait_room(room_id: int) -> (WaitRoomStatus, list[RoomUser]):
+def _get_user_by_id(conn, id: int) -> SafeUser | None:
+    # TODO: 実装(わからなかったら資料を見ながら)
+    result = conn.execute(
+        text("SELECT `id`, `name`, `leader_card_id` FROM `user` WHERE `id`=:id"),
+        {"id": id},
+    )
+    try:
+        row = result.one()
+    except NoResultFound:
+        return None
+    return SafeUser.model_validate(row, from_attributes=True)
+
+
+def wait_room(token: str, room_id: int) -> (WaitRoomStatus, list[RoomUser]):
     with engine.begin() as conn:
         result = conn.execute(
             text(
-                "SELECT room_id, joined_user_count, max_user_count FROM `room` WHERE room_id = :room_id"
+                "SELECT room_id, joined_user_count, max_user_count, game_is_start FROM `room` WHERE room_id = :room_id"
             ),
-            {"room_id": room_id}
+            {"room_id": room_id},
         )
         room = result.one_or_none()
 
         if not room:
-            return(WaitRoomStatus.Dissolution, [])
+            return (WaitRoomStatus.Dissolution, [])
 
-        room_status = WaitRoomStatus(room._mapping["room_status"])
+        room_status = room._mapping["game_is_start"]
+
+        if room_status is False:
+            room_status = WaitRoomStatus.Waiting
+        else:
+            room_status = WaitRoomStatus.LiveStart
 
         result = conn.execute(
             text(
-                "SELECT user_id, name, leader_card_id, select_difficulty, is_me, is_host FROM `room_users` WHERE room_id = :room_id"
+                "SELECT room_id, user_id, difficulty, is_host FROM `room_member` WHERE room_id = :room_id"
             ),
-            {"room_id": room_id}
+            {"room_id": room_id},
         )
+        result2 = dict()
+        for user in result:
+            result2[user._mapping["user_id"]] = _get_user_by_id(
+                conn, user._mapping["user_id"]
+            )
+
+        result3 = _get_user_by_token(conn, token)
+        users = [
+            RoomUser(
+                user_id=user._mapping["user_id"],
+                name=result2[user._mapping["user_id"]].name,
+                leader_card_id=result2[user._mapping["user_id"]].leader_card_id,
+                select_diffiuculty=user._mapping["difficulty"],
+                is_me=result3.id == user._mapping["user_id"],
+                is_host=user._mapping["is_host"],
+            )
+            for user in result
+        ]
+
+    return (room_status, users)
 
 
 def join_room(room_id: int, select_difficulty: LiveDifficulty) -> JoinRoomResult:
     with engine.begin() as conn:
-        result = conn.execute(
-            text(
-                "SELECT room_id, joined_user_count, max_user_count FROM `room` WHERE room_id = :room_id"
-            ),
-            {"room_id": room_id}
-        )
-        room = result.one()
-
-        if not room:
+        try:
+            result = conn.execute(
+                text(
+                    "SELECT room_id, joined_user_count, max_user_count FROM `room` WHERE room_id = :room_id"
+                ),
+                {"room_id": room_id},
+            )
+            room = result.one()
+        except NoResultFound:
             return JoinRoomResult.Disbanded
 
         if room._mapping["joined_user_count"] >= room._mapping["max_user_count"]:
@@ -213,7 +258,7 @@ def join_room(room_id: int, select_difficulty: LiveDifficulty) -> JoinRoomResult
         conn.execute(
             text(
                 "UPDATE `room` SET joined_user_count = joined_user_count + 1 WHERE room_id= :room_id"
-                ),
-            {"room_id": room_id}
+            ),
+            {"room_id": room_id},
         )
     return JoinRoomResult.Ok

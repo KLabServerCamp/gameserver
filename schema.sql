@@ -16,6 +16,7 @@ CREATE TABLE `room` (
   `live_id` int NOT NULL,
   `joined_user_count` int NOT NULL,
   `max_user_count` int NOT NULL,
+  `game_is_start` boolean DEFAULT FALSE,
   PRIMARY KEY (`room_id`)
 );
 
@@ -24,5 +25,6 @@ CREATE TABLE `room_member` (
   `room_id` bigint NOT NULL,  
   `user_id` bigint NOT NULL,
   `difficulty` int NOT NULL,
+  `is_host` boolean DEFAULT FALSE,
   PRIMARY KEY (`room_id`, `user_id`)
 );

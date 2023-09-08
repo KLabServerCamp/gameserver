@@ -133,7 +133,7 @@ def get_room_members(conn, room_id: int):
 def get_room_user(conn, user_id: int):
     """ユーザの部屋での情報を取得"""
     res = conn.execute(text(
-        "SELECT `select_difficulty` FROM `room_user` WHERE `user_id`=:user_id"
+        "SELECT `select_difficulty`, `score`, `judge_count_list` FROM `room_user` WHERE `user_id`=:user_id"
     ), {
         "user_id": user_id
     })
@@ -378,4 +378,31 @@ def end_room(token: str, room_id: int, judge_count_list: list[int], score: int):
             "user_id": user.id,
             "room_id": room_id
         })
-        
+
+
+def result_room(token: str, room_id: int):
+    """ライブの結果"""
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken
+        room_members = get_room_members(conn, room_id)
+        room_members = room_members.member_list.split(',')
+        room_members = list(map(lambda member: int(member), room_members))
+        room_compiled_members = []
+        for member_id in room_members:
+            room_member = get_room_user(conn, member_id)
+            if room_member == DBResponseError.OtherError:
+                return []
+            if room_member.judge_count_list is None:
+                return []
+            judge_count_list = room_member.judge_count_list.split(',')
+            judge_count_list = list(map(lambda judge_count: int(judge_count), judge_count_list))
+            room_member = {
+                "user_id": member_id,
+                "judge_count_list": judge_count_list,
+                "score": room_member.score
+            }
+            room_compiled_members.append(room_member)
+        return room_compiled_members
+    

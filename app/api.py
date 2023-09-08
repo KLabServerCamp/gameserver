@@ -134,6 +134,10 @@ class EndRoomRequest(BaseModel):
     score: int
 
 
+class ResultRoomRequest(BaseModel):
+    room_id: int
+
+
 @app.post("/room/create")
 def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
     """ルーム作成リクエスト"""
@@ -194,8 +198,16 @@ def leave(token: UserToken, req: LeaveRoomRequest) -> None:
     model.leave_room(token, req.room_id)
     return None
 
+
 @app.post("/room/end")
 def end(token: UserToken, req: EndRoomRequest) -> None:
     print("/room/end", req)
     model.end_room(token, req.room_id, req.judge_count_list, req.score)
     return None
+
+
+@app.post("/room/result")
+def result(token: UserToken, req: ResultRoomRequest) -> list:
+    print("/room/result", req)
+    result_users = model.result_room(token, req.room_id)
+    return result_users

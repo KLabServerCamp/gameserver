@@ -360,3 +360,41 @@ def room_result(room_id: int):
                 )
             )
         return user_results
+
+
+def _delete_user_from_room(conn, room_id: int, user_id: int) -> None:
+    conn.execute(
+        text(
+            "DELETE FROM `room_member` WHERE `room_id`=:room_id AND `user_id`=:user_id"
+        ),
+        {"room_id": room_id, "user_id": user_id},
+    )
+
+
+def _delete_room(conn, room_id):
+    # TODO
+    pass
+
+
+def _change_room_owner(conn, room_id: int, owner_id: int):
+    # TODO
+    pass
+
+
+def leave_room(token: str, room_id: int):
+    # 退出ボタンを押したときに呼ばれる
+    # room に 1 人しかいなければ部屋を潰す（このとき残っているのは必ず owner のはずである）
+    # 複数人残っている && owner が抜けるときは owner 権限を他の member に移譲する
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken
+        room = _get_room_from_room_id(conn, room_id)
+        if room is None:
+            raise Exception
+
+        # TODO: オーナーが抜ける場合
+        if user.id == room.owner_id:
+            _change_room_owner(conn, room_id, room.owner_id)
+
+        _delete_user_from_room(conn, room_id, user.id)

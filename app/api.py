@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 from . import model
 from .auth import UserToken
-from .model import JoinRoomResult, LiveDifficulty, RoomUser, WaitRoomStatus
+from .model import JoinRoomResult, LiveDifficulty, ResultUser, RoomUser, WaitRoomStatus
 
 app = FastAPI()
 
@@ -159,3 +159,18 @@ class EndRoomRequest(BaseModel):
 def end(token: UserToken, req: EndRoomRequest):
     model.end_room(token, req.room_id, req.score, req.judge_count_list)
     return Empty()
+
+
+class ResultRoomRequest(BaseModel):
+    room_id: int
+
+
+class ResultRoomResponse(BaseModel):
+    result_user_list: list[ResultUser]
+
+
+@app.post("/room/result")
+def result(req: ResultRoomRequest):
+    print("/room/result", req)
+    results: list[ResultUser] = model.room_result(req.room_id)
+    return ResultRoomResponse(result_user_list=results)

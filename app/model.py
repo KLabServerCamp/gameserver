@@ -262,3 +262,14 @@ def join_room(room_id: int, select_difficulty: LiveDifficulty) -> JoinRoomResult
             {"room_id": room_id},
         )
     return JoinRoomResult.Ok
+
+
+def room_start(token: str, room_id: int) -> None:
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken
+        conn.execute(
+            text("UPDATE `room` SET game_is_start = True WHERE room_id= :room_id"),
+            {"room_id": room_id},
+        )

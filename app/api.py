@@ -111,7 +111,8 @@ class RoomWaitResponse(BaseModel):
     room_user_list: list[RoomUser]
 
 
-class RoomStartRequest(BaseModel)
+class RoomStartRequest(BaseModel):
+    room_id: int
 
 
 @app.post("/room/create")
@@ -143,4 +144,6 @@ def wait_room(token: UserToken, req: RoomWaitRequest) -> RoomWaitResponse:
 
 
 @app.post("/room/start")
-def start_room(token: UserToken, req:)
+def start_room(token: UserToken, req: RoomStartRequest) -> Empty:
+    model.room_start(token, req.room_id)
+    return Empty()

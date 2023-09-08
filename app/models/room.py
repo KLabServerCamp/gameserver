@@ -2,7 +2,7 @@ from sqlalchemy import text
 
 from app import schemas
 from app.db import engine
-from app.exceptions import InvalidToken
+from app.exceptions import InvalidToken, RoomNotFound
 
 from .util import (
     _change_room_owner,
@@ -75,11 +75,14 @@ class Room:
             # room_id の存在判定
             room = _get_room_from_room_id(conn, room_id)
             if room is None:
-                return schemas.JoinRoomResult.Disbanded
+                raise RoomNotFound
 
-            # room の人数が max に達している
-            if len(_get_room_users_from_room_id(conn, room_id)) >= room.max_user_count:
+            if room.status==2:
                 return schemas.JoinRoomResult.RoomFull
+            elif room.status == 3:
+                return schemas.JoinRoomResult.Disbanded
+            elif room.status == 4:
+                return schemas.JoinRoomResult.OtherError
 
             # joinする
             res = conn.execute(

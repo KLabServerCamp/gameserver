@@ -13,6 +13,10 @@ class InvalidToken(Exception):
     print("create_room() error")
 
 
+class InvalidError(Exception):
+    print("Invalid error")
+
+
 # サーバーで生成するオブジェクトは strict を使う
 class SafeUser(BaseModel, strict=True):
     """token を含まないUser"""
@@ -89,7 +93,7 @@ class WaitRoomStatus(IntEnum):
     Dissolution = 3
 
 
-class RoomInfo(BaseModel):
+class RoomInfo(BaseModel, strict=True):
     room_id: int
     live_id: int
     joined_user_count: int
@@ -161,8 +165,8 @@ def join_room(token: str, room_id: int):
 
 
 def get_room_user_count(room_id: int):
+    print("get room user count")
     with engine.begin() as conn:
-        print("get room user count")
         result = conn.execute(
             text(
                 "SELECT joined_user_count FROM `room` WHERE id=:room_id"
@@ -177,8 +181,8 @@ def get_room_user_count(room_id: int):
 
 
 def get_upto_member_room(room_id: int):
+    print("get upto member room")
     with engine.begin() as conn:
-        print("get upto member")
         res = conn.execute(
             text(
                 "SELECT joined_user_count FROM `room` WHERE id=:room_id"
@@ -186,7 +190,7 @@ def get_upto_member_room(room_id: int):
             {"room_id": room_id},
         ).one()
         result = res[0]
-        print(result)
+        print(f"now joined user count: {result}")
         if result > 4:
             return JoinRoomResult.OtherError
         elif result == 4:
@@ -199,8 +203,9 @@ def get_upto_member_room(room_id: int):
 
 
 def insert_room_member(room_id: int, user_id: int, user_count: int):
+    print("room member table join")
     with engine.begin() as conn:
-        result = conn.execute(
+        conn.execute(
             text(
                 """
                 INSERT INTO `room_member` (room_id, user_id, difficulty, in_order)
@@ -209,95 +214,62 @@ def insert_room_member(room_id: int, user_id: int, user_count: int):
             ),
             {"room_id": room_id, "user_id": user_id, "difficulty": 1, "in_order": user_count},
         )
-        print(f"result row: {result.rowcount}")
 
-        upcount_joined_count(room_id)
-        print("join user")
+        up_joined_count(conn, room_id)
         return 1
 
 
-def upcount_joined_count(room_id: int):
-    with engine.begin() as conn:
-        print("up user count")
-        conn.execute(
-            text(
-                """
-                UPDATE `room` SET joined_user_count = joined_user_count + 1 WHERE id=:room_id
-                """
-            ),
-            {"room_id": room_id},
-        )
+def up_joined_count(conn, room_id: int):
+    print("up user count")
+    conn.execute(
+        text(
+            """
+            UPDATE `room` SET joined_user_count = joined_user_count + 1 WHERE id=:room_id
+            """
+        ),
+        {"room_id": room_id},
+    )
 
 
-def downcount_joined_count(room_id: int):
-    with engine.begin() as conn:
-        print("down user count")
-        conn.execute(
-            text(
-                "UPDATE `room` SET `joined_use_count = `joined_user_count - 1 WHERE id=:room_id"
-            ),
-            {"id": room_id},
-        )
+def down_joined_count(conn, room_id: int):
+    print("down user count")
+    conn.execute(
+        text(
+            "UPDATE `room` SET `joined_use_count = `joined_user_count - 1 WHERE id=:room_id"
+        ),
+        {"id": room_id},
+    )
 
 
-class RoomMemberInfo(BaseModel):
-    room_id: int
-    user_id: int
-    difficulty: LiveDifficulty
-    in_order: int
-
-
-def get_room_user_info(room_id: int):
-    with engine.begin() as conn:
-        result = conn.execute(
-            text(
-                """
-                SELECT `room_id`, `user_id`, `difficulty`, `in_order` FROM `room_member` WHERE room_id=:room_id
-                """
-            ),
-            {"room_id": room_id},
-        ).fetchall()
-        if result is None:
-            raise Exception
-        user_info: list[RoomMemberInfo] = []
-        for res in result:
-            user_info.append(
-                RoomMemberInfo(
-                    room_id=res.room_id,
-                    user_id=res.user_id,
-                    difficulty=LiveDifficulty(res.difficulty),
-                    in_order=res.in_order,
-                )
-            )
-        return user_info
-
-
-def get_room_status(room_id: int):
-    with engine.begin() as conn:
-        result = conn.execute(
-            text(
-                """
-                SELECT `status` FROM `room` WHERE id=:room_id
-                """
-            ),
-            {"id": room_id},
-        ).one()
-        if result is None:
-            return None
-        return WaitRoomStatus(result)
+def get_room_status(conn, room_id: int):
+    print("get room status")
+    result = conn.execute(
+        text(
+            """
+            SELECT `status` FROM `room` WHERE id=:room_id
+            """
+        ),
+        {"room_id": room_id},
+    ).one()
+    if result is None:
+        return None
+    res = result[0]
+    print(f"room status: {res}")
+    return WaitRoomStatus(res)
 
 
 def update_room_status(room_id: int, status: WaitRoomStatus):
+    print("update room status")
     with engine.begin() as conn:
         conn.execute(
             text(
-                "UPDATE `room` SET status=:status"
+                "UPDATE `room` SET status=:status WHERE id=:room_id"
             ),
-            {"status": int(status)},
+            {"status": int(status), "room_id": room_id},
         )
 
 
-class UserList(BaseModel):
+class UserList(BaseModel, strict=True):
     id: int
     name: str
     leader_card_id: int
@@ -305,42 +277,68 @@ class UserList(BaseModel):
     is_host: bool
 
 
+class RoomMemberInfo(BaseModel, strict=True):
+    room_id: int
+    user_id: int
+    difficulty: LiveDifficulty
+    in_order: int
+
+
 def room_wait(room_id: int):
-    status = get_room_status(room_id)
-    if status is None:
-        raise Exception
-
-    host = get_room_host(room_id)
-    user_info = get_upto_member_room(room_id)
-    user_list: list[RoomMemberInfo] = []
-    for users in user_info:
-        if host == users.id:
-            is_host = True
-        else:
-            is_host = False
-        user_list.append(
-            UserList(
-                id=users.id,
-                name=users.name,
-                leader_card_id=users.leader_card_id,
-                difficulty=users.difficulty,
-                is_host=is_host,
-            )
-        )
-    return status, user_list
-    #if status == WaitRoomStatus.Waiting:
-
-
-def get_room_host(room_id: int):
     with engine.begin() as conn:
+        status = get_room_status(conn, room_id)
+        if status is None:
+            raise InvalidError(Exception)
+
+        host = get_room_host(conn, room_id)
+
+        print("room_idからroom_memberの各userの情報を持ってくる")
         result = conn.execute(
             text(
                 """
-                SELECT `room_master` FROM `room` WHERE id=:room_id
                 """
             ),
-            {"id": room_id},
-        ).one_or_none()
-        if result is None:
-            raise Exception
-        return result
+            {"room_id": room_id},
+        )
+
+        res = result.fetchall()
+        print(f"get room id from user by room id from room member {res}")
+        user_info: list[RoomMemberInfo] = []
+        for users in res:
+            print(users.id)
+            print(users.name)
+            print(users.leader_card_id)
+            print(users.difficulty)
+            if host == users.id:
+                is_host = True
+                print("True")
+            else:
+                is_host = False
+                print("False")
+            user_info.append(
+                RoomMemberInfo(
+                    id=users.id,
+                    name=users.name,
+                    leader_card_id=users.leader_card_id,
+                    difficulty=users.difficulty,
+                    is_host=is_host,
+                )
+            )
+        return status, user_info
+
+
+def get_room_host(conn, room_id: int):
+    print("get room host")
+    result = conn.execute(
+        text(
+            """
+            SELECT `room_master` FROM `room` WHERE id=:room_id
+            """
+        ),
+        {"room_id": room_id},
+    ).one_or_none()
+    if result is None:
+        raise InvalidError(Exception)
+    res = result[0]
+    print(f"room_master: {res}")
+    return res

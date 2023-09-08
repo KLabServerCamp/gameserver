@@ -133,9 +133,25 @@ class WaitRoomRequest(BaseModel):
     room_user_list: list
 
 
-@app.post("/roop/wait")
+@app.post("/room/wait")
 def wait(req: RoomID) -> WaitRoomInfo:
     """待機処理"""
     print("/room/wait", req)
     status, user_list = model.room_wait(req.room_id)
     return WaitRoomRequest(status=status, room_user_list=user_list)
+
+
+
+"""
+@app.post("/room/start")
+
+
+@app.post("/room/end")
+
+
+@app.post("/room/result")
+
+
+@app.post("/room/leave")
+def leave(token: UserToken, req: RoomID) -> Empty:
+"""

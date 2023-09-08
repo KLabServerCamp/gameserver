@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 from . import model
 from .auth import UserToken
-from .model import LiveDifficulty, RoomInfo, RoomUser,  JoinRoomResult, WaitRoomStatus
+from .model import JoinRoomResult, LiveDifficulty, RoomInfo, RoomUser, WaitRoomStatus
 
 app = FastAPI()
 
@@ -75,14 +75,15 @@ def update(req: UserCreateRequest, token: UserToken) -> Empty:
 
 # Room APIs
 
+
 # /room/create
-class RoomID(BaseModel):
-    room_id: int
-
-
 class CreateRoomRequest(BaseModel):
     live_id: int
     select_difficulty: LiveDifficulty
+
+
+class CreateRoomResponse(BaseModel):
+    room_id: int
 
 
 # /room/list
@@ -114,11 +115,16 @@ class WaitRoomResponse(BaseModel):
     room_user_list: list[RoomUser]
 
 
+# /room/start
+class StartRoomRequest(BaseModel):
+    room_id: int
+
+
 @app.post("/room/create")
-def room_create(token: UserToken, req: CreateRoomRequest) -> RoomID:
+def room_create(token: UserToken, req: CreateRoomRequest) -> CreateRoomResponse:
     """ルーム作成リクエスト"""
     room_id = model.create_room(token, req.live_id, req.select_difficulty)
-    return RoomID(room_id=room_id)
+    return CreateRoomResponse(room_id=room_id)
 
 
 @app.post("/room/list")
@@ -139,9 +145,16 @@ def room_join(token: UserToken, req: JoinRoomRequest) -> JoinRoomResponse:
 
 @app.post("/room/wait")
 def room_wait(token: UserToken, req: WaitRoomRequest) -> WaitRoomResponse:
-    """４人集まるのを待つ（ポーリング）。APIの結果でゲーム開始がわかる"""
+    """4人集まるのを待つ（ポーリング）。APIの結果でゲーム開始がわかる"""
     room_status = model.get_room_status(token, req.room_id)
     room_users = model.get_room_users(token, req.room_id)
     if room_status is None or not room_users:
         raise HTTPException(status.HTTP_404_NOT_FOUND)
     return WaitRoomResponse(status=room_status, room_user_list=room_users)
+
+
+@app.post("/room/start")
+def room_start(token: UserToken, req: StartRoomRequest) -> Empty:
+    """ルームのライブ開始。オーナーが叩く"""
+    model.start_room(token, req.room_id)
+    return Empty()

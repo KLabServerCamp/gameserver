@@ -126,3 +126,16 @@ def join(token: UserToken, req: RoomID) -> JoinRoomRequest:
     print("/room/join", req)
     join_room_result = model.join_room(token, req.room_id)
     return JoinRoomRequest(join_room_result=join_room_result)
+
+
+class WaitRoomRequest(BaseModel):
+    status: WaitRoomStatus
+    room_user_list: list
+
+
+@app.post("/roop/wait")
+def wait(req: RoomID) -> WaitRoomInfo:
+    """待機処理"""
+    print("/room/wait", req)
+    status, user_list = model.room_wait(req.room_id)
+    return WaitRoomRequest(status=status, room_user_list=user_list)

@@ -25,6 +25,10 @@ class JoinRoomResult(IntEnum):
     OtherError = 5
 
 
+class RoomID(BaseModel):
+    room_id: int
+
+
 class RoomUser(BaseModel):
     user_id: int
     name: str

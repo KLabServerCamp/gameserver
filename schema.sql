@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS `room` (
     `owner_id` bigint,
     `status` int DEFAULT 1,
     `players` int DEFAULT 0,
+    `last_wait` timestamp DEFAULT CURRENT_TIMESTAMP,
+    `first_end` datetime,
     PRIMARY KEY (`id`),
     FOREIGN KEY (`owner_id`) REFERENCES `user`(`id`)
 );

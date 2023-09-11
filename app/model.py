@@ -1,7 +1,6 @@
 import json
 import sys
 import uuid
-from enum import IntEnum
 from typing import Optional
 
 from pydantic import BaseModel
@@ -9,6 +8,25 @@ from sqlalchemy import Connection, text
 from sqlalchemy.exc import MultipleResultsFound, NoResultFound
 
 from .db import engine
+from .view import (
+    LiveDifficulty,
+    RoomInfo,
+    JoinRoomResult,
+    RoomUser,
+    ResultUser,
+    WaitRoomStatus,
+    RoomEndRequest,
+    RoomJoinRequest,
+    RoomJoinResponse,
+    RoomLeaveRequest,
+    RoomResultRequest,
+    RoomResultResponse,
+    RoomStartRequest,
+    RoomWaitRequest,
+    RoomWaitResponse,
+)
+
+from datetime import datetime, timezone, timedelta
 
 DEBUGPRINT = True
 
@@ -16,6 +34,11 @@ DEBUGPRINT = True
 def debugprint(msg: str) -> None:
     if DEBUGPRINT:
         print(msg)
+
+
+# 時刻取得 (JST)
+def get_current_time() -> datetime:
+    return datetime.now(timezone(timedelta(hours=9)))
 
 
 class InvalidToken(Exception):
@@ -54,7 +77,8 @@ def _get_user_by_token(conn: Connection, token: str) -> SafeUser | None:
     # TODO: 実装(わからなかったら資料を見ながら)
     result = conn.execute(
         text(
-            "SELECT `id`, `name`, `leader_card_id` " "FROM `user` WHERE `token`=:token"
+            "SELECT `id`, `name`, `leader_card_id` "
+            "FROM `user` WHERE `token`=:token"
         ),
         {"token": token},
     )
@@ -86,21 +110,6 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
         return
 
 
-# IntEnum の使い方の例
-class LiveDifficulty(IntEnum):
-    """難易度"""
-
-    normal = 1
-    hard = 2
-
-
-class WaitRoomStatus(IntEnum):
-    Waiting = 1
-    LiveStart = 2
-    Dismissed = 3
-    ResultSent = 4
-
-
 def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
     """部屋を作ってroom_idを返します"""
     with engine.begin() as conn:
@@ -119,7 +128,10 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
         room_id = _add_room_row(
             conn,
             _RoomRow(
-                id=0, live_id=live_id, owner_id=user.id, status=WaitRoomStatus.Waiting
+                id=0,
+                live_id=live_id,
+                owner_id=user.id,
+                status=WaitRoomStatus.Waiting
             ),
         )
 
@@ -132,28 +144,28 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
         return room_id
 
 
+# 入室可能な最大人数
 MAX_USER_COUNT = 4
-
-
-class RoomListRequest(BaseModel):
-    live_id: int
-
-
-class RoomInfo(BaseModel):
-    room_id: int
-    live_id: int
-    joined_user_count: int
-    max_user_count: int
-
-
-class RoomListResponse(BaseModel):
-    room_info_list: list[RoomInfo]
 
 
 def list_room(req) -> list[RoomInfo]:
     lid = req.live_id
     reslist = []
     with engine.begin() as conn:
+        # 部屋タイムアウト処理
+        rooms = conn.execute(text(
+            "SELECT `id` FROM `room`")).fetchall()
+        for room in rooms:
+            room_id = room.id
+            # 最後の wait から 5 分経過した部屋は削除
+            if _get_elapsed_wait_room(conn, room_id) >= 60 * 5:
+                _del_room_row(conn, room_id, force=True)
+                continue
+            end = _get_elapsed_end_room(conn, room_id)
+            # 最後の end (リザルト提出) から 1 分経過した部屋は削除
+            if end is not None and end >= 60:
+                _del_room_row(conn, room_id, force=True)
+
         if lid != 0:  # 特定曲検索
             result = conn.execute(
                 text(
@@ -164,7 +176,8 @@ def list_room(req) -> list[RoomInfo]:
             )
         else:  # 全曲検索
             result = conn.execute(
-                text("SELECT `id`, `live_id` FROM `room` " "WHERE `status`=:status"),
+                text("SELECT `id`, `live_id` FROM `room` "
+                     "WHERE `status`=:status"),
                 {"status": int(WaitRoomStatus.Waiting)},
             )
         rows = result.fetchall()
@@ -173,7 +186,8 @@ def list_room(req) -> list[RoomInfo]:
             room_id = row.id
             live_id = row.live_id
             result = conn.execute(
-                text("SELECT `user_id` FROM `room_member` WHERE `room_id`=:room_id"),
+                text("SELECT `user_id` FROM `room_member` "
+                     "WHERE `room_id`=:room_id"),
                 {"room_id": room_id},
             )
             users = result.fetchall()
@@ -185,27 +199,11 @@ def list_room(req) -> list[RoomInfo]:
                     max_user_count=MAX_USER_COUNT,
                 )
             )
+
     return reslist
 
 
 # TODO: ここから上も書き直したい
-
-
-class JoinRoomResult(IntEnum):
-    Ok = 1
-    RoomFull = 2
-    LiveStarted = 3
-    Dismissed = 4
-    OtherError = 5
-
-
-class RoomJoinRequest(BaseModel):
-    room_id: int
-    select_difficulty: LiveDifficulty
-
-
-class RoomJoinResponse(BaseModel):
-    join_room_result: JoinRoomResult
 
 
 # 例外メッセージに DB 内の情報を載せるのめちゃくちゃ酷い気がするが、
@@ -235,6 +233,8 @@ class _RoomRow(BaseModel):
     owner_id: Optional[int] = None
     status: WaitRoomStatus = WaitRoomStatus.Waiting
     players: int = 0
+    last_wait: datetime = get_current_time()
+    first_end: Optional[datetime] = None
 
 
 def _get_room_row(conn: Connection, room_id) -> _RoomRow:
@@ -245,7 +245,13 @@ def _get_room_row(conn: Connection, room_id) -> _RoomRow:
     )
     room = result.first()
     return _RoomRow(
-        id=room.id, live_id=room.live_id, owner_id=room.owner_id, status=room.status
+        id=room.id,
+        live_id=room.live_id,
+        owner_id=room.owner_id,
+        status=room.status,
+        players=room.players,
+        last_wait=room.last_wait,
+        first_end=room.first_end
     )
 
 
@@ -272,7 +278,8 @@ def _set_room_row(conn: Connection, new_data: _RoomRow):
 def _add_room_row(conn: Connection, new_data: _RoomRow):
     print(f"{sys._getframe().f_code.co_name}(), {new_data=}")
     if new_data.id != 0:
-        print("You must set 'id' field to zero to create new room. " f"{new_data.id=}")
+        print("You must set 'id' field to zero to create new room. "
+              f"{new_data.id=}")
     return conn.execute(
         text(
             "INSERT INTO `room` (`live_id`, `owner_id`, `status`) "
@@ -291,7 +298,8 @@ def _del_room_row(conn: Connection, room_id, *, force: bool = False):
     print(f"{sys._getframe().f_code.co_name}(), {room_id=}, {force=}")
     if force:
         conn.execute(
-            text("DELETE FROM `room_member` WHERE `room_id`=:rid"), {"rid": room_id}
+            text("DELETE FROM `room_member` WHERE `room_id`=:rid"),
+            {"rid": room_id}
         )
     elif _get_room_users_count(conn, room_id) != 0:
         print(f"You can't delete non-empty room. {room_id=}")
@@ -308,13 +316,15 @@ class _RoomMemberRow(BaseModel):
     difficulty: LiveDifficulty
 
 
-def _get_room_member_row(conn: Connection, room_id, user_id) -> _RoomMemberRow | None:
+def _get_room_member_row(conn: Connection, room_id, user_id) \
+        -> _RoomMemberRow | None:
     print(f"{sys._getframe().f_code.co_name}(), {room_id=}, {user_id=}")
     if not _is_user_in_the_room(conn, user_id, room_id):
         print(f"The user is not in the room. {room_id=}, {user_id=}")
         return
     return conn.execute(
-        text("SELECT * FROM `room_member` " "WHERE `room_id`=:rid AND `user_id`=:uid"),
+        text("SELECT * FROM `room_member` "
+             "WHERE `room_id`=:rid AND `user_id`=:uid"),
         {"rid": room_id, "uid": user_id},
     ).first()
 
@@ -325,7 +335,8 @@ def _get_room_members_rows(conn: Connection, room_id) -> list[_RoomMemberRow]:
         print(f"No such room. {room_id=}")
         return []
     return conn.execute(
-        text("SELECT * FROM `room_member` " "WHERE `room_id`=:rid"), {"rid": room_id}
+        text("SELECT * FROM `room_member` " "WHERE `room_id`=:rid"),
+        {"rid": room_id}
     ).fetchall()
 
 
@@ -362,7 +373,8 @@ def _get_room_by_user_id(conn: Connection, user_id):
         return -1
 
     result = conn.execute(
-        text("SELECT * FROM `room_member` WHERE `user_id`=:uid"), {"uid": user_id}
+        text("SELECT * FROM `room_member` WHERE `user_id`=:uid"),
+        {"uid": user_id}
     )
     rows = result.fetchall()
     if len(rows) > 1:
@@ -506,23 +518,24 @@ def _decr_room_players(conn: Connection, room_id):
     # 0 になるならリザルト送信完了
     players = conn.execute(
         text("SELECT `players` FROM `room` WHERE `id`=:rid"), {"rid": room_id}
-    )
+    ).first()[0]
     if players == 1:
         _set_room_status(conn, room_id, WaitRoomStatus.ResultSent)
         # [要検討] どこで部屋削除するか
         #   - ここで良い気もするが、果たして
         _del_room_row(conn, room_id, force=True)
-
-    # デクリメント
-    conn.execute(
-        text("UPDATE `room` SET `players`=`players`-1 WHERE `id`=:rid"),
-        {"rid": room_id},
-    )
+    else:
+        # デクリメント
+        conn.execute(
+            text("UPDATE `room` SET `players`=`players`-1 WHERE `id`=:rid"),
+            {"rid": room_id},
+        )
 
 
 # ルーム入室
 def _add_room_member(conn: Connection, room_id, user_id, diff: LiveDifficulty):
-    print(f"{sys._getframe().f_code.co_name}(), " f"{room_id=}, {user_id=}, {diff=}")
+    print(f"{sys._getframe().f_code.co_name}(), "
+          f"{room_id=}, {user_id=}, {diff=}")
     if _is_user_in_room(conn, user_id):
         print(f"Already in room. {user_id=}")
         return
@@ -558,6 +571,48 @@ def _del_room_member(conn: Connection, room_id, user_id):
 
     # 参加人数デクリメント
     _decr_room_players(conn, room_id)
+
+
+# 経過時間取得 (最後の wait から)
+def _get_elapsed_wait_room(conn: Connection, room_id) -> timedelta:
+    last_wait_naive: datetime = conn.execute(text(
+        "SELECT `last_wait` FROM `room` WHERE `id`=:rid"
+    ), {"rid": room_id}).first()[0]
+    last_wait = last_wait_naive.astimezone(timezone(timedelta(hours=9)))
+    elapsed = get_current_time() - last_wait
+    return elapsed.seconds
+
+
+# 経過時間取得 (最初の end から)
+def _get_elapsed_end_room(conn: Connection, room_id) -> timedelta | None:
+    first_end_naive: datetime = conn.execute(text(
+        "SELECT `first_end` FROM `room` WHERE `id`=:rid"
+    ), {"rid": room_id}).first()[0]
+    if first_end_naive is None:
+        return None
+    first_end = first_end_naive.astimezone(timezone(timedelta(hours=9)))
+    elapsed = get_current_time() - first_end
+    return elapsed.seconds
+
+
+# 時刻更新 (wait)
+def _update_wait_room(conn: Connection, room_id):
+    conn.execute(text(
+        "UPDATE `room` SET `last_wait`=:time WHERE `id`=:rid"
+    ), {
+        "time": get_current_time(),
+        "rid": room_id
+    })
+
+
+# 時刻更新 (end)
+def _update_end_room(conn: Connection, room_id):
+    conn.execute(text(
+        "UPDATE `room` SET `first_end`=:time WHERE `id`=:rid"
+    ), {
+        "time": get_current_time(),
+        "rid": room_id
+    })
 
 
 def join_room(token: str, req: RoomJoinRequest) -> RoomJoinResponse:
@@ -608,12 +663,6 @@ def _join_room(conn: Connection, user, req: RoomJoinRequest):
     return RoomJoinResponse(join_room_result=JoinRoomResult.Ok)
 
 
-# 仕様に載ってないので、もしかすると単一の変数のときは構造体の定義が要らない
-# いい感じの書き方がある？ (直に room_id を渡すと JSON にならないので一旦このまま)
-class RoomLeaveRequest(BaseModel):
-    room_id: int
-
-
 def leave_room(token: str, req: RoomLeaveRequest) -> None:
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
@@ -641,24 +690,6 @@ def leave_room(token: str, req: RoomLeaveRequest) -> None:
 
         # レコード削除 (room_member)
         _del_room_member(conn, rid, uid)
-
-
-class RoomUser(BaseModel):
-    user_id: int
-    name: str
-    leader_card_id: int
-    select_difficulty: LiveDifficulty
-    is_me: bool
-    is_host: bool
-
-
-class RoomWaitRequest(BaseModel):
-    room_id: int
-
-
-class RoomWaitResponse(BaseModel):
-    status: WaitRoomStatus
-    room_user_list: list[RoomUser]
 
 
 def wait_room(token: str, req: RoomWaitRequest) -> RoomWaitResponse:
@@ -692,11 +723,9 @@ def wait_room(token: str, req: RoomWaitRequest) -> RoomWaitResponse:
             for member in members
         ]
 
+        _update_wait_room(conn, rid)
+
         return RoomWaitResponse(status=status, room_user_list=room_user_list)
-
-
-class RoomStartRequest(BaseModel):
-    room_id: int
 
 
 def start_room(token: str, req: RoomStartRequest):
@@ -721,7 +750,8 @@ def start_room(token: str, req: RoomStartRequest):
         #   - もう始まってる場合の重複 start とか
         #   - 解散部屋での start とか
         if _get_room_status(conn, rid) != WaitRoomStatus.Waiting:
-            print("Invalid; " "the live is already ongoing or the room is dismissed")
+            print("Invalid; "
+                  "the live is already ongoing or the room is dismissed")
             return
 
         # スコアの初期化
@@ -738,13 +768,6 @@ def start_room(token: str, req: RoomStartRequest):
 
         _set_room_status(conn, rid, WaitRoomStatus.LiveStart)
         return
-
-
-class RoomEndRequest(BaseModel):
-    room_id: int
-    score: int
-    judge_count_list: list[int]
-    ...
 
 
 def end_room(token: str, req: RoomEndRequest):
@@ -764,21 +787,13 @@ def end_room(token: str, req: RoomEndRequest):
             difficulty=row.difficulty,
         )
 
+        elapsed = _get_elapsed_end_room(conn, rid)
+        if elapsed is None:
+            _update_end_room(conn, rid)
+
+        assert _get_elapsed_end_room(conn, rid) is not None
+
         _set_room_member_row(conn, member)
-
-
-class ResultUser(BaseModel):
-    user_id: int
-    judge_count_list: list[int]
-    score: int
-
-
-class RoomResultRequest(BaseModel):
-    room_id: int
-
-
-class RoomResultResponse(BaseModel):
-    result_user_list: list[ResultUser]
 
 
 def result_room(req: RoomResultRequest) -> RoomResultResponse:
@@ -807,8 +822,9 @@ def result_room(req: RoomResultRequest) -> RoomResultResponse:
         # 同室のスコアが NULL でない人のリザルトを集める
         rows = conn.execute(
             text(
-                "SELECT `user_id`, `score`, `judge_count_list` FROM `room_member` "
-                "LEFT JOIN `user` ON `room_member`.`user_id` = `user`.`id` "
+                "SELECT `user_id`, `score`, `judge_count_list` "
+                "FROM `room_member` LEFT JOIN `user` "
+                "ON `room_member`.`user_id` = `user`.`id` "
                 "WHERE `room_id`=:rid AND `score` IS NOT NULL"
             ),
             {"rid": room_id},

@@ -324,15 +324,22 @@ def room_result(room_id: int) -> ResultUser:
                 "room_id": room_id,
             },
         )
-        users = [
-            ResultUser(
-                user_id=user._mapping["user_id"],
-                judge_count_list=json.loads(user._mapping["judge_count_list"]),
-                score=user._mapping["score"],
-            )
-            for user in result
-        ]
-        return users
+
+        if not result:
+            return []
+
+        try:
+            users = [
+                ResultUser(
+                    user_id=user._mapping["user_id"],
+                    judge_count_list=json.loads(user._mapping["judge_count_list"]),
+                    score=user._mapping["score"],
+                )
+                for user in result
+            ]
+            return users
+        except json.JSONDecodeError:
+            return []
 
 
 def room_leave(token: str, room_id: int) -> None:

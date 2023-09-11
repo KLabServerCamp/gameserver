@@ -329,14 +329,18 @@ def room_result(room_id: int) -> ResultUser:
             return []
 
         try:
-            users = [
-                ResultUser(
-                    user_id=user._mapping["user_id"],
-                    judge_count_list=json.loads(user._mapping["judge_count_list"]),
-                    score=user._mapping["score"],
+            users = []
+            for user in result:
+                jcl = user.judge_count_list
+                if jcl is None:
+                    return []
+                users.append(
+                    ResultUser(
+                        user_id=user._mapping["user_id"],
+                        judge_count_list=json.loads(jcl),
+                        score=user._mapping["score"],
+                    )
                 )
-                for user in result
-            ]
             return users
         except json.JSONDecodeError:
             return []

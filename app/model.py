@@ -36,9 +36,9 @@ def debugprint(msg: str) -> None:
         print(msg)
 
 
-# 時刻取得 (JST)
+# 時刻取得 (aware: JST)
 def get_current_time() -> datetime:
-    return datetime.now(timezone(timedelta(hours=9)))
+    return datetime.now(timezone.utc).astimezone(timezone(timedelta(hours=9)))
 
 
 class InvalidToken(Exception):
@@ -147,60 +147,71 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
 # 入室可能な最大人数
 MAX_USER_COUNT = 4
 
+# 部屋タイムアウト (寿命)
+ROOM_TIMEOUT_MAX = 300
 
+# 部屋タイムアウト (wait 無し)
+ROOM_TIMEOUT_NOWAIT = 10
+
+# リザルトタイムアウト
+ROOM_TIMEOUT_RESULT = 10
+
+# ポーリング間隔
+INTV_POLLING = 2
+
+
+# 部屋リスト & 古い部屋のクリーンアップ
 def list_room(req) -> list[RoomInfo]:
-    lid = req.live_id
-    reslist = []
     with engine.begin() as conn:
         # 部屋タイムアウト処理
-        rooms = conn.execute(text(
-            "SELECT `id` FROM `room`")).fetchall()
-        for room in rooms:
-            room_id = room.id
-            # 最後の wait から 5 分経過した部屋は削除
-            if _get_elapsed_wait_room(conn, room_id) >= 60 * 5:
-                _del_room_row(conn, room_id, force=True)
-                continue
-            end = _get_elapsed_end_room(conn, room_id)
-            # 最後の end (リザルト提出) から 1 分経過した部屋は削除
-            if end is not None and end >= 60:
-                _del_room_row(conn, room_id, force=True)
+        # wait: 300 秒経過 または Waiting かつ 10 秒経過
+        # end: first_end が None でないかつ 30 秒経過
+        waited = conn.execute(text(
+            "SELECT `id` FROM "
+            "(SELECT `id`, `status`, TIMESTAMPDIFF("
+            "SECOND, `last_wait`, CURRENT_TIMESTAMP()"
+            ") AS 'elapsed_w', TIMESTAMPDIFF("
+            "SECOND, `first_end`, CURRENT_TIMESTAMP()"
+            ") AS `elapsed_e` FROM `room`) AS `dummy` "
+            "WHERE `elapsed_w` >= :thr_to_w_long OR "
+            "`elapsed_w` >= :thr_to_w_short AND `status` = :status OR "
+            "`elapsed_e` IS NOT NULL AND `elapsed_e` >= :thr_to_e"
+            ),
+            {
+                "thr_to_w_long": ROOM_TIMEOUT_MAX,
+                "thr_to_w_short": ROOM_TIMEOUT_NOWAIT,
+                "status": int(WaitRoomStatus.Waiting),
+                "thr_to_e": ROOM_TIMEOUT_RESULT + INTV_POLLING * 3
+            }).fetchall()
+        for room in waited:
+            _del_room_row(conn, room.id, force=True)
+
+        # 参加可能部屋リストアップ処理
+        lid = req.live_id
 
         if lid != 0:  # 特定曲検索
-            result = conn.execute(
+            rows = conn.execute(
                 text(
                     "SELECT `id`, `live_id` FROM `room` "
                     "WHERE `status`=:status AND `live_id`=:live_id"
                 ),
                 {"status": int(WaitRoomStatus.Waiting), "live_id": lid},
-            )
+            ).fetchall()
         else:  # 全曲検索
-            result = conn.execute(
+            rows = conn.execute(
                 text("SELECT `id`, `live_id` FROM `room` "
                      "WHERE `status`=:status"),
                 {"status": int(WaitRoomStatus.Waiting)},
-            )
-        rows = result.fetchall()
+            ).fetchall()
 
-        for row in rows:
-            room_id = row.id
-            live_id = row.live_id
-            result = conn.execute(
-                text("SELECT `user_id` FROM `room_member` "
-                     "WHERE `room_id`=:room_id"),
-                {"room_id": room_id},
-            )
-            users = result.fetchall()
-            reslist.append(
-                RoomInfo(
-                    room_id=room_id,
-                    live_id=live_id,
-                    joined_user_count=len(users),
-                    max_user_count=MAX_USER_COUNT,
-                )
-            )
-
-    return reslist
+        return [
+            RoomInfo(
+                room_id=row.id,
+                live_id=row.live_id,
+                joined_user_count=_get_room_users_count(conn, row.id),
+                max_user_count=MAX_USER_COUNT,
+            ) for row in rows
+        ]
 
 
 # TODO: ここから上も書き直したい
@@ -573,18 +584,8 @@ def _del_room_member(conn: Connection, room_id, user_id):
     _decr_room_players(conn, room_id)
 
 
-# 経過時間取得 (最後の wait から)
-def _get_elapsed_wait_room(conn: Connection, room_id) -> timedelta:
-    last_wait_naive: datetime = conn.execute(text(
-        "SELECT `last_wait` FROM `room` WHERE `id`=:rid"
-    ), {"rid": room_id}).first()[0]
-    last_wait = last_wait_naive.astimezone(timezone(timedelta(hours=9)))
-    elapsed = get_current_time() - last_wait
-    return elapsed.seconds
-
-
 # 経過時間取得 (最初の end から)
-def _get_elapsed_end_room(conn: Connection, room_id) -> timedelta | None:
+def _get_elapsed_end_room(conn: Connection, room_id) -> int | None:
     first_end_naive: datetime = conn.execute(text(
         "SELECT `first_end` FROM `room` WHERE `id`=:rid"
     ), {"rid": room_id}).first()[0]
@@ -787,11 +788,8 @@ def end_room(token: str, req: RoomEndRequest):
             difficulty=row.difficulty,
         )
 
-        elapsed = _get_elapsed_end_room(conn, rid)
-        if elapsed is None:
+        if _get_elapsed_end_room(conn, rid) is None:
             _update_end_room(conn, rid)
-
-        assert _get_elapsed_end_room(conn, rid) is not None
 
         _set_room_member_row(conn, member)
 
@@ -813,7 +811,8 @@ def result_room(req: RoomResultRequest) -> RoomResultResponse:
         ret = RoomResultResponse(result_user_list=[])
 
         # 部屋にいる人数分終了する (リザルトが出揃う) までは待機
-        if _get_room_users_count(conn, room_id) > done:
+        if _get_room_users_count(conn, room_id) > done \
+                and _get_elapsed_end_room(conn, room_id) < ROOM_TIMEOUT_RESULT:
             return ret
 
         # 解散 (ライブ終了後、全員がリザルトを受け取るまで情報を保持するための状態)

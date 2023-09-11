@@ -9,6 +9,7 @@ from .auth import UserToken
 from .model import LiveDifficulty
 from .model import JoinRoomResult
 from .model import WaitRoomStatus
+from .model import RoomInfo
 
 app = FastAPI()
 
@@ -92,10 +93,6 @@ class LiveID(BaseModel):
     live_id: int
 
 
-class RoomList(BaseModel):
-    room_info_list: list
-
-
 class JoinRoomRequest(BaseModel):
     join_room_result: JoinRoomResult
 
@@ -113,19 +110,23 @@ def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
 
 
 @app.post("/room/list")
-def list(req: LiveID) -> RoomList:
+def list(req: LiveID) -> list[RoomInfo]:
     """部屋一覧表示"""
     print("/room/list", req)
     room_list = model.search_room(req.live_id)
     print(f"postroom: {room_list}")
-    return RoomList(room_info_list=room_list)
+    return room_list
 
+
+class RoomJoinInfo(BaseModel):
+    room_id: int
+    select_difficulty: LiveDifficulty
 
 @app.post("/room/join")
-def join(token: UserToken, req: RoomID) -> JoinRoomRequest:
+def join(token: UserToken, req: RoomJoinInfo) -> JoinRoomRequest:
     """ルーム参加処理"""
     print("/room/join", req)
-    join_room_result = model.join_room(token, req.room_id)
+    join_room_result = model.join_room(token, req.room_id, req.select_difficulty)
     return JoinRoomRequest(join_room_result=join_room_result)
 
 

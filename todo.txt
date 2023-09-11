@@ -1,2 +1,6 @@
 room/resultを表示し終わった後の処理がどうなるか分からないが、現状では楽曲を続けて遊ぶとresultがずれる仕様になってしまっている
 理由：room_memberがresult表記の判定にscoreを利用しているから
+
+port 公開
+visibility -> public
+config chenge

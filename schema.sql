@@ -26,7 +26,7 @@ CREATE TABLE `room` (
 CREATE TABLE `room_member` (
     `room_id` bigint NOT NULL,
     `user_id` bigint NOT NULL,
-    `difficulty` int NOT NULL DEFAULT 1,
+    `difficulty` int NOT NULL,
     `in_order` int NOT NULL DEFAULT 1,
     `score` int NOT NULL DEFAULT -1,
     `perfect` int NOT NULL,

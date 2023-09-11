@@ -114,6 +114,8 @@ def list(req: LiveID) -> list[RoomInfo]:
     """部屋一覧表示"""
     print("/room/list", req)
     room_list = model.room_list(req.live_id)
+    if len(room_list) == 0:
+        return room_list
     room_list_result = {
         "room_info_list": room_list
     }
@@ -181,7 +183,12 @@ def result(token: UserToken, req: RoomID):
     """ライブリザルト処理"""
     print("/room/result", req)
     user_result = model.room_result(token, req.room_id)
-    return user_result
+    if len(user_result) == 0:
+        return user_result
+    result_user_list = {
+        "result_user_list": user_result
+    }
+    return result_user_list
 
 
 @app.post("/room/leave")

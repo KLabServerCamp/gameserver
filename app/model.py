@@ -136,6 +136,10 @@ def room_list(live_id: int):
         )
         room_list: list[RoomInfo] = []
         row = result.all()
+        if len(row) == 0:
+            conn.commit()
+            return room_list
+
         for res in row:
             room_list.append(
                 RoomInfo(
@@ -392,7 +396,7 @@ def room_end(token: str, room_id: int, score_judge: list[int], score: int):
 
 class ScoreList(BaseModel, strict=True):
     user_id: int
-    judge_score_list: list[int]
+    judge_count_list: list[int]
     score: int
 
 
@@ -436,12 +440,11 @@ def room_result(token: str, room_id: int):
             user_list = (
                 ScoreList(
                     user_id=user_id,
-                    judge_score_list=score_list,
+                    judge_count_list=score_list,
                     score=score,
                 )
             )
             user_result.append(user_list)
-        update_room_status(conn, room_id, WaitRoomStatus.Dissolution)
 
         """
         conn.execut(

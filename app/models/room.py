@@ -246,11 +246,6 @@ class Room:
                         ],
                     )
                 )
-            # room member を削除
-            conn.execute(
-                text("DELETE FROM `room_member`WHERE `room_id`=:room_id"),
-                {"room_id": room_id},
-            )
             _update_room_status(conn, room_id, schemas.WaitRoomStatus.Dissolution)
             return user_results
 

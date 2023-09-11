@@ -7,6 +7,7 @@ CREATE TABLE `room` (
   `joined_user_count` int NOT NULL DEFAULT 1,
   `max_user_count` int NOT NULL DEFAULT 4,
   `status` int NOT NULL DEFAULT 1,
+  `first_user_end` datetime DEFAULT NULL,
   PRIMARY KEY (`room_id`)
 );
 

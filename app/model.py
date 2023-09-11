@@ -201,7 +201,7 @@ def join_room(token: str, room_id: int, difficulty: LiveDifficulty) -> JoinRoomR
         result = conn.execute(
             text(
                 "SELECT `joined_user_count`, `max_user_count`, `status` FROM `room`"
-                " WHERE `room_id`=:room_id "
+                " WHERE `room_id`=:room_id FOR UPDATE"
             ),
             {"room_id": room_id},
         )
@@ -222,6 +222,10 @@ def join_room(token: str, room_id: int, difficulty: LiveDifficulty) -> JoinRoomR
 
         # joined_user_countを更新
         _update_joined_user_count(conn, room_id)
+        
+        # ロック解除
+        conn.commit()
+        
     return JoinRoomResult.Ok
 
 
@@ -321,6 +325,8 @@ def end_room(token: str, room_id: int, judge: list[int], score: int) -> None:
     judge_json = json.dumps(judge)
 
     with engine.begin() as conn:
+        
+        # スコアを更新
         conn.execute(
             text(
                 """
@@ -335,6 +341,21 @@ def end_room(token: str, room_id: int, judge: list[int], score: int) -> None:
                 "user_id": user.id,
             },
         )
+        
+        # はじめてのendが叩かれた場合、その時刻を記録
+        result = conn.execute(
+            text("SELECT `first_user_end` FROM `room` WHERE `room_id`=:room_id"),
+            {"room_id": room_id},
+        )
+        
+        if not result.one_or_none().first_user_end:
+            conn.execute(
+                text(
+                    " UPDATE `room` SET `first_user_end` = CURRENT_TIMESTAMP"
+                    " WHERE `room_id`=:room_id"
+                ),
+                {"room_id": room_id},
+            )
 
 
 def get_result(room_id: int) -> list[ResultUser]:
@@ -352,11 +373,20 @@ def get_result(room_id: int) -> list[ResultUser]:
             {"room_id": room_id},
         )
         end_user_count = result.scalar()
+        
+        # first_user_endから10秒経過したらタイムアウト
+        result = conn.execute(
+            text(
+                "SELECT TIMESTAMPDIFF(SECOND, `first_user_end`, CURRENT_TIMESTAMP )"
+                " AS timespan FROM `room` WHERE `room_id` = :room_id "
+            ),
+            {"room_id": room_id},
+        )
+        is_timeout = 10 <= result.one().timespan
 
-        # 参加人数とライブ終了人数が一致しない場合空を返す
-        if joined_user_count != end_user_count:
-            return []
-        else:
+        # 参加人数とライブ終了人数が一致しない場合
+        if joined_user_count == end_user_count or is_timeout:
+
             result = conn.execute(
                 text(
                     """
@@ -369,15 +399,22 @@ def get_result(room_id: int) -> list[ResultUser]:
             try:
                 result_user_list = []
                 for result_user in result:
-                    result_user_list.append(
-                        ResultUser(
-                            user_id=result_user.user_id,
-                            judge_count_list=json.loads(result_user.judge_count_list),
-                            score=result_user.score,
+                    
+                    if result_user.score:
+                        result_user_list.append(
+                            ResultUser(
+                                user_id=result_user.user_id,
+                                judge_count_list=json.loads(result_user.judge_count_list),
+                                score=result_user.score,
+                            )
                         )
-                    )
+                    else:
+                        continue
+
             except NoResultFound:
                 return None
+        else:
+            return []
 
         return result_user_list
 

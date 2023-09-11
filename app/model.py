@@ -530,6 +530,7 @@ def room_leave(token: str, room_id: int):
                 chenge_host_in_room(conn, room_id)
         else:
             update_room_status(conn, room_id, WaitRoomStatus.Dissolution)
+        conn.commit()
         """
             conn.execute(
                 text(

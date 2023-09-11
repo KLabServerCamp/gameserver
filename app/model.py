@@ -104,7 +104,7 @@ class RoomUser(BaseModel):
     user_id: int
     name: str
     leader_card_id: int
-    select_diffuculty: LiveDifficulty
+    select_difficulty: LiveDifficulty
     is_me: bool
     is_host: bool
 
@@ -138,6 +138,8 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
 def _insert_room_member(
     conn, room_id: int, user_id: int, difficulty: int, is_host: bool
 ):
+    if isinstance(difficulty, IntEnum):
+        difficulty = difficulty.value
     conn.execute(
         text(
             "INSERT INTO `room_member` (room_id, user_id, difficulty, is_host)"
@@ -166,13 +168,13 @@ def list_room(live_id: int):
         if live_id == 0:
             result = conn.execute(
                 text(
-                    "SELECT room_id, live_id, joined_user_count, max_user_count FROM `room`"
+                    "SELECT room_id, live_id, joined_user_count, max_user_count FROM `room` WHERE game_is_start = FALSE"
                 )
             )
         else:
             result = conn.execute(
                 text(
-                    "SELECT room_id, live_id, joined_user_count, max_user_count FROM `room` WHERE live_id = :live_id"
+                    "SELECT room_id, live_id, joined_user_count, max_user_count FROM `room` WHERE live_id = :live_id and game_is_start = FALSE"
                 ),
                 {"live_id": live_id},
             )
@@ -215,8 +217,8 @@ def wait_room(token: str, room_id: int) -> (WaitRoomStatus, list[RoomUser]):
             return (WaitRoomStatus.Dissolution, [])
 
         room_status = room._mapping["game_is_start"]
-
-        if room_status is False:
+        print(room_status)
+        if room_status == 0:
             room_status = WaitRoomStatus.Waiting
         else:
             room_status = WaitRoomStatus.LiveStart
@@ -239,7 +241,7 @@ def wait_room(token: str, room_id: int) -> (WaitRoomStatus, list[RoomUser]):
                 user_id=user._mapping["user_id"],
                 name=result2[user._mapping["user_id"]].name,
                 leader_card_id=result2[user._mapping["user_id"]].leader_card_id,
-                select_diffuculty=user._mapping["difficulty"],
+                select_difficulty=user._mapping["difficulty"],
                 is_me=result3.id == user._mapping["user_id"],
                 is_host=user._mapping["is_host"],
             )
@@ -255,7 +257,10 @@ def join_room(
     with engine.begin() as conn:
         try:
             user = _get_user_by_token(conn, token)
-            _insert_room_member(room_id, user.id, select_difficulty, False)
+            user_id = user.id
+            if user is None:
+                raise InvalidToken
+            _insert_room_member(conn, room_id, user_id, select_difficulty, False)
             result = conn.execute(
                 text(
                     "SELECT room_id, joined_user_count, max_user_count FROM `room` WHERE room_id = :room_id"

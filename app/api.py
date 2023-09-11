@@ -105,7 +105,7 @@ class WaitRoomInfo(BaseModel):
 def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
     """ルーム作成リクエスト"""
     print("/room/create", req)
-    room_id = model.create_room(token, req.live_id, req.select_difficulty)
+    room_id = model.room_create(token, req.live_id, req.select_difficulty)
     return RoomID(room_id=room_id)
 
 
@@ -113,20 +113,24 @@ def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
 def list(req: LiveID) -> list[RoomInfo]:
     """部屋一覧表示"""
     print("/room/list", req)
-    room_list = model.search_room(req.live_id)
-    print(f"postroom: {room_list}")
-    return room_list
+    room_list = model.room_list(req.live_id)
+    room_list_result = {
+        "room_info_list": room_list
+    }
+    print(f"postroom: {room_list_result}")
+    return room_list_result
 
 
 class RoomJoinInfo(BaseModel):
     room_id: int
     select_difficulty: LiveDifficulty
 
+
 @app.post("/room/join")
 def join(token: UserToken, req: RoomJoinInfo) -> JoinRoomRequest:
     """ルーム参加処理"""
     print("/room/join", req)
-    join_room_result = model.join_room(token, req.room_id, req.select_difficulty)
+    join_room_result = model.room_join(token, req.room_id, req.select_difficulty)
     return JoinRoomRequest(join_room_result=join_room_result)
 
 
@@ -139,10 +143,10 @@ class WaitResultUser(BaseModel):
 
 
 @app.post("/room/wait")
-def wait(req: RoomID):
+def wait(token: UserToken, req: RoomID):
     """待機処理"""
     print("/room/wait", req)
-    status, user_list = model.room_wait(req.room_id)
+    status, user_list = model.room_wait(token, req.room_id)
     wait_result = {
         "status": status,
         "room_user_list": user_list
@@ -173,10 +177,10 @@ def end(token: UserToken, req: ScoreResult) -> Empty:
 
 
 @app.post("/room/result")
-def result(req: RoomID):
+def result(token: UserToken, req: RoomID):
     """ライブリザルト処理"""
     print("/room/result", req)
-    user_result = model.room_result(req.room_id)
+    user_result = model.room_result(token, req.room_id)
     return user_result
 
 

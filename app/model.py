@@ -100,7 +100,7 @@ class RoomInfo(BaseModel, strict=True):
     max_user_count: int = 4
 
 
-def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
+def room_create(token: str, live_id: int, difficulty: LiveDifficulty):
     """部屋を作ってroom_idを返します"""
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
@@ -122,7 +122,7 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
         return room_id
 
 
-def search_room(live_id: int):
+def room_list(live_id: int):
     """楽曲IDから空き部屋を探す"""
     with engine.begin() as conn:
         print(f"live_id: {live_id}")
@@ -150,7 +150,7 @@ def search_room(live_id: int):
         return room_list
 
 
-def join_room(token: str, room_id: int, difficulty: LiveDifficulty):
+def room_join(token: str, room_id: int, difficulty: LiveDifficulty):
     """入室処理"""
     with engine.begin() as conn:
         user = _get_user_by_token(conn, token)
@@ -280,11 +280,11 @@ class WaitUserInfo(BaseModel, strict=True):
     user_id: int
     name: str
     leader_card_id: int
-    difficulty: LiveDifficulty
+    select_difficulty: LiveDifficulty
     is_host: bool
 
 
-def room_wait(room_id: int):
+def room_wait(token: str, room_id: int):
     with engine.begin() as conn:
         status = get_room_status(conn, room_id)
         if status is None:
@@ -321,7 +321,7 @@ def room_wait(room_id: int):
                     user_id=users.id,
                     name=users.name,
                     leader_card_id=users.leader_card_id,
-                    difficulty=LiveDifficulty(users.difficulty),
+                    select_difficulty=LiveDifficulty(users.difficulty),
                     is_host=is_host,
                 )
             )
@@ -396,7 +396,7 @@ class ScoreList(BaseModel, strict=True):
     score: int
 
 
-def room_result(room_id: int):
+def room_result(token: str, room_id: int):
     with engine.begin() as conn:
         result = conn.execute(
             text(

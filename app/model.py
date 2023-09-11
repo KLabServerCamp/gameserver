@@ -111,16 +111,12 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
                 "INSERT INTO `room` (live_id, room_master, joined_user_count, status)"
                 " VALUES (:live_id, :room_master, :joined_user_count, :status)"
             ),
-            {"live_id": live_id, "room_master": user.id, "joined_user_count": 1, "status": 1},
+            {"live_id": live_id, "room_master": user.id, "joined_user_count": 0, "status": 1},
         )
         room_id = result.lastrowid
-        result = conn.execute(
-            text(
-                "INSERT INTO `room_member` (room_id, user_id, difficulty)"
-                " VALUES (:room_id, :user_id, :difficulty)"
-            ),
-            {"room_id": room_id, "user_id": user.id, "difficulty": int(difficulty)},
-        )
+        print(f"create room, room id: {room_id}")
+        insert_room_member(conn, room_id, user.id, difficulty, 1)
+        up_joined_count(conn, room_id)
         print(room_id)
         return room_id
 
@@ -132,7 +128,7 @@ def search_room(live_id: int):
         result = conn.execute(
             text(
                 """
-                SELECT `id` FROM `room` WHERE live_id=:live_id AND joined_user_count BETWEEN 1 AND 3
+                SELECT `id` FROM `room` WHERE live_id=:live_id AND joined_user_count BETWEEN 1 AND 3 AND status = 1
                 """
             ),
             {"live_id": live_id},
@@ -157,10 +153,20 @@ def join_room(token: str, room_id: int):
         judge_join = get_upto_member_room(room_id)
         if judge_join == JoinRoomResult.Ok:
             print("try join")
-            user_count = get_room_user_count(room_id)
-            result = insert_room_member(room_id, user.id, user_count + 1)
+            result = conn.execute(
+                text(
+                    """
+                    SELECT in_order FROM `room_member` WHERE room_id=:room_id ORDER BY in_order DESC LIMIT 1
+                    """
+                ),
+                {"room_id": room_id},
+            ).one()
             if result is None:
                 return JoinRoomResult.OtherError
+            user_order = result[0]
+            print(f"recent order in room {user_order}")
+            insert_room_member(conn, room_id, user.id, LiveDifficulty(1), user_order + 1)
+            up_joined_count(conn, room_id)
         return judge_join
 
 
@@ -202,21 +208,17 @@ def get_upto_member_room(room_id: int):
         return JoinRoomResult.OtherError
 
 
-def insert_room_member(room_id: int, user_id: int, user_count: int):
+def insert_room_member(conn, room_id: int, user_id: int, difficulty: LiveDifficulty, user_count: int):
     print("room member table join")
-    with engine.begin() as conn:
-        conn.execute(
-            text(
-                """
-                INSERT INTO `room_member` (room_id, user_id, difficulty, in_order)
-                 VALUES (:room_id, :user_id, :difficulty, :in_order)
-                """
-            ),
-            {"room_id": room_id, "user_id": user_id, "difficulty": 1, "in_order": user_count},
-        )
-
-        up_joined_count(conn, room_id)
-        return 1
+    conn.execute(
+        text(
+            """
+            INSERT INTO `room_member` (room_id, user_id, difficulty, in_order, score, perfect, great, good, bad, miss)
+             VALUES (:room_id, :user_id, :difficulty, :in_order, :score, :perfect, :great, :good, :bad, :miss)
+            """
+        ),
+        {"room_id": room_id, "user_id": user_id, "difficulty": int(difficulty), "in_order": user_count, "score": -1, "perfect": 0, "great": 0, "good": 0, "bad": 0, "miss": 0},
+    )
 
 
 def up_joined_count(conn, room_id: int):
@@ -235,9 +237,11 @@ def down_joined_count(conn, room_id: int):
     print("down user count")
     conn.execute(
         text(
-            "UPDATE `room` SET `joined_use_count = `joined_user_count - 1 WHERE id=:room_id"
+            """
+            UPDATE `room` SET joined_user_count = joined_user_count - 1 WHERE id=:room_id
+            """
         ),
-        {"id": room_id},
+        {"room_id": room_id},
     )
 
 
@@ -269,19 +273,12 @@ def update_room_status(room_id: int, status: WaitRoomStatus):
         )
 
 
-class UserList(BaseModel, strict=True):
+class WaitUserInfo(BaseModel, strict=True):
     id: int
     name: str
     leader_card_id: int
     difficulty: LiveDifficulty
     is_host: bool
-
-
-class RoomMemberInfo(BaseModel, strict=True):
-    room_id: int
-    user_id: int
-    difficulty: LiveDifficulty
-    in_order: int
 
 
 def room_wait(room_id: int):
@@ -292,10 +289,11 @@ def room_wait(room_id: int):
 
         host = get_room_host(conn, room_id)
 
-        print("room_idからroom_memberの各userの情報を持ってくる")
         result = conn.execute(
             text(
                 """
+                SELECT user.id, user.name, user.leader_card_id, room_member.difficulty
+                FROM user JOIN room_member ON user.id = room_member.user_id WHERE room_member.room_id = :room_id
                 """
             ),
             {"room_id": room_id},
@@ -303,7 +301,7 @@ def room_wait(room_id: int):
 
         res = result.fetchall()
         print(f"get room id from user by room id from room member {res}")
-        user_info: list[RoomMemberInfo] = []
+        user_info: list[WaitUserInfo] = []
         for users in res:
             print(users.id)
             print(users.name)
@@ -316,11 +314,11 @@ def room_wait(room_id: int):
                 is_host = False
                 print("False")
             user_info.append(
-                RoomMemberInfo(
+                WaitUserInfo(
                     id=users.id,
                     name=users.name,
                     leader_card_id=users.leader_card_id,
-                    difficulty=users.difficulty,
+                    difficulty=LiveDifficulty(users.difficulty),
                     is_host=is_host,
                 )
             )
@@ -342,3 +340,184 @@ def get_room_host(conn, room_id: int):
     res = result[0]
     print(f"room_master: {res}")
     return res
+
+
+def room_start(token: str, room_id: int):
+    """live start"""
+    with engine.begin() as conn:
+        user = get_user_by_token(token)
+        "get room master"
+        result = conn.execute(
+            text(
+                """
+                SELECT `room_master` FROM `room` WHERE id=:room_id
+                """
+            ),
+            {"room_id": room_id},
+        ).one()
+        res = result[0]
+        print(f"room master is: {res}")
+        if res == user.id:
+            update_room_status(room_id, WaitRoomStatus(2))
+
+
+def room_end(token: str, room_id: int, score_judge: list[int], score: int):
+    with engine.begin() as conn:
+        user = get_user_by_token(token)
+        print(f"room end: {user.id}, {room_id}, {score_judge}")
+        row = score_judge
+        print(f"result perfect: {row[0]}")
+        print(f"result great: {row[1]}")
+        print(f"result good: {row[2]}")
+        print(f"result bad: {row[3]}")
+        print(f"result miss: {row[4]}")
+        print(f"result user_id: {user.id}")
+        print(f"result score: {score}")
+        conn.execute(
+            text(
+                """
+                UPDATE `room_member` SET score=:score, perfect=:perfect, great=:great, good=:good, bad=:bad, miss=:miss
+                WHERE room_id=:room_id AND user_id=:user_id
+                """
+            ),
+            {"score": score, "perfect": row[0], "great": row[1], "good": row[2], "bad": row[3], "miss": row[4], "room_id": room_id, "user_id": user.id},
+        )
+
+
+class ScoreList(BaseModel, strict=True):
+    user_id: int
+    judge_score_list: list[int]
+    score: int
+
+
+def room_result(room_id: int):
+    with engine.begin() as conn:
+        result = conn.execute(
+            text(
+                """
+                SELECT user_id, perfect, great, good, bad, miss, score FROM `room_member` WHERE room_id=:room_id AND score > -1
+                """
+            ),
+            {"room_id": room_id},
+        )
+
+        user_result: list[ScoreList] = []
+
+        print(f"result count: {result.rowcount}")
+        if result.rowcount != get_room_user_count(room_id):
+            print("no match count")
+            return user_result
+        res = result.fetchall()
+        print(f"res: {res}")
+        for row in res:
+            print(f"result perfect: {row.perfect}")
+            print(f"result great: {row.great}")
+            print(f"result good: {row.good}")
+            print(f"result bad: {row.bad}")
+            print(f"result miss: {row.miss}")
+            print(f"result user_id: {row.user_id}")
+            print(f"result score: {row.score}")
+            score_list = [
+                row.perfect,
+                row.great,
+                row.good,
+                row.bad,
+                row.miss,
+            ]
+            user_id = row.user_id
+            score = row.score
+
+            user_list = (
+                ScoreList(
+                    user_id=user_id,
+                    judge_score_list=score_list,
+                    score=score,
+                )
+            )
+            user_result.append(user_list)
+        return user_result
+
+
+def room_leave(token: str, room_id: int):
+    with engine.begin() as conn:
+        user = get_user_by_token(token)
+        "get room master"
+        result = conn.execute(
+            text(
+                """
+                SELECT `room_master` FROM `room` WHERE id=:room_id
+                """
+            ),
+            {"room_id": room_id},
+        ).one()
+        res = result[0]
+        ch_host_judge = False
+        if res == user.id:
+            ch_host_judge = True
+
+        result = conn.execute(
+            text(
+                """
+                SELECT user_id FROM `room_member` WHERE room_id=:room_id AND user_id=:user_id
+                """
+            ),
+            {"room_id": room_id, "user_id": user.id}
+        ).one_or_none()
+        if result is None:
+            print("you already leave")
+            return None
+        user_id = result[0]
+
+        conn.execute(
+            text(
+                """
+                DELETE FROM `room_member` WHERE room_id=:room_id AND user_id=:user_id
+                """
+            ),
+            {"room_id": room_id, "user_id": user_id},
+        )
+        down_joined_count(conn, room_id)
+
+        count = get_room_user_count(room_id)
+        if count > 0:
+            if ch_host_judge:
+                chenge_host_in_room(conn, room_id)
+        else:
+            delete_room(conn, room_id)
+
+
+def chenge_host_in_room(conn, room_id: int):
+    print("chenge host in room")
+    result = conn.execute(
+        text(
+            """
+            SELECT user_id FROM `room_member` WHERE room_id=:room_id ORDER BY in_order LIMIT 1
+            """
+        ),
+        {"room_id": room_id},
+    ).one_or_none()
+    if result is None:
+        return None
+    res = result[0]
+    print(f"next host is: {res}")
+    conn.execute(
+        text(
+            """
+            UPDATE `room` SET room_master=:room_master WHERE id=:room_id
+            """
+        ),
+        {"room_master": res, "room_id": room_id},
+    )
+    return res
+
+
+def delete_room(conn, room_id):
+    conn.execute(
+        text(
+            """
+            DELETE FROM `room` WHERE id=:room_id
+            """
+        ),
+        {"room_id": room_id},
+    )
+    update_room_status(room_id, WaitRoomStatus(3))

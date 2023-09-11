@@ -2,6 +2,7 @@ import fastapi.exception_handlers
 from fastapi import FastAPI, HTTPException, status
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, Field
+from typing import List
 
 from . import model
 from .auth import UserToken
@@ -128,30 +129,59 @@ def join(token: UserToken, req: RoomID) -> JoinRoomRequest:
     return JoinRoomRequest(join_room_result=join_room_result)
 
 
-class WaitRoomRequest(BaseModel):
-    status: WaitRoomStatus
-    room_user_list: list
+class WaitResultUser(BaseModel):
+    id: int
+    name: str
+    leader_card_id: int
+    difficulty: LiveDifficulty
+    is_host: bool
 
 
 @app.post("/room/wait")
-def wait(req: RoomID) -> WaitRoomInfo:
+def wait(req: RoomID):
     """待機処理"""
     print("/room/wait", req)
     status, user_list = model.room_wait(req.room_id)
-    return WaitRoomRequest(status=status, room_user_list=user_list)
+    wait_result = {
+        "status": status,
+        "room_user_list": user_list
+    }
+    return wait_result
 
 
-
-"""
 @app.post("/room/start")
+def start(token: UserToken, req: RoomID) -> Empty:
+    """ライブ開始処理"""
+    print("/room/start", req)
+    model.room_start(token, req.room_id)
+    return Empty()
+
+
+class ScoreResult(BaseModel):
+    room_id: int
+    score: int
+    judge_count_list: List[int]
 
 
 @app.post("/room/end")
+def end(token: UserToken, req: ScoreResult) -> Empty:
+    """ライブ終了処理"""
+    print("/room/end", req)
+    model.room_end(token, req.room_id, req.judge_count_list, req.score)
+    return Empty()
 
 
 @app.post("/room/result")
+def result(req: RoomID):
+    """ライブリザルト処理"""
+    print("/room/result", req)
+    user_result = model.room_result(req.room_id)
+    return user_result
 
 
 @app.post("/room/leave")
 def leave(token: UserToken, req: RoomID) -> Empty:
-"""
+    """退出処理"""
+    print("/room/leave", req)
+    model.room_leave(token, req.room_id)
+    return Empty()

@@ -28,6 +28,12 @@ CREATE TABLE `room_member` (
     `user_id` bigint NOT NULL,
     `difficulty` int NOT NULL DEFAULT 1,
     `in_order` int NOT NULL DEFAULT 1,
+    `score` int NOT NULL DEFAULT -1,
+    `perfect` int NOT NULL,
+    `great` int NOT NULL,
+    `good` int NOT NULL,
+    `bad` int NOT NULL,
+    `miss` int NOT NULL,
     PRIMARY KEY (`room_id`, `user_id`),
     FOREIGN KEY (`user_id`) REFERENCES `user`(`id`),
     FOREIGN KEY (`room_id`) REFERENCES `room`(`id`)

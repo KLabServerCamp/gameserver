@@ -2,6 +2,8 @@ from fastapi.testclient import TestClient
 
 from app.api import app
 
+import time
+
 client = TestClient(app)
 user_tokens = []
 
@@ -43,12 +45,55 @@ def test_room_1():
     )
     assert response.status_code == 200
     print("room/wait response:", response.json())
+    
+
+    """
+    # 他ユーザー参加
+    response = client.post(
+        "/room/join",
+        headers=_auth_header(1),
+        json={"room_id": room_id, "select_difficulty": 2},
+    )
+    assert response.status_code == 200
+
+    response = client.post(
+        "/room/join",
+        headers=_auth_header(2),
+        json={"room_id": room_id, "select_difficulty": 1},
+    )
+    assert response.status_code == 200
+
+    response = client.post(
+        "/room/join",
+        headers=_auth_header(3),
+        json={"room_id": room_id, "select_difficulty": 2},
+    )
+    assert response.status_code == 200
+
+    # はじかれるユーザー
+    response = client.post(
+        "/room/join",
+        headers=_auth_header(4),
+        json={"room_id": room_id, "select_difficulty": 2},
+    )
+    assert response.status_code == 200
+
+    # オーナー退出
+    response = client.post(
+        "/room/leave",
+        headers=_auth_header(),
+        json={"room_id": room_id},
+    )
+    assert response.status_code == 200
+
 
     response = client.post(
         "/room/start", headers=_auth_header(), json={"room_id": room_id}
     )
     assert response.status_code == 200
     print("room/wait response:", response.json())
+
+    #time.sleep(3)
 
     response = client.post(
         "/room/end",
@@ -67,4 +112,5 @@ def test_room_1():
         json={"room_id": room_id},
     )
     assert response.status_code == 200
-    print("room/end response:", response.json())
+    print("room/result response:", response.json())
+    """

@@ -9,7 +9,6 @@ from .auth import UserToken
 from .model import LiveDifficulty
 from .model import JoinRoomResult
 from .model import WaitRoomStatus
-from .model import RoomInfo
 
 app = FastAPI()
 
@@ -110,11 +109,12 @@ def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
 
 
 @app.post("/room/list")
-def list(req: LiveID) -> list[RoomInfo]:
+def list(req: LiveID):
     """部屋一覧表示"""
     print("/room/list", req)
     room_list = model.room_list(req.live_id)
     if len(room_list) == 0:
+        print("no room created")
         return room_list
     room_list_result = {
         "room_info_list": room_list

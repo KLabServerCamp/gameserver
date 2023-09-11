@@ -126,16 +126,30 @@ def room_list(live_id: int):
     """楽曲IDから空き部屋を探す"""
     with engine.begin() as conn:
         print(f"live_id: {live_id}")
-        result = conn.execute(
-            text(
-                """
-                SELECT `id`, `live_id`, `joined_user_count` FROM `room` WHERE live_id=:live_id AND joined_user_count BETWEEN 1 AND 3 AND status = 1
-                """
-            ),
-            {"live_id": live_id},
-        )
+        result = None
+        if live_id == 0:
+            print("all room search")
+            result = conn.execute(
+                text(
+                    """
+                    SELECT `id`, `live_id`, `joined_user_count` FROM `room` WHERE joined_user_count BETWEEN 1 AND 3 AND status = 1
+                    """
+                )
+            )
+
+        else:
+            print("one room create")
+            result = conn.execute(
+                text(
+                    """
+                    SELECT `id`, `live_id`, `joined_user_count` FROM `room` WHERE live_id=:live_id AND joined_user_count BETWEEN 1 AND 3 AND status = 1
+                    """
+                ),
+                {"live_id": live_id},
+            )
         room_list: list[RoomInfo] = []
         row = result.all()
+        print(f"room result result: {row}")
         if len(row) == 0:
             conn.commit()
             return room_list
@@ -417,51 +431,55 @@ def room_result(token: str, room_id: int):
         if result.rowcount != get_room_user_count(conn, room_id):
             print("no match count")
             return user_result
-        res = result.fetchall()
-        print(f"res: {res}")
-        for row in res:
-            print(f"result perfect: {row.perfect}")
-            print(f"result great: {row.great}")
-            print(f"result good: {row.good}")
-            print(f"result bad: {row.bad}")
-            print(f"result miss: {row.miss}")
-            print(f"result user_id: {row.user_id}")
-            print(f"result score: {row.score}")
-            score_list = [
-                row.perfect,
-                row.great,
-                row.good,
-                row.bad,
-                row.miss,
-            ]
-            user_id = row.user_id
-            score = row.score
+        else:
+            res = result.fetchall()
+            print(f"res: {res}")
+            for row in res:
+                print(f"result perfect: {row.perfect}")
+                print(f"result great: {row.great}")
+                print(f"result good: {row.good}")
+                print(f"result bad: {row.bad}")
+                print(f"result miss: {row.miss}")
+                print(f"result user_id: {row.user_id}")
+                print(f"result score: {row.score}")
+                score_list = [
+                    row.perfect,
+                    row.great,
+                    row.good,
+                    row.bad,
+                    row.miss,
+                ]
+                user_id = row.user_id
+                score = row.score
 
-            user_list = (
-                ScoreList(
-                    user_id=user_id,
-                    judge_count_list=score_list,
-                    score=score,
+                user_list = (
+                    ScoreList(
+                        user_id=user_id,
+                        judge_count_list=score_list,
+                        score=score,
+                    )
                 )
-            )
-            user_result.append(user_list)
+                user_result.append(user_list)
 
-        """
-        conn.execut(
-            text(
-                #DELETE FROM `room_member` WHERE room_id=:room_id
-            ),
-            {"room_id", room_id},
-        )
-        conn.execute(
-            text(
-                #DELETE FROM `room` WHERE id=:room_id
-            ),
-            {"room_id": room_id}
-        )
-        """
-        conn.commit()
-        return user_result
+            #conn.execute(
+            #    text(
+            #        """
+            #        DELETE FROM `room_member` WHERE room_id=:room_id
+            #        """
+            #    ),
+            #    {"room_id", room_id},
+            #)
+            #conn.execute(
+            #    text(
+            #        """
+            #        DELETE FROM `room` WHERE id=:room_id
+            #        """
+            #     ),
+            #    {"room_id": room_id}
+            #)
+            #update_room_status(conn, room_id, WaitRoomStatus.Dissolution)
+            conn.commit()
+            return user_result
 
 
 def room_leave(token: str, room_id: int):
@@ -510,8 +528,9 @@ def room_leave(token: str, room_id: int):
         if count > 0:
             if ch_host_judge == 1:
                 chenge_host_in_room(conn, room_id)
-        """
         else:
+            update_room_status(conn, room_id, WaitRoomStatus.Dissolution)
+        """
             conn.execute(
                 text(
                     #DELETE FROM `room` WHERE id=:room_id
@@ -519,7 +538,6 @@ def room_leave(token: str, room_id: int):
                 {"room_id": room_id},
             )
         """
-        conn.commit()
 
 
 def chenge_host_in_room(conn, room_id: int):

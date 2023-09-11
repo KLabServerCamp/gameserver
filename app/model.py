@@ -79,6 +79,20 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
         print("User updated successfully.")
 
 
+def _create_room_member(conn, user_id: int, room_id: int, difficulty: int):
+    conn.execute(
+        text(
+            "INSERT INTO `room_member` (user_id, room_id, select_difficulty)"
+            " VALUES (:user_id, :room_id, :select_difficulty)"
+        ),
+        {
+            "user_id": user_id,
+            "room_id": room_id,
+            "select_difficulty": difficulty,
+        },
+    )
+
+
 # IntEnum の使い方の例
 class LiveDifficulty(IntEnum):
     """難易度"""
@@ -94,21 +108,13 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
         if user is None:
             raise InvalidToken
         result = conn.execute(
-            text("INSERT INTO `room` (live_id)" " VALUES (:live_id)"),
-            {"live_id": live_id, "select_difficulty": difficulty.value},
+            text(
+                "INSERT INTO `room` (live_id, host_user_id) VALUES (:live_id, :host_user_id)"
+            ),
+            {"live_id": live_id, "host_user_id": user.id},
         )
         room_id = result.lastrowid
-        conn.execute(
-            text(
-                "INSERT INTO `room_member` (user_id, room_id, select_difficulty, is_host)"
-                " VALUES (:user_id, :room_id, :select_difficulty, True)"
-            ),
-            {
-                "user_id": user.id,
-                "room_id": room_id,
-                "select_difficulty": difficulty.value,
-            },
-        )
+        _create_room_member(conn, user.id, room_id, difficulty.value)
         print(f"create_room(): {room_id=}")
     return room_id
 
@@ -130,13 +136,14 @@ def list_room(token: str, live_id: int):
             result = conn.execute(
                 text(
                     "SELECT room_id, live_id, joined_user_count, max_user_count FROM room "
+                    "WHERE room_result = 1"
                 ),
             )
         else:
             result = conn.execute(
                 text(
                     "SELECT room_id, live_id, joined_user_count, max_user_count FROM room "
-                    "WHERE live_id = :live_id"
+                    "WHERE live_id = :live_id AND room_result = 1"
                 ),
                 {"live_id": live_id},
             )
@@ -164,50 +171,48 @@ def join_room(token: str, room_id: int, difficulty: LiveDifficulty):
         user = _get_user_by_token(conn, token)
         if user is None:
             raise InvalidToken
-        join_room_result = 4  # 予想外のエラー
-        room_info = conn.execute(
-            text(
-                "SELECT joined_user_count, max_user_count FROM room "
-                "WHERE room_id = :room_id FOR UPDATE"
-            ),
-            {"room_id": room_id},
-        )
 
-        if room_info:
-            row = room_info.one()
-            # TODO:同じ人物が入場しようとしたとき
-            if row.joined_user_count < row.max_user_count:
-                join_room_result = 1
-                # room の現在の人数を更新
+        try:
+            room_info = conn.execute(
+                text("SELECT * FROM room WHERE room_id = :room_id FOR UPDATE"),
+                {"room_id": room_id},
+            ).one_or_none()
+
+            # room_member を作成
+            _create_room_member(conn, user.id, room_id, difficulty)
+
+            if room_info.room_result != JoinRoomResult.Ok:
+                return room_info.room_result
+
+            if room_info is None:
+                return JoinRoomResult.Disbanded
+
+            # room の現在の人数を更新
+            if room_info.joined_user_count + 1 == room_info.max_user_count:
                 conn.execute(
                     text(
-                        "UPDATE room SET joined_user_count= :new_joined_user_count "
-                        "WHERE room_id = :room_id COMMIT"
+                        "UPDATE room SET room_result = 2 " "WHERE room_id = :room_id "
                     ),
                     {
                         "room_id": room_id,
-                        "new_joined_user_count": row.joined_user_count + 1,
                     },
                 )
-                # room_member を作成
-                conn.execute(
-                    text(
-                        "INSERT INTO `room_member` (user_id, room_id, select_difficulty)"
-                        " VALUES (:user_id, :room_id, :select_difficulty)"
-                    ),
-                    {
-                        "user_id": user.id,
-                        "room_id": room_id,
-                        "select_difficulty": difficulty,
-                    },
-                )
+            conn.execute(
+                text(
+                    "UPDATE room SET joined_user_count= :new_joined_user_count "
+                    "WHERE room_id = :room_id"
+                ),
+                {
+                    "room_id": room_id,
+                    "new_joined_user_count": room_info.joined_user_count + 1,
+                },
+            )
+            print(difficulty)
 
-            else:
-                join_room_result = 2
-        else:
-            join_room_result = 3
-
-    return join_room_result
+            return JoinRoomResult.Ok
+        except Exception as e:
+            print(f"Error updating user: {str(e)}")
+            return JoinRoomResult.OtherError
 
 
 class WaitRoomStatus(IntEnum):
@@ -233,12 +238,12 @@ def wait_room(token: str, room_id: int):
         if reqest_user is None:
             raise InvalidToken
         room = conn.execute(
-            text("SELECT wait_status FROM room " "WHERE room_id = :room_id"),
+            text("SELECT * FROM room WHERE room_id = :room_id"),
             {"room_id": room_id},
         ).one_or_none()
         join_users = conn.execute(
             text(
-                "SELECT user_id, is_host, select_difficulty FROM room_member "
+                "SELECT user_id, select_difficulty FROM room_member "
                 "WHERE room_id = :room_id"
             ),
             {"room_id": room_id},
@@ -259,7 +264,7 @@ def wait_room(token: str, room_id: int):
                     leader_card_id=user.leader_card_id,
                     select_difficulty=LiveDifficulty(join_user.select_difficulty),
                     is_me=(user.id == reqest_user.id),
-                    is_host=join_user.is_host,
+                    is_host=(user.id == room.host_user_id),
                 )
             )
     return room.wait_status, room_user_list
@@ -335,3 +340,55 @@ def result_room(token: str, room_id: int):
                 )
             )
         return result_user_list
+
+
+def leave_room(token: str, room_id: int):
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        if user is None:
+            raise InvalidToken
+
+        conn.execute(
+            text(
+                "DELETE FROM `room_member` "
+                "WHERE room_id= :room_id AND user_id= :user_id"
+            ),
+            {"room_id": room_id, "user_id": user.id},
+        )
+
+        room = conn.execute(
+            text("SELECT * FROM room WHERE room_id = :room_id"),
+            {"room_id": room_id},
+        ).one_or_none()
+
+        if room.joined_user_count <= 1:
+            conn.execute(
+                text("UPDATE room SET room_result= 3  WHERE room_id = :room_id"),
+                {"room_id": room_id},
+            )
+            return None
+
+        if room.joined_user_count == room.max_user_count:
+            conn.execute(
+                text("UPDATE room SET room_result= 2  WHERE room_id = :room_id"),
+                {"room_id": room_id},
+            )
+
+        conn.execute(
+            text(
+                "UPDATE room SET joined_user_count= :joined_user_count  WHERE room_id = :room_id"
+            ),
+            {"room_id": room_id, "join_user_count": room.join_user_count - 1},
+        )
+
+        if room.host_user_id == user.id:
+            joined_member = conn.execute(
+                text("SELECT * FROM room_member " "WHERE room_id = :room_id"),
+                {"room_id": room_id, "user_id": user.id},
+            ).one()
+            conn.execute(
+                text(
+                    "UPDATE room SET host_user_id = :host_user_id  WHERE room_id = :room_id"
+                ),
+                {"room_id": room_id, "host_user_id": joined_member.user_id},
+            )

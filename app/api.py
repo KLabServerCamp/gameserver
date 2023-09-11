@@ -151,6 +151,7 @@ def start_room(token: UserToken, req: RoomID):
     """ルーム開始"""
     print("/room/start", req)
     model.start_room(token, req.room_id)
+    return Empty()
 
 
 class EndRoomRequest(BaseModel):
@@ -164,6 +165,7 @@ def end_room(token: UserToken, req: EndRoomRequest):
     """ルーム終了"""
     print("/room/end", req)
     model.end_room(token, req.room_id, req.judge_count_list, req.score)
+    return Empty()
 
 
 class ResultRoomRespomse(BaseModel):
@@ -177,3 +179,11 @@ def result_room(token: UserToken, req: RoomID):
     result_user_list = model.result_room(token, req.room_id)
     if result_user_list is not None:
         return ResultRoomRespomse(result_user_list=result_user_list)
+
+
+@app.post("/room/leave")
+def leave_room(token: UserToken, req: RoomID):
+    """ルーム退出"""
+    print("/room/leave", req)
+    model.leave_room(token, req.room_id)
+    return Empty()

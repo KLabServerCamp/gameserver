@@ -19,6 +19,8 @@ CREATE TABLE `room` (
   `joined_user_count` int NOT NULL DEFAULT 1,
   `max_user_count` int NOT NULL DEFAULT 4,
   `wait_status` int NOT NULL DEFAULT 1,
+  `room_result` int NOT NULL DEFAULT 1,
+  `host_user_id` int NOT NULL,
   PRIMARY KEY (`room_id`)
 );
 
@@ -26,7 +28,6 @@ CREATE TABLE `room_member` (
   `user_id` bigint NOT NULL,
   `room_id` bigint NOT NULL,
   `select_difficulty` int NOT NULL,
-  `is_host` BOOLEAN NOT NULL DEFAULT FALSE,
   `judge_count_list` json, 
   `score` int,
   FOREIGN KEY (`user_id`) REFERENCES `user`(`id`),

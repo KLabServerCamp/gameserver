@@ -348,8 +348,8 @@ def room_result(room_id: int) -> ResultUser:
 
 def room_leave(token: str, room_id: int) -> None:
     with engine.begin() as conn:
-        user = _get_user_by_token(conn, token)
-        if user is None:
+        get_user = _get_user_by_token(conn, token)
+        if get_user is None:
             raise InvalidToken
-        user_id = user.id
+        user_id = get_user.id
         _delete_room_member(conn, user_id, room_id)

@@ -80,6 +80,10 @@ class RoomID(BaseModel):
     room_id: int
 
 
+class LiveID(BaseModel):
+    live_id: int
+
+
 @app.post("/room/create")
 def create(token: UserToken, req: model.CreateRoomRequest) -> RoomID:
     """ルーム作成リクエスト"""
@@ -91,29 +95,28 @@ def create(token: UserToken, req: model.CreateRoomRequest) -> RoomID:
 
 
 @app.post("/room/list")
-def return_list(live_id: int) -> dict:
+def return_list(live_id: LiveID) -> dict:
     rooms = dict()
-    rooms["room_info_list"] = model.room_list(live_id=live_id)
+    rooms["room_info_list"] = model.room_list(live_id=live_id.live_id)
     return rooms
 
 
 @app.post("/room/join")
-def join_room(token: UserToken,
-              room_id: int, select_difficulty: LiveDifficulty) -> dict:
+def join_room(token: UserToken, join_request: model.JoinRoomRequest) -> dict:
     result = model._join_room(
         token=token,
-        room_id=room_id,
-        select_difficulty=select_difficulty
+        room_id=join_request.room_id,
+        select_difficulty=LiveDifficulty(join_request.select_difficulty)
     )
     print(result)
     return {"join_room_result": result}
 
 
 @app.post("/room/wait")
-def wait(token: UserToken, room_id: int) -> dict:
-    status = model.get_room_status(room_id=room_id)
-    u_id = model.get_user_by_token(token=token)
-    room_user_list = model.get_user_list(me=u_id, room_id=room_id)
+def wait(token: UserToken, room_id: RoomID) -> dict:
+    status = model.get_room_status(room_id=room_id.room_id)
+    user = model.get_user_by_token(token=token)
+    room_user_list = model.get_user_list(me=user.id, room_id=room_id.room_id)
     ret = {
         "status": status,
         "room_user_list": room_user_list
@@ -123,39 +126,43 @@ def wait(token: UserToken, room_id: int) -> dict:
 
 
 @app.post("/room/start")
-def start(token: UserToken, room_id: int) -> None:
+def start(token: UserToken, room_id: RoomID) -> dict:
     user = model.get_user_by_token(token=token)
-    print("--- user_id ---")
     print(user)
     print("--- is_host ---")
-    if model.is_host(user_id=user.id, room_id=room_id):
+    if model.is_host(user_id=user.id, room_id=room_id.room_id):
         print("true")
         model.change_room_state(
-            room_id=room_id,
+            room_id=room_id.room_id,
             room_state=model.WaitRoomStatus.LiveStart
             )
     else:
         print("false")
+    return dict()
 
 
 @app.post("/room/end")
-def end(token: UserToken, room_id: int, score: int,
-        judge_count_list: list[int]):
+def end(token: UserToken, result: model.GameResult) -> dict:
     user = model.get_user_by_token(token=token)
-    model.save_score(user_id=user.id, room_id=room_id, score=score,
-                     judge_count_list=judge_count_list)
+    model.save_score(user_id=user.id, room_id=result.room_id,
+                     score=result.score,
+                     judge_count_list=result.judge_count_list)
+    return dict()
 
 
 @app.post("/room/result")
-def result(room_id: int) -> list[model.ResultUser]:
-    if model.everyone_end(room_id=room_id):
-        return model.get_result_user(room_id=room_id)
+def result(room_id: RoomID) -> dict:
+    result = dict()
+    if model.everyone_end(room_id=room_id.room_id):
+        result["result_user_list"] = model.get_result_user(
+            room_id=room_id.room_id)
     else:
-        return []
+        result["result_user_list"] = []
+    return result
 
 
 @app.post("/room/leave")
-def leave(token: UserToken, room_id: int):
+def leave(token: UserToken, room_id: RoomID) -> dict:
     user = model.get_user_by_token(token=token)
-    model.leave_room(user_id=user.id, room_id=room_id)
+    model.leave_room(user_id=user.id, room_id=room_id.room_id)
     return {}

@@ -6,7 +6,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import MultipleResultsFound, NoResultFound
 
 from .db import engine
-
+from time import time
 
 class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げるエラー"""
@@ -273,6 +273,7 @@ def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty):
         user = _get_user_by_token(conn, token)
         if user is None:
             raise InvalidToken
+        delete_room_user(conn, user.id)
         res = conn.execute(text(
             "INSERT INTO `room` (`live_id`) VALUES(:live_id)"
         ), {
@@ -283,19 +284,16 @@ def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty):
     return res.lastrowid
 
 
-def list_room(token: str, live_id: int):
+def list_room(live_id: int):
     """部屋情報の配列を返す"""
     with engine.begin() as conn:
-        user = _get_user_by_token(conn, token)
-        if user is None:
-            raise InvalidToken
         if live_id == 0:
             res = conn.execute(text(
-                "SELECT `room_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `lived`=false"
+                "SELECT `room_id`, `joined_user_count`, `max_user_count`, `live_id` FROM `room` WHERE `lived`=false"
             ), {})
         else:
             res = conn.execute(text(
-                "SELECT `room_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `live_id`=:live_id AND `lived`=false"
+                "SELECT `room_id`, `joined_user_count`, `max_user_count`, `live_id` FROM `room` WHERE `live_id`=:live_id AND `lived`=false"
             ), {
                 "live_id": live_id
             })
@@ -427,13 +425,16 @@ def result_room(token: str, room_id: int):
         user = _get_user_by_token(conn, token)
         if user is None:
             raise InvalidToken
+        delete_room(conn, room_id)
         room_users = get_room_users(conn, room_id)
         room_compiled_users = []
-        delete_room_member(conn, room_id)
-        delete_room(conn, room_id)
+        now, first_end = updateTime(conn, room_id)
         for room_user in room_users:
             if room_user.judge_count_list is None:
-                return []
+                if now - first_end > 60 * 1:
+                    continue
+                else:
+                    return []
             judge_count_list = room_user.judge_count_list.split(',')
             judge_count_list = list(map(lambda judge_count: int(judge_count), judge_count_list))
             room_member = {
@@ -442,42 +443,29 @@ def result_room(token: str, room_id: int):
                 "score": room_user.score
             }
             room_compiled_users.append(room_member)
+        delete_room_member(conn, room_id)
         return room_compiled_users
-        # room_members = get_room_members(conn, room_id)
-        # room_members = room_members.member_list.split(',')
-        # if room_members[0] == '':
-        #     room_members = []
-        # room_members = list(map(lambda member: int(member), room_members))
-        # room_compiled_members = []
-        # for member_id in room_members:
-        #     room_member = get_room_user(conn, member_id)
-        #     if room_member == DBResponseError.OtherError:
-        #         return []
-        #     if room_member.judge_count_list is None:
-        #         return []
-        #     judge_count_list = room_member.judge_count_list.split(',')
-        #     judge_count_list = list(map(lambda judge_count: int(judge_count), judge_count_list))
-        #     room_member = {
-        #         "user_id": member_id,
-        #         "judge_count_list": judge_count_list,
-        #         "score": room_member.score
-        #     }
-        #     room_compiled_members.append(room_member)
-        # delete_room_user(conn, user.id)
-        # res = conn.execute(text(
-        #     "SELECT `joined_user_count` FROM `room` WHERE `room_id`=:room_id"
-        # ), {
-        #     "room_id": room_id
-        # })
-        # try:
-        #     row = res.one()
-        #     left_count = row.joined_user_count
-        # except (NoResultFound, MultipleResultsFound):
-        #     left_count = -1
-        # if left_count == 0:
-        #     update_room_count(conn, room_id, left_count)
-        #     delete_room_member(conn, room_id)
-        #     delete_room_users(conn, room_id)
-        #     delete_room(conn, room_id)
-        # return room_compiled_members
+
+
+def updateTime(conn, room_id):
+    now = int(time())
+    res = conn.execute(text(
+        "SELECT `first_end` FROM `room_member` WHERE `room_id`=:room_id"
+    ), {
+        "room_id": room_id
+    })
+    try:
+        row = res.one()
+        first_end = int(row.first_end)
+    except (MultipleResultsFound, NoResultFound):
+        return now, now - 60 * 1
+    if first_end is None:
+        conn.execute(text(
+            "UPDATE `room_member` SET `first_end`=:first_end WHERE `room_id`=:room_id"
+        ), {
+            "first_end": str(now),
+            "room_id": room_id
+        })
+        first_end = now
+    return now, first_end
     

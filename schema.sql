@@ -24,6 +24,7 @@ DROP TABLE IF EXISTS `room_member`;
 CREATE TABLE `room_member` (
   `room_id` bigint NOT NULL,
   `member_list` varchar(255),
+  `first_end` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`room_id`),
   UNIQUE KEY `room_id` (`room_id`)
 );

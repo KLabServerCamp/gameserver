@@ -1,6 +1,10 @@
+from datetime import datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
+
 from sqlalchemy import text
 
 from app import schemas
+from app.config import TIMEOUT_THRESHOLD_SEC
 from app.db import engine
 from app.exceptions import InvalidToken, RoomNotFound
 
@@ -219,20 +223,35 @@ class Room:
     def room_result(room_id: int):
         # TODO: タイムアウト処理
         with engine.begin() as conn:
-            cnt = conn.execute(
+            # cnt = conn.execute(
+            #     text(
+            #         "SELECT COUNT(1) = (SELECT COUNT(1) FROM `room_member` WHERE `room_id`=:room_id) AS `is_full` FROM `room_member_result` WHERE `room_id`=:room_id"
+            #     ),
+            #     {"room_id": room_id},
+            # ).one_or_none()
+            # if not cnt.is_full:
+            #     return []
+
+            scores = conn.execute(
                 text(
-                    "SELECT COUNT(1) = (SELECT COUNT(1) FROM `room_member` WHERE `room_id`=:room_id) AS `is_full` FROM `room_member_result` WHERE `room_id`=:room_id"
+                    "SELECT * FROM `room_member_result` WHERE `room_id`=:room_id ORDER BY `updated_at` DESC"
                 ),
                 {"room_id": room_id},
-            ).one_or_none()
-            if not cnt.is_full:
+            ).all()
+
+            # 最終更新から TIMEOUT_THRESHOLD_SEC 秒以上経過していたらリザルトを表示する
+
+            # JST として解釈（無理矢理過ぎる……）
+            least_updated_at: datetime = scores[0].updated_at.astimezone(
+                ZoneInfo("Asia/Tokyo")
+            ) - timedelta(hours=9)
+            now = datetime.now(ZoneInfo("Asia/Tokyo"))
+            diff_time: timedelta = now - least_updated_at
+            if diff_time.seconds < TIMEOUT_THRESHOLD_SEC:
                 return []
-            res = conn.execute(
-                text("SELECT * FROM `room_member_result` WHERE `room_id`=:room_id"),
-                {"room_id": room_id},
-            )
+
             user_results = []
-            for result in res:
+            for result in scores:
                 user_results.append(
                     schemas.ResultUser(
                         user_id=result.user_id,

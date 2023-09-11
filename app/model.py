@@ -250,6 +250,23 @@ def delete_room(conn, room_id):
     })
 
 
+def delete_room_member(conn, room_id):
+    conn.execute(text(
+        "DELETE FROM `room_member` WHERE `room_id`=:room_id"
+    ), {
+        "room_id": room_id
+    })
+
+
+def get_room_users(conn, room_id):
+    res = conn.execute(text(
+        "SELECT `user_id`, `score`, `judge_count_list` FROM `room_user` WHERE `room_id`=:room_id"
+    ), {
+        "room_id": room_id
+    })
+    return res.all()
+
+
 def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty):
     """部屋を作ってroom_idを返します"""
     with engine.begin() as conn:
@@ -272,11 +289,16 @@ def list_room(token: str, live_id: int):
         user = _get_user_by_token(conn, token)
         if user is None:
             raise InvalidToken
-        res = conn.execute(text(
-            "SELECT `room_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `live_id` = :live_id"
-        ), {
-            "live_id": live_id
-        })
+        if live_id == 0:
+            res = conn.execute(text(
+                "SELECT `room_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `lived`=false"
+            ), {})
+        else:
+            res = conn.execute(text(
+                "SELECT `room_id`, `joined_user_count`, `max_user_count` FROM `room` WHERE `live_id`=:live_id AND `lived`=false"
+            ), {
+                "live_id": live_id
+            })
         try:
             rows = res.all()
         except NoResultFound:
@@ -290,6 +312,7 @@ def join_room(token: str, room_id: int, select_difficulty: LiveDifficulty):
         user = _get_user_by_token(conn, token)
         if user is None:
             raise InvalidToken
+        delete_room_user(conn, user.id)
         room = get_room(conn, room_id)
         room_status = check_room_status(room)
         if room_status != JoinRoomResult.Ok:
@@ -404,27 +427,57 @@ def result_room(token: str, room_id: int):
         user = _get_user_by_token(conn, token)
         if user is None:
             raise InvalidToken
-        room_members = get_room_members(conn, room_id)
-        room_members = room_members.member_list.split(',')
-        if room_members[0] == '':
-            room_members = []
-        room_members = list(map(lambda member: int(member), room_members))
-        room_compiled_members = []
-        for member_id in room_members:
-            room_member = get_room_user(conn, member_id)
-            if room_member == DBResponseError.OtherError:
+        room_users = get_room_users(conn, room_id)
+        room_compiled_users = []
+        delete_room_member(conn, room_id)
+        delete_room(conn, room_id)
+        for room_user in room_users:
+            if room_user.judge_count_list is None:
                 return []
-            if room_member.judge_count_list is None:
-                return []
-            judge_count_list = room_member.judge_count_list.split(',')
+            judge_count_list = room_user.judge_count_list.split(',')
             judge_count_list = list(map(lambda judge_count: int(judge_count), judge_count_list))
             room_member = {
-                "user_id": member_id,
+                "user_id": room_user.user_id,
                 "judge_count_list": judge_count_list,
-                "score": room_member.score
+                "score": room_user.score
             }
-            room_compiled_members.append(room_member)
-        delete_room_user(conn, user.id)
-        delete_room(conn, room_id)
-        return room_compiled_members
+            room_compiled_users.append(room_member)
+        return room_compiled_users
+        # room_members = get_room_members(conn, room_id)
+        # room_members = room_members.member_list.split(',')
+        # if room_members[0] == '':
+        #     room_members = []
+        # room_members = list(map(lambda member: int(member), room_members))
+        # room_compiled_members = []
+        # for member_id in room_members:
+        #     room_member = get_room_user(conn, member_id)
+        #     if room_member == DBResponseError.OtherError:
+        #         return []
+        #     if room_member.judge_count_list is None:
+        #         return []
+        #     judge_count_list = room_member.judge_count_list.split(',')
+        #     judge_count_list = list(map(lambda judge_count: int(judge_count), judge_count_list))
+        #     room_member = {
+        #         "user_id": member_id,
+        #         "judge_count_list": judge_count_list,
+        #         "score": room_member.score
+        #     }
+        #     room_compiled_members.append(room_member)
+        # delete_room_user(conn, user.id)
+        # res = conn.execute(text(
+        #     "SELECT `joined_user_count` FROM `room` WHERE `room_id`=:room_id"
+        # ), {
+        #     "room_id": room_id
+        # })
+        # try:
+        #     row = res.one()
+        #     left_count = row.joined_user_count
+        # except (NoResultFound, MultipleResultsFound):
+        #     left_count = -1
+        # if left_count == 0:
+        #     update_room_count(conn, room_id, left_count)
+        #     delete_room_member(conn, room_id)
+        #     delete_room_users(conn, room_id)
+        #     delete_room(conn, room_id)
+        # return room_compiled_members
     

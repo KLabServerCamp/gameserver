@@ -456,10 +456,9 @@ def updateTime(conn, room_id):
     })
     try:
         row = res.one()
-        first_end = int(row.first_end)
     except (MultipleResultsFound, NoResultFound):
         return now, now - 60 * 1
-    if first_end is None:
+    if row.first_end is None:
         conn.execute(text(
             "UPDATE `room_member` SET `first_end`=:first_end WHERE `room_id`=:room_id"
         ), {
@@ -467,5 +466,7 @@ def updateTime(conn, room_id):
             "room_id": room_id
         })
         first_end = now
+    else:
+        first_end = int(row.first_end)
     return now, first_end
     

@@ -152,6 +152,15 @@ def _insert_room_member(
     )
 
 
+def _delete_room_member(conn, user_id: int, room_id: int):
+    conn.execute(
+        text(
+            "DELETE FROM `room_member` WHERE `user_id`= :user_id and `room_id`= :room_id"
+        ),
+        {"user_id": user_id, "room_id": room_id},
+    )
+
+
 def list_room(live_id: int):
     with engine.begin() as conn:
         if live_id == 0:
@@ -282,16 +291,49 @@ def room_start(token: str, room_id: int) -> None:
 
 def room_end(token: str, room_id: int, judge_count_list: list[int], score: int) -> None:
     with engine.begin() as conn:
-        user = _get_user_by_token(conn, token)
-        user_id = user.id
-        conn.execute(
+        try:
+            user = _get_user_by_token(conn, token)
+            user_id = user.id
+            conn.execute(
+                text(
+                    "UPDATE `room_member` SET judge_count_list = :judge_count_list, score = :score WHERE room_id = :room_id and user_id = :user_id"
+                ),
+                {
+                    "judge_count_list": json.dumps(judge_count_list),
+                    "score": score,
+                    "room_id": room_id,
+                    "user_id": user_id,
+                },
+            )
+        except NoResultFound:
+            return None
+
+
+def room_result(room_id: int) -> ResultUser:
+    with engine.begin() as conn:
+        result = conn.execute(
             text(
-                "UPDATE `room_member` SET judge_count_list = :judge_count_list, score = :score WHERE room_id = :room_id and user_id = :user_id"
+                "SELECT user_id, judge_count_list, score FROM `room_member` WHERE room_id= :room_id"
             ),
             {
-                "judge_count_list": json.dumps(judge_count_list),
-                "score": score,
                 "room_id": room_id,
-                "user_id": user_id,
             },
         )
+        users = [
+            ResultUser(
+                user_id=user._mapping["user_id"],
+                judge_count_list=json.loads(user._mapping["judge_count_list"]),
+                score=user._mapping["score"],
+            )
+            for user in result
+        ]
+        return users
+
+
+def room_leave(token: str, room_id: int) -> None:
+    with engine.begin() as conn:
+        user = _get_user_by_token(conn, token)
+        user_id = user.id
+        _delete_room_member(conn, user_id, room_id)
+        if user is None:
+            raise InvalidToken

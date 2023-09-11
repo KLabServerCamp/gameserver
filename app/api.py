@@ -5,7 +5,14 @@ from pydantic import BaseModel, Field
 
 from . import model
 from .auth import UserToken
-from .model import JoinRoomResult, LiveDifficulty, RoomInfo, RoomUser, WaitRoomStatus
+from .model import (
+    JoinRoomResult,
+    LiveDifficulty,
+    ResultUser,
+    RoomInfo,
+    RoomUser,
+    WaitRoomStatus,
+)
 
 app = FastAPI()
 
@@ -122,6 +129,18 @@ class RoomEndRequest(BaseModel):
     score: int
 
 
+class RoomResultRequest(BaseModel):
+    room_id: int
+
+
+class RoomResultResponce(BaseModel):
+    result_user_list: list[ResultUser]
+
+
+class RoomLeaveRequest(BaseModel):
+    room_id: int
+
+
 @app.post("/room/create")
 def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
     """ルーム作成リクエスト"""
@@ -159,4 +178,16 @@ def start_room(token: UserToken, req: RoomStartRequest) -> Empty:
 @app.post("/room/end")
 def end_room(token: UserToken, req: RoomEndRequest) -> Empty:
     model.room_end(token, req.room_id, req.judge_count_list, req.score)
+    return Empty()
+
+
+@app.post("/room/result")
+def result_room(req: RoomResultRequest) -> RoomResultResponce:
+    result_user_list = model.room_result(req.room_id)
+    return RoomResultResponce(result_user_list=result_user_list)
+
+
+@app.post("/room/leave")
+def leave_room(token: UserToken, req: RoomLeaveRequest) -> Empty:
+    model.room_leave(token, req.room_id)
     return Empty()

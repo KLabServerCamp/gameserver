@@ -12,6 +12,7 @@ from .model import (
     RoomInfo,
     RoomUser,
     WaitRoomStatus,
+    Empty,
 )
 
 app = FastAPI()
@@ -66,10 +67,6 @@ def user_me(token: UserToken) -> model.SafeUser:
     # print(f"user_me({token=}, {user=})")
     # 開発中以外は token をログに残してはいけない。
     return user
-
-
-class Empty(BaseModel):
-    pass
 
 
 @app.post("/user/update")
@@ -173,12 +170,11 @@ class ResultRoomRespomse(BaseModel):
 
 
 @app.post("/room/result")
-def result_room(token: UserToken, req: RoomID):
+def result_room(token: UserToken, req: RoomID) -> ResultRoomRespomse:
     """ルーム結果表示"""
     print("/room/result", req)
     result_user_list = model.result_room(token, req.room_id)
-    if result_user_list is not None:
-        return ResultRoomRespomse(result_user_list=result_user_list)
+    return ResultRoomRespomse(result_user_list=result_user_list)
 
 
 @app.post("/room/leave")

@@ -11,6 +11,10 @@ from .db import engine
 # from .api import RoomInfo
 
 
+class Empty(BaseModel):
+    pass
+
+
 class InvalidToken(Exception):
     """指定されたtokenが不正だったときに投げるエラー"""
 
@@ -62,6 +66,14 @@ def get_user_by_token(token: str) -> SafeUser | None:
         return _get_user_by_token(conn, token)
 
 
+def _get_user_by_id(conn, user_id: int):
+    user = conn.execute(
+        text("SELECT id, name, leader_card_id FROM user WHERE id=:user_id"),
+        {"user_id": user_id},
+    ).one_or_none()
+    return user
+
+
 def update_user(token: str, name: str, leader_card_id: int) -> None:
     with engine.begin() as conn:
         try:
@@ -79,6 +91,46 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
         print("User updated successfully.")
 
 
+def _get_room(conn, room_id: int):
+    room = conn.execute(
+        text("SELECT * FROM room WHERE room_id = :room_id"),
+        {"room_id": room_id},
+    ).one_or_none()
+    return room
+
+
+def _update_room(conn, room_id: int, joined_user_count=None, wait_status=None, room_result=None):
+    sql = "UPDATE room SET "
+    set_clauses = []
+
+    if joined_user_count is not None:
+        set_clauses.append(f"joined_user_count = {joined_user_count}")
+
+    if wait_status is not None:
+        set_clauses.append(f"wait_status = {wait_status}")
+
+    if room_result is not None:
+        set_clauses.append(f"room_result = {room_result}")
+
+    sql += ", ".join(set_clauses)
+    sql += " WHERE room_id = :room_id"
+
+    # クエリを実行
+    conn.execute(text(sql), {"room_id": room_id})  
+
+
+def _get_room_members(conn, room_id: int):
+    join_users = conn.execute(
+        text(
+            "SELECT * FROM room_member "
+            "WHERE room_id = :room_id"
+        ),
+        {"room_id": room_id},
+    )
+    join_users = join_users.fetchall()
+    return join_users
+
+
 def _create_room_member(conn, user_id: int, room_id: int, difficulty: int):
     conn.execute(
         text(
@@ -89,6 +141,21 @@ def _create_room_member(conn, user_id: int, room_id: int, difficulty: int):
             "user_id": user_id,
             "room_id": room_id,
             "select_difficulty": difficulty,
+        },
+    )
+
+
+def _update_room_member(conn, user_id: int, room_id: int, judge_count_list: json, score: int):
+    conn.execute(
+        text(
+            "UPDATE room_member SET judge_count_list = :judge_count_list, score = :score "
+            "WHERE room_id = :room_id AND user_id = :user_id"
+        ),
+        {
+            "user_id": user_id,
+            "room_id": room_id,
+            "judge_count_list": judge_count_list,
+            "score": score
         },
     )
 
@@ -109,9 +176,9 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
             raise InvalidToken
         result = conn.execute(
             text(
-                "INSERT INTO `room` (live_id, host_user_id) VALUES (:live_id, :host_user_id)"
+                "INSERT INTO `room` (live_id, host_user_id) VALUES (:live_id, :user_id)"
             ),
-            {"live_id": live_id, "host_user_id": user.id},
+            {"live_id": live_id, "user_id": user.id},
         )
         room_id = result.lastrowid
         _create_room_member(conn, user.id, room_id, difficulty.value)
@@ -132,6 +199,8 @@ def list_room(token: str, live_id: int):
         user = _get_user_by_token(conn, token)
         if user is None:
             raise InvalidToken
+
+        
         if live_id == 0:
             result = conn.execute(
                 text(
@@ -173,7 +242,7 @@ def join_room(token: str, room_id: int, difficulty: LiveDifficulty):
             raise InvalidToken
 
         try:
-            room_info = conn.execute(
+            room = conn.execute(
                 text("SELECT * FROM room WHERE room_id = :room_id FOR UPDATE"),
                 {"room_id": room_id},
             ).one_or_none()
@@ -181,35 +250,18 @@ def join_room(token: str, room_id: int, difficulty: LiveDifficulty):
             # room_member を作成
             _create_room_member(conn, user.id, room_id, difficulty)
 
-            if room_info.room_result != JoinRoomResult.Ok:
-                return room_info.room_result
-
-            if room_info is None:
+            if room is None:
                 return JoinRoomResult.Disbanded
 
-            # room の現在の人数を更新
-            if room_info.joined_user_count + 1 == room_info.max_user_count:
-                conn.execute(
-                    text(
-                        "UPDATE room SET room_result = 2 " "WHERE room_id = :room_id "
-                    ),
-                    {
-                        "room_id": room_id,
-                    },
-                )
-            conn.execute(
-                text(
-                    "UPDATE room SET joined_user_count= :new_joined_user_count "
-                    "WHERE room_id = :room_id"
-                ),
-                {
-                    "room_id": room_id,
-                    "new_joined_user_count": room_info.joined_user_count + 1,
-                },
-            )
-            print(difficulty)
+            if room.room_result != JoinRoomResult.Ok:
+                return room.room_result
 
+            # room の現在の人数を更新
+            if room.joined_user_count + 1 == room.max_user_count:
+                _update_room(conn, room_id, room_result=2)
+            _update_room(conn, room_id, joined_user_count=room.joined_user_count+1)
             return JoinRoomResult.Ok
+
         except Exception as e:
             print(f"Error updating user: {str(e)}")
             return JoinRoomResult.OtherError
@@ -237,24 +289,12 @@ def wait_room(token: str, room_id: int):
         reqest_user = _get_user_by_token(conn, token)
         if reqest_user is None:
             raise InvalidToken
-        room = conn.execute(
-            text("SELECT * FROM room WHERE room_id = :room_id"),
-            {"room_id": room_id},
-        ).one_or_none()
-        join_users = conn.execute(
-            text(
-                "SELECT user_id, select_difficulty FROM room_member "
-                "WHERE room_id = :room_id"
-            ),
-            {"room_id": room_id},
-        )
-        join_users = join_users.fetchall()
+        room = _get_room(conn, room_id)
+        join_users = _get_room_members(conn, room_id)
+
         room_user_list = []
         for join_user in join_users:
-            user = conn.execute(
-                text("SELECT id, name, leader_card_id FROM user WHERE id=:user_id"),
-                {"user_id": join_user.user_id},
-            ).one_or_none()
+            user = _get_user_by_id(conn, join_user.user_id)
             if user is None:
                 continue
             room_user_list.append(
@@ -275,10 +315,7 @@ def start_room(token: str, room_id: int):
         reqest_user = _get_user_by_token(conn, token)
         if reqest_user is None:
             raise InvalidToken
-        conn.execute(
-            text("UPDATE room SET wait_status= 2 WHERE room_id = :room_id"),
-            {"room_id": room_id},
-        )
+        _update_room(conn, room_id, wait_status=2, room_result=2)
 
 
 def end_room(token: str, room_id: int, judge_count_list: list[int], score: int):
@@ -287,24 +324,8 @@ def end_room(token: str, room_id: int, judge_count_list: list[int], score: int):
         if user is None:
             raise InvalidToken
         judge_count_json = json.dumps(judge_count_list)
-        conn.execute(
-            text(
-                "UPDATE room_member SET judge_count_list = :judge_count_list "
-                "WHERE room_id = :room_id AND user_id = :user_id"
-            ),
-            {
-                "user_id": user.id,
-                "room_id": room_id,
-                "judge_count_list": judge_count_json,
-            },
-        )
-        conn.execute(
-            text(
-                "UPDATE room_member SET score = :score "
-                "WHERE room_id = :room_id AND user_id = :user_id"
-            ),
-            {"user_id": user.id, "room_id": room_id, "score": score},
-        )
+        _update_room_member(conn, user.id, room_id, judge_count_json, score)   
+        _update_room(conn, room_id, wait_status= 3, room_result= 3)
 
 
 class ResultUser(BaseModel):
@@ -320,17 +341,10 @@ def result_room(token: str, room_id: int):
             raise InvalidToken
 
         result_user_list = []
-        join_users = conn.execute(
-            text(
-                "SELECT user_id, judge_count_list, score  FROM room_member "
-                "WHERE room_id = :room_id"
-            ),
-            {"room_id": room_id},
-        )
-        join_users = join_users.fetchall()
+        join_users = _get_room_members(conn, room_id)
         for join_user in join_users:
             if join_user.score is None:
-                return None
+                return Empty()
 
             result_user_list.append(
                 ResultUser(
@@ -356,35 +370,21 @@ def leave_room(token: str, room_id: int):
             {"room_id": room_id, "user_id": user.id},
         )
 
-        room = conn.execute(
-            text("SELECT * FROM room WHERE room_id = :room_id"),
-            {"room_id": room_id},
-        ).one_or_none()
+        room = _get_room(conn, room_id)
 
         if room.joined_user_count <= 1:
-            conn.execute(
-                text("UPDATE room SET room_result= 3  WHERE room_id = :room_id"),
-                {"room_id": room_id},
-            )
+            _update_room(conn, room_id, room_result= 3)
             return None
 
         if room.joined_user_count == room.max_user_count:
-            conn.execute(
-                text("UPDATE room SET room_result= 2  WHERE room_id = :room_id"),
-                {"room_id": room_id},
-            )
+            _update_room(connn, room_id, room_result= 2)
 
-        conn.execute(
-            text(
-                "UPDATE room SET joined_user_count= :joined_user_count  WHERE room_id = :room_id"
-            ),
-            {"room_id": room_id, "join_user_count": room.join_user_count - 1},
-        )
+        _update_room(conn, room_id, joined_user_count=room.joined_user_count-1)
 
         if room.host_user_id == user.id:
             joined_member = conn.execute(
                 text("SELECT * FROM room_member " "WHERE room_id = :room_id"),
-                {"room_id": room_id, "user_id": user.id},
+                {"room_id": room_id},
             ).one()
             conn.execute(
                 text(

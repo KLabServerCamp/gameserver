@@ -49,7 +49,6 @@ class Room:
         with engine.begin() as conn:
             if live_id == 0:
                 res = conn.execute(
-                    # text("SELECT `room_id`, `live_id` FROM `room` WHERE `status`=1")
                     text(
                         """
                          SELECT `room`.`room_id`, `room`.`live_id`, `member`.`cnt` AS `member_count` FROM `room` INNER JOIN (
@@ -123,7 +122,6 @@ class Room:
                 ),
                 {"room_id": room_id, "user_id": user.id, "difficulty": int(difficulty)},
             )
-            conn.commit()
             return schemas.JoinRoomResult.Ok
 
     @staticmethod

@@ -175,13 +175,13 @@ def select(req: ListRoomRequest) -> RoomInfoList:
     room_list = model.list_room(req.live_id)
     if room_list is None:
         return RoomInfoList(room_info_list=[])
-    room_list = list(map(lambda room: RoomInfo(
-            room_id=room.room_id,
-            live_id=room.live_id,
-            joined_user_count=room.joined_user_count,
-            max_user_count=room.max_user_count
-            ), room_list))
-    print(room_list)
+    room_list = [RoomInfo(
+            room_id=r.room_id,
+            live_id=r.live_id,
+            joined_user_count=r.joined_user_count,
+            max_user_count=r.max_user_count
+            )
+            for r in room_list]
     return RoomInfoList(room_info_list=room_list)
 
 
@@ -196,14 +196,15 @@ def join(token: UserToken, req: JoinRoomRequest) -> JoinRoomResult:
 def wait(token: UserToken, req: WaitRoomRequest) -> WaitRoomResult:
     print("/room/wait", req)
     status, members = model.wait_room(token, req.room_id)
-    members = list(map(lambda member: RoomUser(
-            user_id=member["user_id"],
-            name=member["name"],
-            leader_card_id=member["leader_card_id"],
-            select_difficulty=member["select_difficulty"],
-            is_me=member["is_me"],
-            is_host=member["is_host"]
-            ), members))
+    members = [RoomUser(
+            user_id=m["user_id"],
+            name=m["name"],
+            leader_card_id=m["leader_card_id"],
+            select_difficulty=m["select_difficulty"],
+            is_me=m["is_me"],
+            is_host=m["is_host"]
+            )
+            for m in members]
     return WaitRoomResult(status=status, room_user_list=members)
 
 
@@ -232,9 +233,10 @@ def end(token: UserToken, req: EndRoomRequest) -> EmptyResult:
 def result(token: UserToken, req: ResultRoomRequest) -> ResultRoomResult:
     print("/room/result", req)
     result_users = model.result_room(token, req.room_id)
-    result_users = list(map(lambda result_user: ResultUser(
-            user_id=result_user["user_id"],
-            judge_count_list=result_user["judge_count_list"],
-            score=result_user["score"]
-            ), result_users))
+    result_users = [ResultUser(
+            user_id=r["user_id"],
+            judge_count_list=r["judge_count_list"],
+            score=r["score"]
+            )
+            for r in result_users]
     return ResultRoomResult(result_user_list=result_users)

@@ -341,7 +341,7 @@ def wait_room(token: str, room_id: int):
         room_members = room_members.member_list.split(',')
         if room_members[0] == '':
             room_members = []
-        room_members = list(map(lambda member: int(member), room_members))
+        room_members = [int(m) for m in room_members]
         room_compiled_members = []
         for member_id in room_members:
             room_member = get_room_user(conn, member_id)
@@ -379,7 +379,7 @@ def start_room(token: str, room_id: int):
         room_members = room_members.member_list.split(',')
         if room_members[0] == '':
             room_members = []
-        room_members = list(map(lambda member: int(member), room_members))
+        room_members = [int(m) for m in room_members]
         if room_members[0] == user.id:
             room_start_live(conn, room_id)
 
@@ -395,7 +395,7 @@ def leave_room(token: str, room_id: int):
         room_members = room_members.member_list.split(',')
         if room_members[0] == '':
             room_members = []
-        room_members = list(filter(lambda member: int(member)!=user.id, room_members))
+        room_members = [m for m in room_members if int(m)!=user.id]
         room_members = ",".join(room_members)
         update_room_member(conn, room_id, room_members)
         delete_room_user(conn, user.id)
@@ -408,7 +408,7 @@ def end_room(token: str, room_id: int, judge_count_list: list[int], score: int):
         user = _get_user_by_token(conn, token)
         if user is None:
             raise InvalidToken
-        judge_count_list = list(map(lambda judge_count: str(judge_count), judge_count_list))
+        judge_count_list = [str(j) for j in judge_count_list]
         conn.execute(text(
             "UPDATE `room_user` SET `score`=:score, `judge_count_list`=:judge_count_list WHERE `user_id`=:user_id AND `room_id`=:room_id"
         ), {
@@ -436,7 +436,7 @@ def result_room(token: str, room_id: int):
                 else:
                     return []
             judge_count_list = room_user.judge_count_list.split(',')
-            judge_count_list = list(map(lambda judge_count: int(judge_count), judge_count_list))
+            judge_count_list = [int(j) for j in judge_count_list]
             room_member = {
                 "user_id": room_user.user_id,
                 "judge_count_list": judge_count_list,

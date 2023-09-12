@@ -47,7 +47,7 @@ def test_room_1():
     print("room/wait response:", response.json())
     
 
-    """
+    
     # 他ユーザー参加
     response = client.post(
         "/room/join",
@@ -69,7 +69,7 @@ def test_room_1():
         json={"room_id": room_id, "select_difficulty": 2},
     )
     assert response.status_code == 200
-
+"""
     # はじかれるユーザー
     response = client.post(
         "/room/join",

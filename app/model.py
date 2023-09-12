@@ -24,10 +24,6 @@ class SafeUser(BaseModel, strict=True):
 
 def create_user(name: str, leader_card_id: int) -> str:
     """Create new user and returns their token"""
-    # UUID4は天文学的な確率だけど衝突する確率があるので、気にするならリトライする必要がある。
-    # サーバーでリトライしない場合は、クライアントかユーザー（手動）にリトライさせることになる。
-    # ユーザーによるリトライは一般的には良くないけれども、
-    # 確率が非常に低ければ許容できる場合もある。
     token = str(uuid.uuid4())
     with engine.begin() as conn:
         result = conn.execute(
@@ -325,7 +321,7 @@ def end_room(token: str, room_id: int, judge: list[int], score: int) -> None:
     judge_json = json.dumps(judge)
 
     with engine.begin() as conn:
-        
+
         # スコアを更新
         conn.execute(
             text(
@@ -341,13 +337,13 @@ def end_room(token: str, room_id: int, judge: list[int], score: int) -> None:
                 "user_id": user.id,
             },
         )
-        
+
         # はじめてのendが叩かれた場合、その時刻を記録
         result = conn.execute(
             text("SELECT `first_user_end` FROM `room` WHERE `room_id`=:room_id"),
             {"room_id": room_id},
         )
-        
+
         if not result.one_or_none().first_user_end:
             conn.execute(
                 text(
@@ -384,7 +380,7 @@ def get_result(room_id: int) -> list[ResultUser]:
         )
         is_timeout = 10 <= result.one().timespan
 
-        # 参加人数とライブ終了人数が一致しない場合
+        # 参加人数とライブ終了人数が一致するまたはタイムアウトした場合
         if joined_user_count == end_user_count or is_timeout:
 
             result = conn.execute(
@@ -399,7 +395,7 @@ def get_result(room_id: int) -> list[ResultUser]:
             try:
                 result_user_list = []
                 for result_user in result:
-                    
+
                     if result_user.score:
                         result_user_list.append(
                             ResultUser(

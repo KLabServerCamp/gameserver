@@ -49,12 +49,23 @@ class Room:
         with engine.begin() as conn:
             if live_id == 0:
                 res = conn.execute(
-                    text("SELECT `room_id`, `live_id` FROM `room` WHERE `status`=1")
+                    # text("SELECT `room_id`, `live_id` FROM `room` WHERE `status`=1")
+                    text(
+                        """
+                         SELECT `room`.`room_id`, `room`.`live_id`, `member`.`cnt` AS `member_count` FROM `room` INNER JOIN (
+                            SELECT `room_id`, COUNT(*) AS `cnt` FROM `room_member` GROUP BY `room_id`
+                         ) AS `member` ON `room`.`room_id`=`member`.`room_id`
+                         """
+                    )
                 )
             else:
                 res = conn.execute(
                     text(
-                        "SELECT `room_id`, `live_id` FROM `room` WHERE `live_id`=:live_id AND `status`=1"
+                        """
+                         SELECT `room`.`room_id`, `room`.`live_id`, `member`.`cnt` AS `member_count` FROM `room` INNER JOIN (
+                            SELECT `room_id`, COUNT(*) AS `cnt` FROM `room_member` GROUP BY `room_id`
+                         ) AS `member` ON `room`.`room_id`=`member`.`room_id` AND `room`.`live_id`=:live_id
+                         """
                     ),
                     {"live_id": live_id},
                 )
@@ -64,9 +75,7 @@ class Room:
                     schemas.RoomInfo(
                         room_id=room.room_id,
                         live_id=room.live_id,
-                        joined_user_count=len(
-                            _get_room_users_from_room_id(conn, room.room_id)
-                        ),
+                        joined_user_count=room.member_count,
                     )
                 )
             return rooms

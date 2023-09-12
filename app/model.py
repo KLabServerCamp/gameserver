@@ -495,9 +495,10 @@ def room_leave(token: str, room_id: int):
             {"room_id": room_id},
         ).one()
         res = result[0]
-        ch_host_judge = False
+        ch_host_judge = 0
         if res == user.id:
-            ch_host_judge = True
+            print("host chenge is true")
+            ch_host_judge = 1
 
         result = conn.execute(
             text(
@@ -510,58 +511,32 @@ def room_leave(token: str, room_id: int):
         if result is None:
             print("you already leave")
             return None
-        user_id = result[0]
-
-        conn.execute(
-            text(
-                """
-                DELETE FROM `room_member` WHERE room_id=:room_id AND user_id=:user_id
-                """
-            ),
-            {"room_id": room_id, "user_id": user_id},
-        )
-        down_joined_count(conn, room_id)
-
-        count = get_room_user_count(conn, room_id)
-        conn.commit()
-        print(f"room leave upto user: {count}")
-        if count > 0:
-            if ch_host_judge == 1:
-                chenge_host_in_room(conn, room_id)
         else:
-            update_room_status(conn, room_id, WaitRoomStatus.Dissolution)
-        conn.commit()
-        """
+            user_id = result[0]
+
             conn.execute(
                 text(
-                    #DELETE FROM `room` WHERE id=:room_id
+                    """
+                    DELETE FROM `room_member` WHERE room_id=:room_id AND user_id=:user_id
+                    """
                 ),
-                {"room_id": room_id},
+                {"room_id": room_id, "user_id": user_id},
             )
-        """
+            down_joined_count(conn, room_id)
 
-
-def chenge_host_in_room(conn, room_id: int):
-    print("chenge host in room")
-    result = conn.execute(
-        text(
+            count = get_room_user_count(conn, room_id)
+            print(f"room leave upto user: {count}")
+            if count > 0:
+                if ch_host_judge == 1:
+                    update_room_status(conn, room_id, WaitRoomStatus.Dissolution)
+            else:
+                update_room_status(conn, room_id, WaitRoomStatus.Dissolution)
+            conn.commit()
             """
-            SELECT user_id FROM `room_member` WHERE room_id=:room_id ORDER BY in_order LIMIT 1
+                conn.execute(
+                    text(
+                        #DELETE FROM `room` WHERE id=:room_id
+                    ),
+                    {"room_id": room_id},
+                )
             """
-        ),
-        {"room_id": room_id},
-    ).one_or_none()
-    if result is None:
-        return None
-    res = result[0]
-    print(f"next host is: {res}")
-    conn.execute(
-        text(
-            """
-            UPDATE `room` SET room_master=:room_master WHERE id=:room_id
-            """
-        ),
-        {"room_master": res, "room_id": room_id},
-    )
-    conn.commit()
-    return res

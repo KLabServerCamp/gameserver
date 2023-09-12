@@ -223,15 +223,6 @@ class Room:
     def room_result(room_id: int):
         # TODO: タイムアウト処理
         with engine.begin() as conn:
-            # cnt = conn.execute(
-            #     text(
-            #         "SELECT COUNT(1) = (SELECT COUNT(1) FROM `room_member` WHERE `room_id`=:room_id) AS `is_full` FROM `room_member_result` WHERE `room_id`=:room_id"
-            #     ),
-            #     {"room_id": room_id},
-            # ).one_or_none()
-            # if not cnt.is_full:
-            #     return []
-
             scores = conn.execute(
                 text(
                     "SELECT * FROM `room_member_result` WHERE `room_id`=:room_id ORDER BY `updated_at` DESC"

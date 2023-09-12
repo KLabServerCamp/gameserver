@@ -148,7 +148,7 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
 MAX_USER_COUNT = 4
 
 # 部屋タイムアウト (寿命)
-ROOM_TIMEOUT_MAX = 300
+ROOM_TIMEOUT_MAX = 180
 
 # 部屋タイムアウト (wait 無し)
 ROOM_TIMEOUT_NOWAIT = 10
@@ -160,31 +160,40 @@ ROOM_TIMEOUT_RESULT = 10
 INTV_POLLING = 2
 
 
-# 部屋リスト & 古い部屋のクリーンアップ
+def _clean_rooms(conn: Connection) -> None:
+    """古い部屋のクリーンアップ"""
+    # 部屋タイムアウト処理
+    # wait: 300 秒経過 または Waiting かつ 10 秒経過
+    # end: first_end が None でないかつ 30 秒経過
+    waited = conn.execute(text(
+        "SELECT `id` FROM "
+        "(SELECT `id`, `status`, TIMESTAMPDIFF("
+        "SECOND, `last_wait`, CURRENT_TIMESTAMP()"
+        ") AS 'elapsed_w', TIMESTAMPDIFF("
+        "SECOND, `first_end`, CURRENT_TIMESTAMP()"
+        ") AS `elapsed_e` FROM `room`) AS `dummy` "
+        "WHERE `elapsed_w` >= :thr_to_w_long OR "
+        "`elapsed_w` >= :thr_to_w_short AND `status` = :status OR "
+        "`elapsed_e` IS NOT NULL AND `elapsed_e` >= :thr_to_e"
+        ),
+        {
+            "thr_to_w_long": ROOM_TIMEOUT_MAX,
+            "thr_to_w_short": ROOM_TIMEOUT_NOWAIT,
+            "status": int(WaitRoomStatus.Waiting),
+            "thr_to_e": ROOM_TIMEOUT_RESULT + INTV_POLLING * 3
+        }).fetchall()
+    for room in waited:
+        _del_room_row(conn, room.id, force=True)
+
+
+# TODO: ここから上も書き直したい
+
+
 def list_room(req) -> list[RoomInfo]:
+    """部屋リスト"""
     with engine.begin() as conn:
-        # 部屋タイムアウト処理
-        # wait: 300 秒経過 または Waiting かつ 10 秒経過
-        # end: first_end が None でないかつ 30 秒経過
-        waited = conn.execute(text(
-            "SELECT `id` FROM "
-            "(SELECT `id`, `status`, TIMESTAMPDIFF("
-            "SECOND, `last_wait`, CURRENT_TIMESTAMP()"
-            ") AS 'elapsed_w', TIMESTAMPDIFF("
-            "SECOND, `first_end`, CURRENT_TIMESTAMP()"
-            ") AS `elapsed_e` FROM `room`) AS `dummy` "
-            "WHERE `elapsed_w` >= :thr_to_w_long OR "
-            "`elapsed_w` >= :thr_to_w_short AND `status` = :status OR "
-            "`elapsed_e` IS NOT NULL AND `elapsed_e` >= :thr_to_e"
-            ),
-            {
-                "thr_to_w_long": ROOM_TIMEOUT_MAX,
-                "thr_to_w_short": ROOM_TIMEOUT_NOWAIT,
-                "status": int(WaitRoomStatus.Waiting),
-                "thr_to_e": ROOM_TIMEOUT_RESULT + INTV_POLLING * 3
-            }).fetchall()
-        for room in waited:
-            _del_room_row(conn, room.id, force=True)
+        # 古い部屋の削除
+        _clean_rooms(conn)
 
         # 参加可能部屋リストアップ処理
         lid = req.live_id
@@ -214,17 +223,14 @@ def list_room(req) -> list[RoomInfo]:
         ]
 
 
-# TODO: ここから上も書き直したい
-
-
 # 例外メッセージに DB 内の情報を載せるのめちゃくちゃ酷い気がするが、
 # 公開環境じゃないのでしょうがない
 class DBDuplicateEntriesException(Exception):
     pass
 
 
-# ユーザの存在確認 (重複確認込み)
 def _check_user_existence(conn: Connection, user_id) -> bool:
+    """ユーザの存在確認 (重複確認込み)"""
     debugprint(f"{sys._getframe().f_code.co_name}(), {user_id=}")
     result = conn.execute(
         text("SELECT * FROM `user` WHERE `id`=:uid"), {"uid": user_id}
@@ -249,6 +255,7 @@ class _RoomRow(BaseModel):
 
 
 def _get_room_row(conn: Connection, room_id) -> _RoomRow:
+    """room.id から部屋行を取得"""
     debugprint(f"{sys._getframe().f_code.co_name}(), {room_id=}")
     assert _check_room_existence(conn, room_id)
     result = conn.execute(
@@ -267,7 +274,8 @@ def _get_room_row(conn: Connection, room_id) -> _RoomRow:
 
 
 def _set_room_row(conn: Connection, new_data: _RoomRow):
-    print(f"{sys._getframe().f_code.co_name}(), {new_data=}")
+    """room.id の部屋行の編集"""
+    debugprint(f"{sys._getframe().f_code.co_name}(), {new_data=}")
     room_id = new_data.id
     assert _check_room_existence(conn, room_id)
     conn.execute(
@@ -285,9 +293,9 @@ def _set_room_row(conn: Connection, new_data: _RoomRow):
     )
 
 
-# 部屋を新規作成し、その部屋の ID を返す
 def _add_room_row(conn: Connection, new_data: _RoomRow):
-    print(f"{sys._getframe().f_code.co_name}(), {new_data=}")
+    """部屋を新規作成し、その部屋の ID を返す"""
+    debugprint(f"{sys._getframe().f_code.co_name}(), {new_data=}")
     if new_data.id != 0:
         print("You must set 'id' field to zero to create new room. "
               f"{new_data.id=}")
@@ -304,9 +312,9 @@ def _add_room_row(conn: Connection, new_data: _RoomRow):
     ).lastrowid
 
 
-# 部屋削除 (空でない部屋は force=True でないと削除しない)
 def _del_room_row(conn: Connection, room_id, *, force: bool = False):
-    print(f"{sys._getframe().f_code.co_name}(), {room_id=}, {force=}")
+    """部屋削除 (空でない部屋は force=True でないと削除しない)"""
+    debugprint(f"{sys._getframe().f_code.co_name}(), {room_id=}, {force=}")
     if force:
         conn.execute(
             text("DELETE FROM `room_member` WHERE `room_id`=:rid"),
@@ -329,7 +337,8 @@ class _RoomMemberRow(BaseModel):
 
 def _get_room_member_row(conn: Connection, room_id, user_id) \
         -> _RoomMemberRow | None:
-    print(f"{sys._getframe().f_code.co_name}(), {room_id=}, {user_id=}")
+    """入室者行を取得"""
+    debugprint(f"{sys._getframe().f_code.co_name}(), {room_id=}, {user_id=}")
     if not _is_user_in_the_room(conn, user_id, room_id):
         print(f"The user is not in the room. {room_id=}, {user_id=}")
         return
@@ -341,7 +350,8 @@ def _get_room_member_row(conn: Connection, room_id, user_id) \
 
 
 def _get_room_members_rows(conn: Connection, room_id) -> list[_RoomMemberRow]:
-    print(f"{sys._getframe().f_code.co_name}(), {room_id=}")
+    """部屋にいるプレイヤーの room_member 行をすべて取得"""
+    debugprint(f"{sys._getframe().f_code.co_name}(), {room_id=}")
     if not _check_room_existence(conn, room_id):
         print(f"No such room. {room_id=}")
         return []
@@ -352,7 +362,8 @@ def _get_room_members_rows(conn: Connection, room_id) -> list[_RoomMemberRow]:
 
 
 def _set_room_member_row(conn: Connection, new_data: _RoomMemberRow) -> None:
-    print(f"{sys._getframe().f_code.co_name}(), {new_data=}")
+    """入室者情報を変更"""
+    debugprint(f"{sys._getframe().f_code.co_name}(), {new_data=}")
     room_id = new_data.room_id
     user_id = new_data.user_id
     if not _is_user_in_the_room(conn, user_id, room_id):
@@ -376,9 +387,9 @@ def _set_room_member_row(conn: Connection, new_data: _RoomMemberRow) -> None:
     )
 
 
-# ユーザのいる部屋 ID 取得 (部屋にいない場合 -1)
 def _get_room_by_user_id(conn: Connection, user_id):
-    print(f"{sys._getframe().f_code.co_name}(), {user_id=}")
+    """ユーザのいる部屋 ID 取得 (部屋にいない場合 -1)"""
+    debugprint(f"{sys._getframe().f_code.co_name}(), {user_id=}")
     if not _check_user_existence(conn, user_id):
         print(f"No such user. {user_id=}")
         return -1
@@ -394,21 +405,21 @@ def _get_room_by_user_id(conn: Connection, user_id):
     return rows[0].room_id if len(rows) > 0 else -1
 
 
-# ユーザがいずれかの部屋にいるかどうか
 def _is_user_in_room(conn: Connection, user_id) -> bool:
-    print(f"{sys._getframe().f_code.co_name}(), {user_id=}")
+    """ユーザがいずれかの部屋にいるかどうか"""
+    debugprint(f"{sys._getframe().f_code.co_name}(), {user_id=}")
     return _get_room_by_user_id(conn, user_id) != -1
 
 
-# ユーザが指定の部屋にいるかどうか
 def _is_user_in_the_room(conn: Connection, user_id, room_id) -> bool:
-    print(f"{sys._getframe().f_code.co_name}(), {user_id=}, {room_id=}")
+    """ユーザが指定の部屋にいるかどうか"""
+    debugprint(f"{sys._getframe().f_code.co_name}(), {user_id=}, {room_id=}")
     return _get_room_by_user_id(conn, user_id) == room_id
 
 
-# 部屋の存在確認 (重複確認込み)
 def _check_room_existence(conn: Connection, room_id) -> bool:
-    print(f"{sys._getframe().f_code.co_name}(), {room_id=}")
+    """部屋の存在確認 (重複確認込み)"""
+    debugprint(f"{sys._getframe().f_code.co_name}(), {room_id=}")
     result = conn.execute(
         text("SELECT * FROM `room` WHERE `id`=:rid"), {"rid": room_id}
     )
@@ -429,9 +440,9 @@ class _RoomUserRow(BaseModel):
     leader_card_id: int
 
 
-# 部屋にいるユーザ (リスト)
 def _get_users_by_room_id(conn: Connection, room_id) -> list[_RoomUserRow]:
-    print(f"{sys._getframe().f_code.co_name}(), {room_id=}")
+    """部屋にいるユーザ (リスト)"""
+    debugprint(f"{sys._getframe().f_code.co_name}(), {room_id=}")
     if not _check_room_existence(conn, room_id):
         print(f"No such room. {room_id=}")
         return []
@@ -451,9 +462,9 @@ def _get_users_by_room_id(conn: Connection, room_id) -> list[_RoomUserRow]:
     ).fetchall()
 
 
-# 部屋にいる人数
 def _get_room_users_count(conn: Connection, room_id) -> int:
-    print(f"{sys._getframe().f_code.co_name}(), {room_id=}")
+    """部屋にいる人数"""
+    debugprint(f"{sys._getframe().f_code.co_name}(), {room_id=}")
     if not _check_room_existence(conn, room_id):
         print(f"No such room. {room_id=}")
         return []
@@ -463,15 +474,15 @@ def _get_room_users_count(conn: Connection, room_id) -> int:
     ).first()[0]
 
 
-# 満員かどうか
 def _is_room_full(conn: Connection, room_id) -> bool:
-    print(f"{sys._getframe().f_code.co_name}(), {room_id=}")
+    """満員かどうか"""
+    debugprint(f"{sys._getframe().f_code.co_name}(), {room_id=}")
     return _get_room_users_count(conn, room_id) >= MAX_USER_COUNT
 
 
-# ルーム部屋主取得
 def _get_room_host_id(conn: Connection, room_id) -> int:
-    print(f"{sys._getframe().f_code.co_name}(), {room_id=}")
+    """ルーム部屋主取得"""
+    debugprint(f"{sys._getframe().f_code.co_name}(), {room_id=}")
     return _get_room_row(conn, room_id).owner_id
 
 
@@ -479,9 +490,9 @@ class NewHostNotInRoomException(Exception):
     pass
 
 
-# ルーム部屋主変更
 def _set_room_host_id(conn: Connection, room_id, new_uid):
-    print(f"{sys._getframe().f_code.co_name}(), {room_id=}, {new_uid=}")
+    """ルーム部屋主変更"""
+    debugprint(f"{sys._getframe().f_code.co_name}(), {room_id=}, {new_uid=}")
     # 部屋外の人が部屋主になってどーする
     if not _is_user_in_the_room(conn, new_uid, room_id):
         raise NewHostNotInRoomException(f"{room_id=}, {new_uid=}")
@@ -490,24 +501,25 @@ def _set_room_host_id(conn: Connection, room_id, new_uid):
     _set_room_row(conn, room)
 
 
-# 部屋主かどうか
 def _is_user_host(conn: Connection, room_id, user_id) -> bool:
-    print(f"{sys._getframe().f_code.co_name}(), {room_id=}, {user_id=}")
+    """部屋主かどうか"""
+    debugprint(f"{sys._getframe().f_code.co_name}(), {room_id=}, {user_id=}")
     return _get_room_host_id(conn, room_id) == user_id
 
 
-# ルームステータス取得
 def _get_room_status(conn: Connection, room_id) -> WaitRoomStatus | None:
-    print(f"{sys._getframe().f_code.co_name}(), {room_id=}")
+    """ルームステータス取得"""
+    debugprint(f"{sys._getframe().f_code.co_name}(), {room_id=}")
     if not _check_room_existence(conn, room_id):
         print(f"No such room. {room_id=}")
         return
     return _get_room_row(conn, room_id).status
 
 
-# ルームステータス変更
 def _set_room_status(conn: Connection, room_id, new_status: WaitRoomStatus):
-    print(f"{sys._getframe().f_code.co_name}(), {room_id=}, {new_status=}")
+    """ルームステータス変更"""
+    debugprint(f"{sys._getframe().f_code.co_name}(), "
+               f"{room_id=}, {new_status=}")
     if not _check_room_existence(conn, room_id):
         print(f"No such room. {room_id=}")
         return
@@ -517,7 +529,8 @@ def _set_room_status(conn: Connection, room_id, new_status: WaitRoomStatus):
 
 
 def _incr_room_players(conn: Connection, room_id):
-    print(f"{sys._getframe().f_code.co_name}(), {room_id=}")
+    """++room.player"""
+    debugprint(f"{sys._getframe().f_code.co_name}(), {room_id=}")
     conn.execute(
         text("UPDATE `room` SET `players`=`players`+1 WHERE `id`=:rid"),
         {"rid": room_id},
@@ -525,7 +538,8 @@ def _incr_room_players(conn: Connection, room_id):
 
 
 def _decr_room_players(conn: Connection, room_id):
-    print(f"{sys._getframe().f_code.co_name}(), {room_id=}")
+    """--room.player (空の部屋になる場合削除)"""
+    debugprint(f"{sys._getframe().f_code.co_name}(), {room_id=}")
     # 0 になるならリザルト送信完了
     players = conn.execute(
         text("SELECT `players` FROM `room` WHERE `id`=:rid"), {"rid": room_id}
@@ -543,9 +557,9 @@ def _decr_room_players(conn: Connection, room_id):
         )
 
 
-# ルーム入室
 def _add_room_member(conn: Connection, room_id, user_id, diff: LiveDifficulty):
-    print(f"{sys._getframe().f_code.co_name}(), "
+    """ルーム入室"""
+    debugprint(f"{sys._getframe().f_code.co_name}(), "
           f"{room_id=}, {user_id=}, {diff=}")
     if _is_user_in_room(conn, user_id):
         print(f"Already in room. {user_id=}")
@@ -562,9 +576,9 @@ def _add_room_member(conn: Connection, room_id, user_id, diff: LiveDifficulty):
     _incr_room_players(conn, room_id)
 
 
-# ルーム退室
 def _del_room_member(conn: Connection, room_id, user_id):
-    print(f"{sys._getframe().f_code.co_name}(), {room_id=}, {user_id=}")
+    """ルーム退室"""
+    debugprint(f"{sys._getframe().f_code.co_name}(), {room_id=}, {user_id=}")
     if not _is_user_in_the_room(conn, user_id, room_id):
         print(f"The user is not in the room. {room_id=}, {user_id=}")
         return
@@ -625,14 +639,15 @@ def join_room(token: str, req: RoomJoinRequest) -> RoomJoinResponse:
 
 
 def _join_room(conn: Connection, user, req: RoomJoinRequest):
-    print(f"{sys._getframe().f_code.co_name}(), {user=}, {req=}")
+    """指定のユーザを room_member に登録"""
+    debugprint(f"{sys._getframe().f_code.co_name}(), {user=}, {req=}")
     room_id = req.room_id
     difficulty = req.select_difficulty
 
     # [確認] 参加中の部屋が無いこと (OtherError)
     if _get_room_by_user_id(conn, user.id) >= 0:
-        print("you are already in another room. uid=", user.id)
-        return RoomJoinResponse(join_room_result=JoinRoomResult.OtherError)
+        print(f"you are already in another room. Leaving. {user.id=}")
+        _del_room_member(conn, room_id, user.id)
 
     # [確認] 参加先の部屋が存在すること (OtherError)
     if not _check_room_existence(conn, room_id):
@@ -648,7 +663,7 @@ def _join_room(conn: Connection, user, req: RoomJoinRequest):
     #       状態変化している場合のためにチェックはすべき
     if _get_room_status(conn, room_id) != WaitRoomStatus.Waiting:
         print("Live already ongoing or dismissed")
-        return RoomJoinResponse(join_room_result=JoinRoomResult.LiveStarted)
+        return RoomJoinResponse(join_room_result=JoinRoomResult.Dismissed)
 
     # 参加可能
     _add_room_member(conn, room_id, user.id, difficulty)

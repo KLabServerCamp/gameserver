@@ -20,9 +20,8 @@ class RoomInfo(BaseModel):
 class JoinRoomResult(IntEnum):
     Ok = 1
     RoomFull = 2
-    LiveStarted = 3
-    Dismissed = 4
-    OtherError = 5
+    Dismissed = 3
+    OtherError = 4
 
 
 class RoomID(BaseModel):

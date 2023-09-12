@@ -20,6 +20,7 @@ CREATE TABLE `room` (
   `live_id` bigint NOT NULL,
   `max_user_count` int NOT NULL DEFAULT 4,
   `status` int NOT NULL DEFAULT 1,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`room_id`)
 );
 
@@ -41,5 +42,6 @@ CREATE TABLE `room_member_result` (
   `good` bigint DEFAULT 0,
   `bad` bigint DEFAULT 0,
   `miss` bigint DEFAULT 0,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`room_id`, `user_id`)
 );

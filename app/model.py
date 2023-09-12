@@ -138,9 +138,6 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
         rjr = RoomJoinRequest(room_id=room_id, select_difficulty=difficulty)
         _join_room(conn, user, rjr)
 
-        _set_room_host_id(conn, room_id, user.id)
-        _set_room_status(conn, room_id, WaitRoomStatus.Waiting)
-
         return room_id
 
 
@@ -480,31 +477,31 @@ def _is_room_full(conn: Connection, room_id) -> bool:
     return _get_room_users_count(conn, room_id) >= MAX_USER_COUNT
 
 
-def _get_room_host_id(conn: Connection, room_id) -> int:
+def _get_room_owner_id(conn: Connection, room_id) -> int:
     """ルーム部屋主取得"""
     debugprint(f"{sys._getframe().f_code.co_name}(), {room_id=}")
     return _get_room_row(conn, room_id).owner_id
 
 
-class NewHostNotInRoomException(Exception):
+class NewOwnerNotInRoomException(Exception):
     pass
 
 
-def _set_room_host_id(conn: Connection, room_id, new_uid):
+def _set_room_owner_id(conn: Connection, room_id, new_uid):
     """ルーム部屋主変更"""
     debugprint(f"{sys._getframe().f_code.co_name}(), {room_id=}, {new_uid=}")
     # 部屋外の人が部屋主になってどーする
     if not _is_user_in_the_room(conn, new_uid, room_id):
-        raise NewHostNotInRoomException(f"{room_id=}, {new_uid=}")
+        raise NewOwnerNotInRoomException(f"{room_id=}, {new_uid=}")
     room = _get_room_row(conn, room_id)
     room.owner_id = new_uid
     _set_room_row(conn, room)
 
 
-def _is_user_host(conn: Connection, room_id, user_id) -> bool:
+def _is_user_owner(conn: Connection, room_id, user_id) -> bool:
     """部屋主かどうか"""
     debugprint(f"{sys._getframe().f_code.co_name}(), {room_id=}, {user_id=}")
-    return _get_room_host_id(conn, room_id) == user_id
+    return _get_room_owner_id(conn, room_id) == user_id
 
 
 def _get_room_status(conn: Connection, room_id) -> WaitRoomStatus | None:
@@ -560,7 +557,7 @@ def _decr_room_players(conn: Connection, room_id):
 def _add_room_member(conn: Connection, room_id, user_id, diff: LiveDifficulty):
     """ルーム入室"""
     debugprint(f"{sys._getframe().f_code.co_name}(), "
-          f"{room_id=}, {user_id=}, {diff=}")
+               f"{room_id=}, {user_id=}, {diff=}")
     if _is_user_in_room(conn, user_id):
         print(f"Already in room. {user_id=}")
         return
@@ -669,8 +666,8 @@ def _join_room(conn: Connection, user, req: RoomJoinRequest):
     _add_room_member(conn, room_id, user.id, difficulty)
 
     # # 空の部屋でホスト不在の部屋の場合は新たに設定
-    # if _get_room_host_id(conn, room_id) is None or -1:
-    #     _set_room_host_id(conn, room_id, user.id)
+    # if _get_room_owner_id(conn, room_id) is None or -1:
+    #     _set_room_owner_id(conn, room_id, user.id)
 
     # # 解散状態を解除
     # if _get_room_status(conn, room_id) == WaitRoomStatus.Dismissed:
@@ -692,16 +689,16 @@ def leave_room(token: str, req: RoomLeaveRequest) -> None:
             print(f"You are not in the room, {uid=}, {rid=}")
             return
 
-        hid = _get_room_host_id(conn, rid)
+        oid = _get_room_owner_id(conn, rid)
 
         # 部屋主退出
-        if uid == hid:
+        if uid == oid:
             other_user_list = _get_room_members_rows(conn, rid)
             # 次の部屋主を (いれば) 雑に決める
             if len(other_user_list) > 1:
                 for other in other_user_list:
                     if other.user_id != uid:
-                        _set_room_host_id(conn, rid, other.user_id)
+                        _set_room_owner_id(conn, rid, other.user_id)
                         break
 
         # レコード削除 (room_member)
@@ -734,7 +731,7 @@ def wait_room(token: str, req: RoomWaitRequest) -> RoomWaitResponse:
                 leader_card_id=member.leader_card_id,
                 select_difficulty=member.difficulty,
                 is_me=member.user_id == uid,
-                is_host=_is_user_host(conn, rid, member.user_id),
+                is_host=_is_user_owner(conn, rid, member.user_id),
             )
             for member in members
         ]
@@ -757,8 +754,8 @@ def start_room(token: str, req: RoomStartRequest):
             print(f"no such room, {rid=}")
             return
 
-        if not _is_user_host(conn, rid, uid):
-            print("Unauthorized; you are not the host of the room")
+        if not _is_user_owner(conn, rid, uid):
+            print("Unauthorized; you are not the owner of the room")
             print(f"{uid=}, {rid=}")
             return
 

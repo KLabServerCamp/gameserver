@@ -5,7 +5,15 @@ from pydantic import BaseModel, Field
 
 from . import model
 from .auth import UserToken
-from .model import LiveDifficulty
+from .model import (
+    JoinRoomResult,
+    LiveDifficulty,
+    ResultUser,
+    RoomInfo,
+    RoomUser,
+    WaitRoomStatus,
+    Empty,
+)
 
 app = FastAPI()
 
@@ -61,10 +69,6 @@ def user_me(token: UserToken) -> model.SafeUser:
     return user
 
 
-class Empty(BaseModel):
-    pass
-
-
 @app.post("/user/update")
 def update(req: UserCreateRequest, token: UserToken) -> Empty:
     """Update user attributes"""
@@ -91,3 +95,91 @@ def create(token: UserToken, req: CreateRoomRequest) -> RoomID:
     print("/room/create", req)
     room_id = model.create_room(token, req.live_id, req.select_difficulty)
     return RoomID(room_id=room_id)
+
+
+class RoomList(BaseModel):
+    room_info_list: list[RoomInfo]
+
+
+class ListRoomRequest(BaseModel):
+    live_id: int
+
+
+@app.post("/room/list")
+def list_room(token: UserToken, req: ListRoomRequest) -> RoomList:
+    """ルームリストのリクエスト"""
+    print("/room/list", req)
+    room_info_list = model.list_room(token, req.live_id)
+    return RoomList(room_info_list=room_info_list)
+
+
+class JoinRoomResponse(BaseModel):
+    join_room_result: JoinRoomResult
+
+
+class JoinRoomRequest(BaseModel):
+    room_id: int
+    select_difficulty: int
+
+
+@app.post("/room/join")
+def join_room(token: UserToken, req: JoinRoomRequest) -> JoinRoomResponse:
+    """ルーム参加リクエスト"""
+    print("/room/join", req)
+    join_room_result = model.join_room(token, req.room_id, req.select_difficulty)
+    return JoinRoomResponse(join_room_result=join_room_result)
+
+
+class WaitRoomResponse(BaseModel):
+    status: WaitRoomStatus
+    room_user_list: list[RoomUser]
+
+
+@app.post("/room/wait")
+def wait_room(token: UserToken, req: RoomID) -> WaitRoomResponse:
+    """ルーム待機中"""
+    print("/room/wait", req)
+    status, room_user_list = model.wait_room(token, req.room_id)
+    return WaitRoomResponse(status=status, room_user_list=room_user_list)
+
+
+@app.post("/room/start")
+def start_room(token: UserToken, req: RoomID):
+    """ルーム開始"""
+    print("/room/start", req)
+    model.start_room(token, req.room_id)
+    return Empty()
+
+
+class EndRoomRequest(BaseModel):
+    room_id: int
+    judge_count_list: list[int]
+    score: int
+
+
+@app.post("/room/end")
+def end_room(token: UserToken, req: EndRoomRequest):
+    """ルーム終了"""
+    print("/room/end", req)
+    model.end_room(token, req.room_id, req.judge_count_list, req.score)
+    return Empty()
+
+
+class ResultRoomRespomse(BaseModel):
+    result_user_list: list[ResultUser]
+
+
+@app.post("/room/result")
+def result_room(token: UserToken, req: RoomID) -> ResultRoomRespomse:
+    """ルーム結果表示"""
+    print("/room/result", req)
+    result_user_list = model.result_room(token, req.room_id)
+    return ResultRoomRespomse(result_user_list=result_user_list)
+
+
+@app.post("/room/leave")
+def leave_room(token: UserToken, req: RoomID):
+    """ルーム退出"""
+    print("/room/leave", req)
+    model.leave_room(token, req.room_id)
+    return Empty()

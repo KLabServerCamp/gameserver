@@ -151,13 +151,11 @@ def end(token: UserToken, result: model.GameResult) -> dict:
 
 
 @app.post("/room/result")
-def result(room_id: RoomID) -> dict:
-    result = dict()
+def result(room_id: RoomID) -> model.ResultUserList:
     if model.everyone_end(room_id=room_id.room_id):
-        result["result_user_list"] = model.get_result_user(
-            room_id=room_id.room_id)
+        result = model.get_result_user(room_id=room_id.room_id)
     else:
-        result["result_user_list"] = []
+        result = model.ResultUserList
     return result
 
 

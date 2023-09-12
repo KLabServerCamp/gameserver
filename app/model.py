@@ -44,6 +44,7 @@ class SafeUser(BaseModel, strict=True):
     leader_card_id: int
 
 
+# room/listで使用する部屋情報
 class RoomInfo(BaseModel, strict=True):
     room_id: int
     live_id: int
@@ -51,11 +52,13 @@ class RoomInfo(BaseModel, strict=True):
     max_user_count: int
 
 
+# room/createで受け付ける部屋作成に関する情報
 class CreateRoomRequest(BaseModel, strict=True):
     live_id: int
     select_difficulty: int
 
 
+# room/waitで返すユーザー情報
 class RoomUser(BaseModel, strict=True):
     user_id: int
     name: str
@@ -65,21 +68,33 @@ class RoomUser(BaseModel, strict=True):
     is_host: bool
 
 
+class RoomWaitResponce(BaseModel, strict=True):
+    status: int
+    room_user_list: list[RoomUser]
+
+
+# room/joinで受け取る情報
 class JoinRoomRequest(BaseModel, strict=True):
     room_id: int
     select_difficulty: int
 
 
+# ゲーム終了をサーバーに知らせる情報
 class GameResult(BaseModel):
     room_id: int
-    score: int
     judge_count_list: list[int]
+    score: int
 
 
+# room/resultで送るユーザー情報
 class ResultUser(BaseModel, strict=True):
     user_id: int
     judge_count_list: list[int]
     score: int
+
+
+class ResultUserList(BaseModel, strict=True):
+    result_user_list: list[ResultUser]
 
 
 # UUID4は天文学的な確率だけど衝突する確率があるので、気にするならリトライする必要がある。
@@ -130,7 +145,6 @@ def update_user(token: str, name: str, leader_card_id: int) -> None:
             {"name": name, "leader_card_id": leader_card_id, "token": token},
         )
         print({"name": name, "leader_card_id": leader_card_id, "token": token})
-        conn.commit()
 
 
 def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
@@ -156,7 +170,6 @@ def create_room(token: str, live_id: int, difficulty: LiveDifficulty):
                 "difficulty": int(difficulty), "is_host": True
             }
         )
-        conn.commit()
         return room_id
 
 
@@ -238,7 +251,6 @@ def _join_room(token: str, room_id: int,
                 "difficulty": int(select_difficulty)
             }
         )
-        conn.commit()
         return JoinRoomResult.Ok
 
 
@@ -289,7 +301,7 @@ def get_user_list(me: int, room_id: int) -> list[RoomUser]:
         print(f"is_hosts : {is_hosts}")
         print(f"user_names : {user_names}")
         print(f"user_leader_cards : {user_leader_cards}")
-        user_list = []
+        user_list = ResultUserList
         for index, _ in enumerate(user_ids):
             user = RoomUser(
                 user_id=user_ids[index],
@@ -299,7 +311,7 @@ def get_user_list(me: int, room_id: int) -> list[RoomUser]:
                 leader_card_id=user_leader_cards[index],
                 is_me=bool(user_ids[index] == me)
             )
-            user_list.append(user)
+            user_list.result_user_list.append(user)
         print(f"response : {user_list}")
         return user_list
 
@@ -331,7 +343,6 @@ def change_room_state(room_id: int, room_state: WaitRoomStatus) -> None:
             ),
             {"room_state": int(room_state), "room_id": room_id}
         )
-        conn.commit()
 
 
 def save_score(user_id: int, room_id: int, score: int,
@@ -356,7 +367,6 @@ def save_score(user_id: int, room_id: int, score: int,
                 "room_id": room_id
             }
         )
-        conn.commit()
 
 
 def everyone_end(room_id: int) -> bool:
@@ -424,4 +434,3 @@ def leave_room(user_id: int, room_id: int):
             ),
             {"room_id": room_id, "user_id": user_id}
         )
-        conn.commit()

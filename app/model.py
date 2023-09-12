@@ -287,6 +287,12 @@ def create_room(token: str, live_id: int, select_difficulty: LiveDifficulty):
 def list_room(live_id: int):
     """部屋情報の配列を返す"""
     with engine.begin() as conn:
+        conn.execute(text(
+            "DELETE FROM `room` WHERE `joined_user_count`=0"
+        ), {})
+        conn.execute(text(
+            "DELETE FROM `room_member` WHERE `member_list`=''"
+        ), {})
         if live_id == 0:
             res = conn.execute(text(
                 "SELECT `room_id`, `joined_user_count`, `max_user_count`, `live_id` FROM `room` WHERE `lived`=false"
